@@ -277,10 +277,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [repeat, next]);
 
-  // Use direct URLs - proxy only needed in dev
+  // Proxy SoundHelix audio to avoid CORS issues
   const getProxiedSrc = (src: string) => {
-    if (src.includes("soundhelix.com") && import.meta.env.DEV) {
-      return src.replace("https://www.soundhelix.com", "/api/soundhelix");
+    if (src.includes("soundhelix.com")) {
+      const path = new URL(src).pathname;
+      return `/api/proxy-audio?path=${encodeURIComponent(path)}`;
     }
     return src;
   };
