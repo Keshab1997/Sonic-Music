@@ -1,37 +1,50 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import ytdl from "@distube/ytdl-core";
+
+const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-AllowOrigin", "*");
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET");
   res.setHeader("Cache-Control", "public, max-age=3600");
 
-  const videoUrl = req.query.url as string;
-  if (!videoUrl) {
-    return res.status(400).json({ error: "Missing url parameter" });
+  const query = req.query.q as string;
+  if (!query) {
+    return res.status(400).json({ error: "Missing q parameter" });
   }
 
   try {
-    const info = await ytdl.getInfo(videoUrl);
-    const audioFormats = ytdl.filterFormats(info.formats, "audioonly");
+    const apiRes = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=20`);
+    if (!apiRes.ok) throw new Error("API request failed");
 
-    if (audioFormats.length === 0) {
-      return res.status(404).json({ error: "No audio streams found" });
-    }
+    const data = await apiRes.json();
+    const results = data.data?.results || [];
 
-    // Get the best audio quality
-    const bestAudio = audioFormats[0];
+    const songs = results.map((song: {
+      id: string;
+      name: string;
+      primaryArtists: string;
+      album: { name: string };
+      duration: string;
+      image: { quality: string; link: string }[];
+      downloadUrl: { quality: string; link: string }[];
+    }) => ({
+      id: song.id,
+      title: song.name,
+      artist: song.primaryArtists,
+      album: song.album?.name || "",
+      duration: parseInt(song.duration) || 0,
+      cover: song.image?.find((i) => i.quality === "500x500")?.link ||
+             song.image?.[song.image.length - 1]?.link ||
+             "",
+      audioUrl: song.downloadUrl?.find((d) => d.quality === "160kbps")?.link ||
+                song.downloadUrl?.find((d) => d.quality === "96kbps")?.link ||
+                song.downloadUrl?.[0]?.link ||
+                "",
+    }));
 
-    return res.status(200).json({
-      title: info.videoDetails.title,
-      author: info.videoDetails.author.name,
-      duration: parseInt(info.videoDetails.lengthSeconds),
-      thumbnail: info.videoDetails.thumbnails[0]?.url || "",
-      audioUrl: bestAudio.url,
-      mimeType: bestAudio.mimeType,
-    });
+    return res.status(200).json(songs);
   } catch (err) {
-    console.error("YouTube audio extraction error:", err);
-    return res.status(500).json({ error: "Failed to get audio stream", details: String(err) });
+    console.error("Search error:", err);
+    return res.status(500).json({ error: "Search failed", details: String(err) });
   }
 }

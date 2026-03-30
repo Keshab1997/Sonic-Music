@@ -1,7 +1,7 @@
 import { useState, FormEvent } from "react";
-import { Search, Play, Clock, Loader2, AlertCircle, Pause, Loader } from "lucide-react";
+import { Search, Play, Clock, Loader2, AlertCircle, Pause } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
-import { useYouTubeSearch } from "@/hooks/useYouTubeSearch";
+import { useMusicSearch } from "@/hooks/useYouTubeSearch";
 
 const formatDuration = (seconds: number) => {
   if (!seconds) return "--:--";
@@ -12,8 +12,8 @@ const formatDuration = (seconds: number) => {
 
 export const SearchPage = () => {
   const [query, setQuery] = useState("");
-  const { results, loading, error, search } = useYouTubeSearch();
-  const { playTrack, currentTrack, isPlaying, pause, isLoading } = usePlayer();
+  const { results, loading, error, search } = useMusicSearch();
+  const { playTrack, currentTrack, isPlaying, pause } = usePlayer();
   const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = (e: FormEvent) => {
@@ -26,7 +26,7 @@ export const SearchPage = () => {
   return (
     <main className="flex-1 overflow-y-auto pb-28">
       <div className="px-6 pt-8">
-        <h2 className="text-3xl font-bold text-foreground mb-6">Search YouTube</h2>
+        <h2 className="text-3xl font-bold text-foreground mb-6">Search Music</h2>
 
         <form onSubmit={handleSearch} className="flex gap-2 mb-8">
           <div className="relative flex-1">
@@ -47,14 +47,6 @@ export const SearchPage = () => {
             {loading ? <Loader2 size={18} className="animate-spin" /> : "Search"}
           </button>
         </form>
-
-        {/* Loading indicator for audio fetch */}
-        {isLoading && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20 mb-4">
-            <Loader size={16} className="animate-spin text-primary" />
-            <p className="text-sm text-primary">Loading audio...</p>
-          </div>
-        )}
 
         {error && (
           <div className="flex items-center gap-2 p-4 rounded-lg bg-destructive/10 text-destructive mb-6">
@@ -78,7 +70,7 @@ export const SearchPage = () => {
         {!hasSearched && !loading && (
           <div className="text-center py-20">
             <Search size={48} className="mx-auto text-muted-foreground/30 mb-4" />
-            <p className="text-muted-foreground">Search for any YouTube song to start playing</p>
+            <p className="text-muted-foreground">Search for any song to start playing</p>
           </div>
         )}
 
@@ -108,25 +100,23 @@ export const SearchPage = () => {
                   }`}
                 >
                   <div className="relative flex-shrink-0">
-                    <img
-                      src={track.cover}
-                      alt={track.title}
-                      className="w-14 h-14 rounded-md object-cover"
-                    />
-                    {isActive && isLoading ? (
-                      <div className="absolute inset-0 rounded-md bg-black/40 flex items-center justify-center">
-                        <Loader size={18} className="animate-spin text-white" />
+                    {track.cover ? (
+                      <img
+                        src={track.cover}
+                        alt={track.title}
+                        className="w-14 h-14 rounded-md object-cover"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-md bg-muted flex items-center justify-center">
+                        <Play size={18} className="text-muted-foreground" />
                       </div>
-                    ) : isCurrentlyPlaying ? (
+                    )}
+                    {isCurrentlyPlaying && (
                       <div className="absolute inset-0 rounded-md bg-black/40 flex items-center justify-center gap-0.5">
                         <span className="w-0.5 h-3 bg-white rounded-full animate-pulse-glow" />
                         <span className="w-0.5 h-4 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
                         <span className="w-0.5 h-2 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
                         <span className="w-0.5 h-3 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.45s" }} />
-                      </div>
-                    ) : (
-                      <div className="absolute inset-0 rounded-md bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                        <Play size={18} className="text-white ml-0.5" fill="white" />
                       </div>
                     )}
                   </div>

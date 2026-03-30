@@ -1,15 +1,17 @@
 import { useState, useCallback } from "react";
 import { Track } from "@/data/playlist";
 
-interface YouTubeResult {
-  videoId: string;
+interface SaavnSong {
+  id: string;
   title: string;
-  author: string;
+  artist: string;
+  album: string;
   duration: number;
-  thumbnail: string;
+  cover: string;
+  audioUrl: string;
 }
 
-export const useYouTubeSearch = () => {
+export const useMusicSearch = () => {
   const [results, setResults] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,28 +23,33 @@ export const useYouTubeSearch = () => {
     setResults([]);
 
     try {
-      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/youtube-audio?q=${encodeURIComponent(query)}`);
       if (!res.ok) throw new Error("Search failed");
 
-      const data: YouTubeResult[] = await res.json();
+      const data: SaavnSong[] = await res.json();
 
-      const tracks: Track[] = data.map((v, i) => ({
-        id: 1000 + i,
-        title: v.title,
-        artist: v.author || "Unknown",
-        album: "YouTube",
-        cover: v.thumbnail || `https://img.youtube.com/vi/${v.videoId}/mqdefault.jpg`,
-        src: `https://www.youtube.com/watch?v=${v.videoId}`,
-        duration: v.duration || 0,
-        type: "youtube" as const,
-      }));
+      const tracks: Track[] = data
+        .filter((s) => s.audioUrl)
+        .map((s, i) => ({
+          id: 2000 + i,
+          title: s.title,
+          artist: s.artist || "Unknown",
+          album: s.album || "",
+          cover: s.cover || "",
+          src: s.audioUrl,
+          duration: s.duration || 0,
+          type: "audio" as const,
+        }));
 
       setResults(tracks);
     } catch {
-      setError("YouTube search failed. Try again.");
+      setError("Search failed. Try again.");
     }
     setLoading(false);
   }, []);
 
   return { results, loading, error, search };
 };
+
+// Keep backward compatibility
+export const useYouTubeSearch = useMusicSearch;
