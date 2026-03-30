@@ -159,10 +159,10 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
           <div className="absolute inset-0 bg-black/30" />
           <div className="relative">
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <span className="text-4xl">{emoji}</span>
-                <div>
-                  <h2 className="text-xl font-bold text-white">{moodName}</h2>
+              <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1 mr-2">
+                <span className="text-3xl md:text-4xl flex-shrink-0">{emoji}</span>
+                <div className="min-w-0">
+                  <h2 className="text-base md:text-xl font-bold text-white truncate">{moodName}</h2>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-white/80 flex items-center gap-1">
                       <Shuffle size={10} /> Daily Mix
@@ -172,11 +172,11 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
                 {songs.length > 0 && (
                   <button
                     onClick={() => playTrackList(songs, 0)}
-                    className="px-4 py-2 text-xs rounded-full bg-white/20 backdrop-blur-sm text-white font-medium hover:bg-white/30 transition-all"
+                    className="px-3 md:px-4 py-1.5 md:py-2 text-[10px] md:text-xs rounded-full bg-white/20 backdrop-blur-sm text-white font-medium hover:bg-white/30 transition-all"
                   >
                     Play All
                   </button>

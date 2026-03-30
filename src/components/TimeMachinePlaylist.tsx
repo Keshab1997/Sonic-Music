@@ -90,10 +90,10 @@ export const TimeMachinePlaylist = ({ eraName, subtitle, searchQuery, onClose }:
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg max-h-[85vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden">
-        <div className="p-4 border-b border-border">
+        <div className="p-3 md:p-4 border-b border-border">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-foreground">{eraName} — {subtitle}</h2>
+            <div className="min-w-0 flex-1 mr-2">
+              <h2 className="text-base md:text-xl font-bold text-foreground truncate">{eraName} — {subtitle}</h2>
               <div className="flex items-center gap-2 mt-0.5">
                 <p className="text-xs text-muted-foreground">{songs.length} songs</p>
                 <span className="text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full flex items-center gap-1">

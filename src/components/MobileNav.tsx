@@ -12,7 +12,7 @@ export const MobileNav = () => {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <nav className="fixed bottom-[72px] left-0 right-0 z-40 md:hidden glass border-t border-border">
+    <nav className="fixed bottom-[90px] left-0 right-0 z-40 md:hidden glass border-t border-border">
       <div className="flex justify-around py-2">
         {tabs.map(({ icon: Icon, label, path }) => (
           <Link

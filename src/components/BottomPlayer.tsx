@@ -171,7 +171,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Queue Panel */}
       {showQueue && (
-        <div className="fixed bottom-20 right-4 z-50 w-80 max-h-96 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-20 md:bottom-20 right-2 md:right-4 z-50 w-[calc(100vw-1rem)] max-w-80 max-h-96 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between p-3 border-b border-border">
             <h3 className="text-sm font-semibold text-foreground">Queue ({queue.length})</h3>
             <div className="flex items-center gap-1">
@@ -211,7 +211,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Sleep Timer Menu */}
       {showSleepMenu && (
-        <div className="fixed bottom-20 right-20 z-50 w-48 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-20 md:bottom-20 right-2 md:right-20 z-50 w-48 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="p-2 border-b border-border">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-foreground">Sleep Timer</span>
@@ -242,7 +242,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Quality Menu */}
       {showQualityMenu && (
-        <div className="fixed bottom-20 right-36 z-50 w-40 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-20 md:bottom-20 right-2 md:right-36 z-50 w-40 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="p-2 border-b border-border">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-foreground">Audio Quality</span>
@@ -510,7 +510,7 @@ const LyricsPanel = ({ songId, title, onClose }: { songId: string; title: string
   }, [songId]);
 
   return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-[400px] max-h-[60vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)] max-w-[400px] max-h-[60vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
       <div className="flex items-center justify-between p-3 border-b border-border">
         <h3 className="text-sm font-semibold text-foreground truncate">{title} — Lyrics</h3>
         <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground transition-colors">

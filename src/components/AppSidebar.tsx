@@ -148,18 +148,18 @@ export const AppSidebar = () => {
                   {pl.name}
                   <span className="text-[10px] text-muted-foreground/60 ml-1">({pl.tracks.length})</span>
                 </button>
-                <div className="hidden group-hover:flex items-center gap-0.5 pr-2">
+                <div className="flex items-center gap-0.5 pr-1">
                   <button
-                    onClick={() => { setEditingId(pl.id); setEditName(pl.name); }}
-                    className="p-0.5 text-muted-foreground hover:text-foreground"
+                    onClick={(e) => { e.stopPropagation(); setEditingId(pl.id); setEditName(pl.name); }}
+                    className="p-1.5 text-muted-foreground hover:text-foreground rounded-full hover:bg-sidebar-accent transition-colors"
                   >
-                    <Pencil size={10} />
+                    <Pencil size={12} />
                   </button>
                   <button
-                    onClick={() => deletePlaylist(pl.id)}
-                    className="p-0.5 text-muted-foreground hover:text-destructive"
+                    onClick={(e) => { e.stopPropagation(); deletePlaylist(pl.id); }}
+                    className="p-1.5 text-muted-foreground hover:text-destructive rounded-full hover:bg-sidebar-accent transition-colors"
                   >
-                    <Trash2 size={10} />
+                    <Trash2 size={12} />
                   </button>
                 </div>
               </>

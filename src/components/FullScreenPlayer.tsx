@@ -136,7 +136,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
         <div className="px-5 md:px-8 pb-2">
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0 mr-4">
-              <h2 className="text-xl font-bold text-white truncate">{currentTrack.title}</h2>
+              <h2 className="text-lg md:text-xl font-bold text-white truncate">{currentTrack.title}</h2>
               <p className="text-sm text-white/60 truncate">{currentTrack.artist}</p>
             </div>
             <button
@@ -178,7 +178,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
 
         {/* Controls */}
         <div className="px-5 md:px-8 py-4">
-          <div className="flex items-center justify-center gap-8">
+          <div className="flex items-center justify-center gap-5 md:gap-8">
             <button
               onClick={toggleShuffle}
               className={`p-2 rounded-full transition-colors ${

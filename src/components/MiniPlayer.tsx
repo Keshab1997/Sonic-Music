@@ -1,4 +1,4 @@
-import { Play, Pause, SkipForward, X, Maximize2, Music2 } from "lucide-react";
+import { Play, Pause, SkipForward, X, Maximize2 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 
 interface MiniPlayerProps {
@@ -14,7 +14,7 @@ export const MiniPlayer = ({ onExpand, onClose }: MiniPlayerProps) => {
   const progressPercent = duration ? (progress / duration) * 100 : 0;
 
   return (
-    <div className="fixed bottom-24 right-4 z-50 w-72 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-up">
+    <div className="fixed bottom-[140px] md:bottom-24 right-2 md:right-4 z-50 w-[calc(100vw-1rem)] max-w-72 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-up">
       {/* Progress bar at top */}
       <div className="h-0.5 bg-muted">
         <div
@@ -50,31 +50,31 @@ export const MiniPlayer = ({ onExpand, onClose }: MiniPlayerProps) => {
         <div className="flex items-center gap-1">
           <button
             onClick={togglePlay}
-            className="w-8 h-8 rounded-full bg-primary flex items-center justify-center hover:scale-105 transition-transform"
+            className="w-10 h-10 rounded-full bg-primary flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
           >
             {isPlaying ? (
-              <Pause size={14} className="text-primary-foreground" />
+              <Pause size={16} className="text-primary-foreground" />
             ) : (
-              <Play size={14} className="text-primary-foreground ml-0.5" />
+              <Play size={16} className="text-primary-foreground ml-0.5" />
             )}
           </button>
           <button
             onClick={next}
-            className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-2 text-muted-foreground hover:text-foreground active:scale-90 transition-all"
           >
-            <SkipForward size={14} />
+            <SkipForward size={16} />
           </button>
           <button
             onClick={onExpand}
-            className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-2 text-muted-foreground hover:text-foreground active:scale-90 transition-all"
           >
-            <Maximize2 size={12} />
+            <Maximize2 size={14} />
           </button>
           <button
             onClick={onClose}
-            className="p-1 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+            className="p-2 text-muted-foreground/50 hover:text-muted-foreground active:scale-90 transition-all"
           >
-            <X size={12} />
+            <X size={14} />
           </button>
         </div>
       </div>

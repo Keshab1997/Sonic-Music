@@ -50,7 +50,7 @@ const SongRow = ({
       >
         <div className="relative flex-shrink-0">
           {track.cover ? (
-            <img src={track.cover} alt={track.title} className="w-14 h-14 rounded-md object-cover" />
+            <img src={track.cover} alt={track.title} className="w-12 h-12 md:w-14 md:h-14 rounded-md object-cover" />
           ) : (
             <div className="w-14 h-14 rounded-md bg-muted flex items-center justify-center">
               <Play size={18} className="text-muted-foreground" />
