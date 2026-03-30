@@ -1,14 +1,15 @@
-import { Home, Search, Library } from "lucide-react";
+import { Home, Search, Sun, Moon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { useTheme } from "@/hooks/useTheme";
 
 const tabs = [
   { icon: Home, label: "Home", path: "/" },
   { icon: Search, label: "Search", path: "/search" },
-  { icon: Library, label: "Library", path: "/" },
 ];
 
 export const MobileNav = () => {
   const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <nav className="fixed bottom-[72px] left-0 right-0 z-40 md:hidden glass border-t border-border">
@@ -27,6 +28,13 @@ export const MobileNav = () => {
             <span className="text-[10px] font-medium">{label}</span>
           </Link>
         ))}
+        <button
+          onClick={toggleTheme}
+          className="flex flex-col items-center gap-1 p-2 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+          <span className="text-[10px] font-medium">{theme === "dark" ? "Light" : "Dark"}</span>
+        </button>
       </div>
     </nav>
   );

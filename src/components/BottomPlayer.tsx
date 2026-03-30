@@ -17,9 +17,12 @@ import {
   X,
   Trash2,
   ChevronUp,
+  Sliders,
+  Minimize2,
 } from "lucide-react";
 import { usePlayer, AudioQuality } from "@/context/PlayerContext";
 import { FullScreenPlayer } from "@/components/FullScreenPlayer";
+import { Equalizer } from "@/components/Equalizer";
 
 const formatTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -35,7 +38,12 @@ const QUALITY_OPTIONS: { label: string; value: AudioQuality }[] = [
 
 const SLEEP_OPTIONS = [15, 30, 45, 60, 90, 120];
 
-export const BottomPlayer = () => {
+interface BottomPlayerProps {
+  onShowMiniPlayer?: () => void;
+  onShowEqualizer?: () => void;
+}
+
+export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayerProps = {}) => {
   const {
     currentTrack,
     isPlaying,
@@ -70,6 +78,7 @@ export const BottomPlayer = () => {
   const [showLyrics, setShowLyrics] = useState(false);
   const [showPlaylist, setShowPlaylist] = useState(false);
   const [showFullScreen, setShowFullScreen] = useState(false);
+  const [showEqualizer, setShowEqualizer] = useState(false);
 
   if (!currentTrack) return null;
 
@@ -414,6 +423,24 @@ export const BottomPlayer = () => {
               </button>
             </div>
 
+            {/* Equalizer */}
+            <button
+              onClick={() => setShowEqualizer(true)}
+              className="p-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+              title="Equalizer"
+            >
+              <Sliders size={16} />
+            </button>
+
+            {/* Mini Player */}
+            <button
+              onClick={() => onShowMiniPlayer?.()}
+              className="p-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors hidden lg:block"
+              title="Mini Player"
+            >
+              <Minimize2 size={16} />
+            </button>
+
             {/* Volume */}
             <button
               onClick={() => setVolume(volume === 0 ? 0.7 : 0)}
@@ -447,6 +474,11 @@ export const BottomPlayer = () => {
           }}
           onShowLyrics={() => setShowLyrics(true)}
         />
+      )}
+
+      {/* Equalizer */}
+      {showEqualizer && (
+        <Equalizer onClose={() => setShowEqualizer(false)} />
       )}
     </>
   );

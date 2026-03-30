@@ -4,9 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PlayerProvider } from "@/context/PlayerContext";
-import { AppSidebar } from "@/components/AppSidebar";
-import { MobileNav } from "@/components/MobileNav";
-import { BottomPlayer } from "@/components/BottomPlayer";
+import { AppShell } from "@/components/AppShell";
 import { MainContent } from "@/components/MainContent";
 import { SearchPage } from "@/pages/SearchPage";
 import NotFound from "./pages/NotFound.tsx";
@@ -22,20 +20,14 @@ const App = () => (
         <PlayerProvider>
           <Routes>
             <Route path="/" element={
-              <div className="flex h-screen overflow-hidden bg-background">
-                <AppSidebar />
+              <AppShell>
                 <MainContent />
-                <MobileNav />
-                <BottomPlayer />
-              </div>
+              </AppShell>
             } />
             <Route path="/search" element={
-              <div className="flex h-screen overflow-hidden bg-background">
-                <AppSidebar />
+              <AppShell>
                 <SearchPage />
-                <MobileNav />
-                <BottomPlayer />
-              </div>
+              </AppShell>
             } />
             <Route path="*" element={<NotFound />} />
           </Routes>
