@@ -6,6 +6,7 @@ interface PlayerContextType {
   currentTrack: Track | null;
   currentIndex: number;
   isPlaying: boolean;
+  isLoading: boolean;
   progress: number;
   duration: number;
   volume: number;
@@ -38,11 +39,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [trackList, setTrackList] = useState<Track[]>(playlist);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(0.7);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<"off" | "all" | "one">("off");
+  const [youtubeAudioUrl, setYoutubeAudioUrl] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement>(null!);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -50,7 +53,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
 
   const currentTrack = trackList[currentIndex] || null;
-  const isYouTube = currentTrack?.type === "youtube";
 
   const setupAudioContext = useCallback(() => {
     if (audioCtxRef.current || !audioRef.current) return;
@@ -69,22 +71,45 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
+  const fetchYoutubeAudio = useCallback(async (track: Track): Promise<string | null> => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`/api/youtube-audio?url=${encodeURIComponent(track.src)}`);
+      if (!res.ok) throw new Error("Failed to fetch audio");
+      const data = await res.json();
+      setIsLoading(false);
+      return data.audioUrl;
+    } catch {
+      setIsLoading(false);
+      return null;
+    }
+  }, []);
+
+  const playAudio = useCallback(() => {
+    setupAudioContext();
+    if (audioCtxRef.current?.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
+    setTimeout(() => {
+      audioRef.current?.play().catch(() => {});
+      setIsPlaying(true);
+    }, 50);
+  }, [setupAudioContext]);
+
   const play = useCallback((index?: number) => {
     if (index !== undefined) setCurrentIndex(index);
     const targetTrack = index !== undefined ? trackList[index] : trackList[currentIndex];
-    if (targetTrack?.type === "audio") {
-      setupAudioContext();
-      if (audioCtxRef.current?.state === "suspended") {
-        audioCtxRef.current.resume();
-      }
+    if (targetTrack?.type === "youtube") {
+      fetchYoutubeAudio(targetTrack).then((url) => {
+        if (url) {
+          setYoutubeAudioUrl(url);
+          playAudio();
+        }
+      });
+    } else {
+      playAudio();
     }
-    setTimeout(() => {
-      if (targetTrack?.type === "audio") {
-        audioRef.current?.play().catch(() => {});
-      }
-      setIsPlaying(true);
-    }, 50);
-  }, [currentIndex, trackList, setupAudioContext]);
+  }, [currentIndex, trackList, fetchYoutubeAudio, playAudio]);
 
   const playTrack = useCallback((track: Track) => {
     setTrackList((prev) => {
@@ -99,14 +124,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
     setProgress(0);
     setDuration(track.duration || 0);
-    if (track.type === "audio") {
-      setupAudioContext();
-      if (audioCtxRef.current?.state === "suspended") {
-        audioCtxRef.current.resume();
-      }
+
+    if (track.type === "youtube") {
+      fetchYoutubeAudio(track).then((url) => {
+        if (url) {
+          setYoutubeAudioUrl(url);
+          setTimeout(() => playAudio(), 100);
+        }
+      });
+    } else {
+      setYoutubeAudioUrl(null);
+      setTimeout(() => playAudio(), 100);
     }
-    setTimeout(() => setIsPlaying(true), 100);
-  }, [setupAudioContext]);
+  }, [fetchYoutubeAudio, playAudio]);
 
   const playTrackList = useCallback((tracks: Track[], index?: number) => {
     setTrackList(tracks);
@@ -116,11 +146,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const pause = useCallback(() => {
-    if (currentTrack?.type === "audio") {
-      audioRef.current?.pause();
-    }
+    audioRef.current?.pause();
     setIsPlaying(false);
-  }, [currentTrack]);
+  }, []);
 
   const togglePlay = useCallback(() => {
     if (isPlaying) pause();
@@ -137,20 +165,32 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentIndex(nextIdx);
     setProgress(0);
     const nextTrack = trackList[nextIdx];
-    if (nextTrack?.type === "audio") {
+
+    if (nextTrack?.type === "youtube") {
+      fetchYoutubeAudio(nextTrack).then((url) => {
+        if (url) {
+          setYoutubeAudioUrl(url);
+          setupAudioContext();
+          if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
+          setTimeout(() => {
+            audioRef.current?.play().catch(() => {});
+            setIsPlaying(true);
+          }, 200);
+        }
+      });
+    } else {
+      setYoutubeAudioUrl(null);
       setupAudioContext();
       if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
-    }
-    setTimeout(() => {
-      if (nextTrack?.type === "audio") {
+      setTimeout(() => {
         audioRef.current?.play().catch(() => {});
-      }
-      setIsPlaying(true);
-    }, 100);
-  }, [currentIndex, shuffle, trackList, setupAudioContext]);
+        setIsPlaying(true);
+      }, 100);
+    }
+  }, [currentIndex, shuffle, trackList, fetchYoutubeAudio, setupAudioContext]);
 
   const prev = useCallback(() => {
-    if (currentTrack?.type === "audio" && audioRef.current && audioRef.current.currentTime > 3) {
+    if (audioRef.current && audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
       return;
     }
@@ -158,13 +198,25 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentIndex(prevIdx);
     setProgress(0);
     const prevTrack = trackList[prevIdx];
-    setTimeout(() => {
-      if (prevTrack?.type === "audio") {
+
+    if (prevTrack?.type === "youtube") {
+      fetchYoutubeAudio(prevTrack).then((url) => {
+        if (url) {
+          setYoutubeAudioUrl(url);
+          setTimeout(() => {
+            audioRef.current?.play().catch(() => {});
+            setIsPlaying(true);
+          }, 200);
+        }
+      });
+    } else {
+      setYoutubeAudioUrl(null);
+      setTimeout(() => {
         audioRef.current?.play().catch(() => {});
-      }
-      setIsPlaying(true);
-    }, 100);
-  }, [currentIndex, currentTrack, trackList]);
+        setIsPlaying(true);
+      }, 100);
+    }
+  }, [currentIndex, trackList, fetchYoutubeAudio]);
 
   const seek = useCallback((time: number) => {
     if (audioRef.current) audioRef.current.currentTime = time;
@@ -185,12 +237,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const onTime = () => {
-      if (!isYouTube) setProgress(audio.currentTime);
-    };
-    const onMeta = () => {
-      if (!isYouTube) setDuration(audio.duration);
-    };
+    const onTime = () => setProgress(audio.currentTime);
+    const onMeta = () => setDuration(audio.duration);
     const onEnd = () => {
       if (repeat === "one") {
         audio.currentTime = 0;
@@ -207,7 +255,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       audio.removeEventListener("loadedmetadata", onMeta);
       audio.removeEventListener("ended", onEnd);
     };
-  }, [next, repeat, isYouTube]);
+  }, [next, repeat]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
@@ -221,13 +269,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentIndex, currentTrack]);
 
-  // Proxy for SoundHelix
-  const getProxiedSrc = (src: string) => {
-    if (src.includes("soundhelix.com")) {
-      const path = new URL(src).pathname;
-      return `/api/proxy-audio?path=${encodeURIComponent(path)}`;
+  // Determine audio src
+  const getAudioSrc = (): string | undefined => {
+    if (!currentTrack) return undefined;
+    if (currentTrack.type === "youtube" && youtubeAudioUrl) {
+      return youtubeAudioUrl;
     }
-    return src;
+    if (currentTrack.type === "audio") {
+      if (currentTrack.src.includes("soundhelix.com")) {
+        const path = new URL(currentTrack.src).pathname;
+        return `/api/proxy-audio?path=${encodeURIComponent(path)}`;
+      }
+      return currentTrack.src;
+    }
+    return undefined;
   };
 
   return (
@@ -237,6 +292,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         currentTrack,
         currentIndex,
         isPlaying,
+        isLoading,
         progress,
         duration,
         volume,
@@ -259,7 +315,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     >
       <audio
         ref={audioRef}
-        src={!isYouTube && currentTrack ? getProxiedSrc(currentTrack.src) : undefined}
+        src={getAudioSrc()}
         preload="auto"
       />
       {children}

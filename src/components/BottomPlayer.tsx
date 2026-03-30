@@ -38,8 +38,6 @@ export const BottomPlayer = () => {
 
   if (!currentTrack) return null;
 
-  const isYouTube = currentTrack.type === "youtube";
-
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 glass-heavy border-t border-border">
       <div className="max-w-full mx-auto px-4 py-2 flex items-center gap-4">
@@ -104,9 +102,8 @@ export const BottomPlayer = () => {
             </button>
           </div>
 
-          {/* Seek bar - only for audio tracks */}
-          {!isYouTube && (
-            <div className="flex items-center gap-2 w-full">
+          {/* Seek bar */}
+          <div className="flex items-center gap-2 w-full">
               <span className="text-[10px] text-muted-foreground w-10 text-right tabular-nums">
                 {formatTime(progress)}
               </span>
@@ -127,14 +124,6 @@ export const BottomPlayer = () => {
                 {formatTime(duration)}
               </span>
             </div>
-          )}
-
-          {/* YouTube indicator */}
-          {isYouTube && (
-            <p className="text-[10px] text-muted-foreground">
-              Playing on YouTube - use video controls above
-            </p>
-          )}
         </div>
 
         {/* Volume */}
