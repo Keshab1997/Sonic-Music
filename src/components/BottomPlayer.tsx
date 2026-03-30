@@ -51,9 +51,6 @@ export const BottomPlayer = () => {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="text-sm font-medium text-foreground truncate">{currentTrack.title}</p>
-              {isYouTube && (
-                <span className="text-[9px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded flex-shrink-0">YT</span>
-              )}
             </div>
             <p className="text-xs text-muted-foreground truncate">{currentTrack.artist}</p>
           </div>
