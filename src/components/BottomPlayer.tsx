@@ -19,6 +19,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { usePlayer, AudioQuality } from "@/context/PlayerContext";
+import { FullScreenPlayer } from "@/components/FullScreenPlayer";
 
 const formatTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -68,6 +69,7 @@ export const BottomPlayer = () => {
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
   const [showPlaylist, setShowPlaylist] = useState(false);
+  const [showFullScreen, setShowFullScreen] = useState(false);
 
   if (!currentTrack) return null;
 
@@ -263,9 +265,9 @@ export const BottomPlayer = () => {
 
       <div className="fixed bottom-0 left-0 right-0 z-50 glass-heavy border-t border-border">
         <div className="max-w-full mx-auto px-4 py-2 flex items-center gap-4">
-          {/* Track info — clickable to open playlist */}
+          {/* Track info — clickable to open full screen player */}
           <div
-            onClick={() => setShowPlaylist(true)}
+            onClick={() => setShowFullScreen(true)}
             className="flex items-center gap-3 min-w-0 w-1/4 cursor-pointer group"
           >
             <div className="relative flex-shrink-0">
@@ -284,7 +286,7 @@ export const BottomPlayer = () => {
               </div>
               <p className="text-xs text-muted-foreground truncate">{currentTrack.artist}</p>
               <p className="text-[9px] text-muted-foreground/50 mt-0.5">
-                {currentIndex + 1} of {tracks.length} • Tap to view playlist
+                Tap to expand
               </p>
             </div>
           </div>
@@ -434,6 +436,18 @@ export const BottomPlayer = () => {
           </div>
         </div>
       </div>
+
+      {/* Full Screen Player */}
+      {showFullScreen && (
+        <FullScreenPlayer
+          onClose={() => setShowFullScreen(false)}
+          onShowPlaylist={() => {
+            setShowFullScreen(false);
+            setShowPlaylist(true);
+          }}
+          onShowLyrics={() => setShowLyrics(true)}
+        />
+      )}
     </>
   );
 };
