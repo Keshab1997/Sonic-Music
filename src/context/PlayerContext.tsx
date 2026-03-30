@@ -277,9 +277,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [repeat, next]);
 
-  // Vite proxy URLs for audio files
+  // Use direct URLs - proxy only needed in dev
   const getProxiedSrc = (src: string) => {
-    if (src.includes("soundhelix.com")) {
+    if (src.includes("soundhelix.com") && import.meta.env.DEV) {
       return src.replace("https://www.soundhelix.com", "/api/soundhelix");
     }
     return src;
