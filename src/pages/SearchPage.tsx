@@ -1,4 +1,4 @@
-import { useState, FormEvent, useRef, useEffect, useCallback } from "react";
+import { useState, FormEvent, useRef, useCallback } from "react";
 import { Search, Play, Clock, Loader2, AlertCircle, Pause } from "lucide-react";
 import ReactPlayer from "react-player";
 import { usePlayer } from "@/context/PlayerContext";
@@ -27,15 +27,19 @@ export const SearchPage = () => {
   };
 
   const handleProgress = useCallback((state: { playedSeconds: number }) => {
-    // Progress is tracked internally by the player
+    // Progress tracked by ReactPlayer
   }, []);
 
   const handleDuration = useCallback((d: number) => {
-    // Duration handled by context
+    // Duration handled by ReactPlayer
   }, []);
 
   const handleEnded = useCallback(() => {
-    // next track handled by context
+    // Next track handled by PlayerContext
+  }, []);
+
+  const handleError = useCallback((e: unknown) => {
+    console.error("YouTube player error:", e);
   }, []);
 
   return (
@@ -77,6 +81,15 @@ export const SearchPage = () => {
                 onProgress={handleProgress}
                 onDuration={handleDuration}
                 onEnded={handleEnded}
+                onError={handleError}
+                config={{
+                  youtube: {
+                    playerVars: {
+                      autoplay: 1,
+                      origin: typeof window !== "undefined" ? window.location.origin : "",
+                    },
+                  },
+                }}
               />
             </div>
             <div className="p-4 flex items-center gap-4">
