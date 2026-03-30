@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
-import ReactPlayer from "react-player";
 import { Track, playlist } from "@/data/playlist";
 
 interface PlayerContextType {
@@ -49,8 +48,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const reactPlayerRef = useRef<ReactPlayer>(null);
-  const ytDurationRef = useRef<number>(0);
 
   const currentTrack = trackList[currentIndex] || null;
   const isYouTube = currentTrack?.type === "youtube";
@@ -68,7 +65,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       sourceRef.current = source;
       analyserRef.current = analyser;
     } catch {
-      // AudioContext may already be created
+      // ignore
     }
   }, []);
 
@@ -94,22 +91,28 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const idx = prev.findIndex((t) => t.src === track.src);
       if (idx !== -1) {
         setCurrentIndex(idx);
-        setTimeout(() => setIsPlaying(true), 50);
         return prev;
       }
       const newList = [track, ...prev];
       setCurrentIndex(0);
-      setTimeout(() => setIsPlaying(true), 50);
       return newList;
     });
     setProgress(0);
-  }, []);
+    setDuration(track.duration || 0);
+    if (track.type === "audio") {
+      setupAudioContext();
+      if (audioCtxRef.current?.state === "suspended") {
+        audioCtxRef.current.resume();
+      }
+    }
+    setTimeout(() => setIsPlaying(true), 100);
+  }, [setupAudioContext]);
 
   const playTrackList = useCallback((tracks: Track[], index?: number) => {
     setTrackList(tracks);
     setCurrentIndex(index ?? 0);
     setProgress(0);
-    setTimeout(() => setIsPlaying(true), 50);
+    setTimeout(() => setIsPlaying(true), 100);
   }, []);
 
   const pause = useCallback(() => {
@@ -134,10 +137,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentIndex(nextIdx);
     setProgress(0);
     const nextTrack = trackList[nextIdx];
+    if (nextTrack?.type === "audio") {
+      setupAudioContext();
+      if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
+    }
     setTimeout(() => {
       if (nextTrack?.type === "audio") {
-        setupAudioContext();
-        if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
         audioRef.current?.play().catch(() => {});
       }
       setIsPlaying(true);
@@ -162,20 +167,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [currentIndex, currentTrack, trackList]);
 
   const seek = useCallback((time: number) => {
-    if (isYouTube) {
-      const player = reactPlayerRef.current;
-      if (player) {
-        try {
-          player.seekTo(time, "seconds");
-        } catch {
-          // ignore
-        }
-      }
-    } else {
-      if (audioRef.current) audioRef.current.currentTime = time;
-    }
+    if (audioRef.current) audioRef.current.currentTime = time;
     setProgress(time);
-  }, [isYouTube]);
+  }, []);
 
   const setVolume = useCallback((v: number) => {
     setVolumeState(v);
@@ -219,65 +213,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
-  // Reset progress when track changes
+  // Reset when track changes
   useEffect(() => {
     setProgress(0);
-    if (isYouTube && currentTrack) {
+    if (currentTrack) {
       setDuration(currentTrack.duration || 0);
     }
-  }, [currentIndex, isYouTube, currentTrack]);
+  }, [currentIndex, currentTrack]);
 
-  // YouTube progress tracking via interval
-  useEffect(() => {
-    if (!isYouTube || !isPlaying) return;
-    const interval = setInterval(() => {
-      const player = reactPlayerRef.current;
-      if (player) {
-        try {
-          const internal = player.getInternalPlayer() as { getCurrentTime?: () => number } | null;
-          if (internal && typeof internal.getCurrentTime === "function") {
-            const currentSec = internal.getCurrentTime();
-            if (currentSec && !isNaN(currentSec)) {
-              setProgress(currentSec);
-            }
-          }
-        } catch {
-          // ignore
-        }
-      }
-    }, 500);
-    return () => clearInterval(interval);
-  }, [isYouTube, isPlaying]);
-
-  const handleYTProgress = useCallback((state: { playedSeconds: number }) => {
-    if (state.playedSeconds && !isNaN(state.playedSeconds)) {
-      setProgress(state.playedSeconds);
-    }
-  }, []);
-
-  const handleYTDuration = useCallback((d: number) => {
-    if (d && !isNaN(d)) {
-      ytDurationRef.current = d;
-      setDuration(d);
-    }
-  }, []);
-
-  const handleYTEnd = useCallback(() => {
-    if (repeat === "one") {
-      const player = reactPlayerRef.current;
-      if (player) {
-        try {
-          player.seekTo(0, "seconds");
-        } catch {
-          // ignore
-        }
-      }
-    } else {
-      next();
-    }
-  }, [repeat, next]);
-
-  // Proxy SoundHelix audio to avoid CORS issues
+  // Proxy for SoundHelix
   const getProxiedSrc = (src: string) => {
     if (src.includes("soundhelix.com")) {
       const path = new URL(src).pathname;
@@ -318,34 +262,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         src={!isYouTube && currentTrack ? getProxiedSrc(currentTrack.src) : undefined}
         preload="auto"
       />
-
-      {isYouTube && currentTrack && (
-        <div style={{
-          position: "fixed",
-          bottom: 76,
-          right: 8,
-          width: 220,
-          height: 124,
-          zIndex: 40,
-          borderRadius: 8,
-          overflow: "hidden",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
-        }}>
-          <ReactPlayer
-            ref={reactPlayerRef}
-            url={currentTrack.src}
-            playing={isPlaying}
-            volume={volume}
-            width="100%"
-            height="100%"
-            onProgress={handleYTProgress}
-            onDuration={handleYTDuration}
-            onEnded={handleYTEnd}
-            progressInterval={500}
-          />
-        </div>
-      )}
-
       {children}
     </PlayerContext.Provider>
   );

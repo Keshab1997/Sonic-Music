@@ -38,6 +38,8 @@ export const BottomPlayer = () => {
 
   if (!currentTrack) return null;
 
+  const isYouTube = currentTrack.type === "youtube";
+
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 glass-heavy border-t border-border">
       <div className="max-w-full mx-auto px-4 py-2 flex items-center gap-4">
@@ -51,7 +53,7 @@ export const BottomPlayer = () => {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="text-sm font-medium text-foreground truncate">{currentTrack.title}</p>
-              {currentTrack.type === "youtube" && (
+              {isYouTube && (
                 <span className="text-[9px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded flex-shrink-0">YT</span>
               )}
             </div>
@@ -102,28 +104,37 @@ export const BottomPlayer = () => {
             </button>
           </div>
 
-          {/* Seek bar */}
-          <div className="flex items-center gap-2 w-full">
-            <span className="text-[10px] text-muted-foreground w-10 text-right tabular-nums">
-              {formatTime(progress)}
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={duration || 0}
-              value={progress}
-              onChange={(e) => seek(Number(e.target.value))}
-              className="flex-1 h-1 accent-primary cursor-pointer [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted appearance-none"
-              style={{
-                background: `linear-gradient(to right, hsl(var(--foreground)) ${
-                  duration ? (progress / duration) * 100 : 0
-                }%, hsl(var(--muted)) ${duration ? (progress / duration) * 100 : 0}%)`,
-              }}
-            />
-            <span className="text-[10px] text-muted-foreground w-10 tabular-nums">
-              {formatTime(duration)}
-            </span>
-          </div>
+          {/* Seek bar - only for audio tracks */}
+          {!isYouTube && (
+            <div className="flex items-center gap-2 w-full">
+              <span className="text-[10px] text-muted-foreground w-10 text-right tabular-nums">
+                {formatTime(progress)}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={duration || 0}
+                value={progress}
+                onChange={(e) => seek(Number(e.target.value))}
+                className="flex-1 h-1 accent-primary cursor-pointer [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted appearance-none"
+                style={{
+                  background: `linear-gradient(to right, hsl(var(--foreground)) ${
+                    duration ? (progress / duration) * 100 : 0
+                  }%, hsl(var(--muted)) ${duration ? (progress / duration) * 100 : 0}%)`,
+                }}
+              />
+              <span className="text-[10px] text-muted-foreground w-10 tabular-nums">
+                {formatTime(duration)}
+              </span>
+            </div>
+          )}
+
+          {/* YouTube indicator */}
+          {isYouTube && (
+            <p className="text-[10px] text-muted-foreground">
+              Playing on YouTube - use video controls above
+            </p>
+          )}
         </div>
 
         {/* Volume */}
