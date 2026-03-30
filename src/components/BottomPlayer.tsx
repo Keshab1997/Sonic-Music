@@ -49,7 +49,12 @@ export const BottomPlayer = () => {
             className="w-14 h-14 rounded-md object-cover shadow-md flex-shrink-0"
           />
           <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{currentTrack.title}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium text-foreground truncate">{currentTrack.title}</p>
+              {currentTrack.type === "youtube" && (
+                <span className="text-[9px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded flex-shrink-0">YT</span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground truncate">{currentTrack.artist}</p>
           </div>
         </div>

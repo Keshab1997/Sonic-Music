@@ -4,7 +4,8 @@ import { usePlayer } from "@/context/PlayerContext";
 export const AudioVisualizer = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
-  const { analyserRef, isPlaying } = usePlayer();
+  const { analyserRef, isPlaying, currentTrack } = usePlayer();
+  const isYouTube = currentTrack?.type === "youtube";
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -24,6 +25,44 @@ export const AudioVisualizer = () => {
       const w = canvas.offsetWidth;
       const h = canvas.offsetHeight;
       ctx.clearRect(0, 0, w, h);
+
+      if (isYouTube && isPlaying) {
+        // Animated bars for YouTube (no real audio data)
+        const barCount = 64;
+        const barW = w / barCount - 2;
+        for (let i = 0; i < barCount; i++) {
+          const t = Date.now() / 1000;
+          const val = (Math.sin(t * 2 + i * 0.3) + 1) / 2 * 0.7 + 0.15;
+          const barH = val * h * 0.85 + 2;
+          const x = i * (barW + 2);
+
+          const hue = 0 + (i / barCount) * 30; // YouTube red-ish gradient
+          const saturation = 80 + val * 15;
+          const lightness = 40 + val * 15;
+
+          const gradient = ctx.createLinearGradient(x, h, x, h - barH);
+          gradient.addColorStop(0, `hsla(${hue}, ${saturation}%, ${lightness}%, 0.9)`);
+          gradient.addColorStop(1, `hsla(${hue + 10}, ${saturation}%, ${lightness + 10}%, 0.5)`);
+
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.roundRect(x, h - barH, barW, barH, [barW / 2, barW / 2, 0, 0]);
+          ctx.fill();
+
+          ctx.shadowColor = `hsla(${hue}, ${saturation}%, ${lightness}%, 0.4)`;
+          ctx.shadowBlur = 8;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+
+        // YouTube badge
+        ctx.fillStyle = "hsla(0, 0%, 100%, 0.8)";
+        ctx.font = "bold 11px sans-serif";
+        ctx.fillText("YouTube", w - 70, 20);
+
+        animRef.current = requestAnimationFrame(draw);
+        return;
+      }
 
       const analyser = analyserRef.current;
       if (!analyser || !isPlaying) {
@@ -82,7 +121,7 @@ export const AudioVisualizer = () => {
       cancelAnimationFrame(animRef.current);
       window.removeEventListener("resize", resize);
     };
-  }, [analyserRef, isPlaying]);
+  }, [analyserRef, isPlaying, isYouTube]);
 
   return (
     <div className="relative w-full rounded-xl overflow-hidden bg-card border border-border">
@@ -93,7 +132,7 @@ export const AudioVisualizer = () => {
       />
       <div className="absolute bottom-4 left-4 z-20">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
-          {isPlaying ? "Now Playing" : "Audio Visualizer"}
+          {isPlaying ? (isYouTube ? "YouTube Playing" : "Now Playing") : "Audio Visualizer"}
         </p>
       </div>
     </div>

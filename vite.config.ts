@@ -12,7 +12,50 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [
+    react(),
+    mode === "development" && componentTagger(),
+    {
+      name: "youtube-search-api",
+      configureServer(server) {
+        server.middlewares.use("/api/youtube-search", async (req, res) => {
+          const url = new URL(req.url || "", `http://${req.headers.host}`);
+          const query = url.searchParams.get("q");
+          if (!query) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Missing q parameter" }));
+            return;
+          }
+
+          try {
+            const yts = (await import("yt-search")).default;
+            const result = await yts({ query, category: "music" });
+            const videos = result.videos.slice(0, 20).map((v: {
+              videoId: string;
+              title: string;
+              author: { name: string };
+              seconds: number;
+              thumbnail: string;
+            }) => ({
+              videoId: v.videoId,
+              title: v.title,
+              author: v.author.name,
+              duration: v.seconds,
+              thumbnail: v.thumbnail,
+            }));
+            res.writeHead(200, {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*",
+            });
+            res.end(JSON.stringify(videos));
+          } catch (err) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Search failed", details: String(err) }));
+          }
+        });
+      },
+    },
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

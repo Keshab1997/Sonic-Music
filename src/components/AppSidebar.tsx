@@ -1,10 +1,11 @@
 import { Home, Search, Library, Plus, Heart } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
+import { Link, useLocation } from "react-router-dom";
 
 const navItems = [
-  { icon: Home, label: "Home" },
-  { icon: Search, label: "Search" },
-  { icon: Library, label: "Your Library" },
+  { icon: Home, label: "Home", path: "/" },
+  { icon: Search, label: "Search", path: "/search" },
+  { icon: Library, label: "Your Library", path: "/" },
 ];
 
 const dummyPlaylists = [
@@ -20,26 +21,34 @@ const dummyPlaylists = [
 
 export const AppSidebar = () => {
   const { tracks, play, currentIndex, isPlaying } = usePlayer();
+  const location = useLocation();
 
   return (
     <aside className="hidden md:flex flex-col w-64 lg:w-72 bg-sidebar border-r border-sidebar-border h-full overflow-hidden">
       {/* Logo */}
       <div className="p-6 pb-4">
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">
-          <span className="text-gradient-brand">Pulse</span>
-        </h1>
+        <Link to="/">
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">
+            <span className="text-gradient-brand">Pulse</span>
+          </h1>
+        </Link>
       </div>
 
       {/* Nav */}
       <nav className="px-3 space-y-1">
-        {navItems.map(({ icon: Icon, label }) => (
-          <button
+        {navItems.map(({ icon: Icon, label, path }) => (
+          <Link
             key={label}
-            className="flex items-center gap-4 w-full px-3 py-2.5 rounded-lg text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors duration-200 group"
+            to={path}
+            className={`flex items-center gap-4 w-full px-3 py-2.5 rounded-lg transition-colors duration-200 group ${
+              location.pathname === path
+                ? "text-foreground bg-sidebar-accent"
+                : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent"
+            }`}
           >
             <Icon size={22} className="group-hover:text-foreground transition-colors" />
             <span className="font-medium text-sm">{label}</span>
-          </button>
+          </Link>
         ))}
       </nav>
 

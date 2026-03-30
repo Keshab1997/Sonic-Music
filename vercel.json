@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/youtube-search", "destination": "/api/youtube-search" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}
