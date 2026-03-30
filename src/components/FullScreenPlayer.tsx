@@ -107,7 +107,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
         </div>
 
         {/* Cover Art */}
-        <div className="flex-1 flex items-center justify-center px-8 py-4">
+        <div className="flex-1 flex items-center justify-center px-4 md:px-8 py-4">
           <div className="w-full max-w-sm aspect-square relative group">
             <img
               src={currentTrack.cover}
@@ -133,7 +133,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
         </div>
 
         {/* Song info + actions */}
-        <div className="px-8 pb-2">
+        <div className="px-5 md:px-8 pb-2">
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0 mr-4">
               <h2 className="text-xl font-bold text-white truncate">{currentTrack.title}</h2>
@@ -158,7 +158,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
         </div>
 
         {/* Progress bar */}
-        <div className="px-8 py-3">
+        <div className="px-5 md:px-8 py-3">
           <input
             type="range"
             min={0}
@@ -177,7 +177,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
         </div>
 
         {/* Controls */}
-        <div className="px-8 py-4">
+        <div className="px-5 md:px-8 py-4">
           <div className="flex items-center justify-center gap-8">
             <button
               onClick={toggleShuffle}
@@ -225,7 +225,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
         </div>
 
         {/* Bottom actions */}
-        <div className="px-8 pb-8 flex items-center justify-center gap-8">
+        <div className="px-5 md:px-8 pb-8 flex items-center justify-center gap-8">
           <button
             onClick={() => setShowLyrics(!showLyrics)}
             className={`p-2 rounded-full transition-colors ${
@@ -244,7 +244,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
 
         {/* Lyrics overlay */}
         {showLyrics && (
-          <div className="absolute bottom-24 left-0 right-0 max-h-[30vh] overflow-y-auto px-8 py-4 bg-black/60 backdrop-blur-md">
+          <div className="absolute bottom-24 left-0 right-0 max-h-[30vh] overflow-y-auto px-5 md:px-8 py-4 bg-black/60 backdrop-blur-md">
             {lyricsLoading && (
               <p className="text-xs text-white/50 text-center py-4">Loading lyrics...</p>
             )}

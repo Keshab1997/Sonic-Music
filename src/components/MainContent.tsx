@@ -138,7 +138,7 @@ export const MainContent = () => {
     <main className="flex-1 overflow-y-auto pb-28">
       {/* Hero Carousel */}
       {carouselSongs.length > 0 && (
-        <div className="relative h-72 md:h-80 overflow-hidden mb-6">
+        <div className="relative h-56 sm:h-72 md:h-80 overflow-hidden mb-6">
           {carouselSongs.map((song, i) => (
             <div
               key={song.src}
@@ -148,20 +148,20 @@ export const MainContent = () => {
                 <img src={song.cover} alt="" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
               </div>
-              <div className="relative h-full flex items-end px-6 pb-6">
-                <div className="flex items-center gap-4">
-                  <img src={song.cover} alt="" className="w-20 h-20 rounded-xl shadow-2xl object-cover" />
+              <div className="relative h-full flex items-end px-4 md:px-6 pb-4 md:pb-6">
+                <div className="flex items-center gap-3 md:gap-4">
+                  <img src={song.cover} alt="" className="w-14 h-14 md:w-20 md:h-20 rounded-xl shadow-2xl object-cover" />
                   <div>
-                    <p className="text-xs text-primary font-medium uppercase tracking-wider mb-1">
+                    <p className="text-[10px] md:text-xs text-primary font-medium uppercase tracking-wider mb-1">
                       {i === 0 ? "🎵 Featured" : `#${i + 1} Trending`}
                     </p>
-                    <h2 className="text-xl md:text-2xl font-bold text-foreground">{song.title}</h2>
-                    <p className="text-sm text-muted-foreground">{song.artist}</p>
+                    <h2 className="text-base md:text-2xl font-bold text-foreground line-clamp-1">{song.title}</h2>
+                    <p className="text-xs md:text-sm text-muted-foreground truncate">{song.artist}</p>
                     <button
                       onClick={() => playTrackList(carouselSongs, i)}
-                      className="mt-2 px-4 py-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-full hover:brightness-110 transition-all flex items-center gap-1.5"
+                      className="mt-1.5 md:mt-2 px-3 md:px-4 py-1 md:py-1.5 bg-primary text-primary-foreground text-[10px] md:text-xs font-medium rounded-full hover:brightness-110 transition-all flex items-center gap-1.5"
                     >
-                      <Play size={12} fill="currentColor" /> Play Now
+                      <Play size={10} fill="currentColor" /> Play Now
                     </button>
                   </div>
                 </div>
@@ -193,7 +193,7 @@ export const MainContent = () => {
         </div>
       )}
 
-      <div className="px-6">
+      <div className="px-4 md:px-6">
         {/* Time-based Greeting + Quick Play */}
         {!activeCarouselSong && (
           <div className="mb-6 animate-fade-in">

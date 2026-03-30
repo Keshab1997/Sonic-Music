@@ -273,28 +273,26 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
       )}
 
       <div className="fixed bottom-0 left-0 right-0 z-50 glass-heavy border-t border-border">
-        <div className="max-w-full mx-auto px-4 py-2 flex items-center gap-4">
+        <div className="max-w-full mx-auto px-3 md:px-4 py-2 flex items-center gap-2 md:gap-4">
           {/* Track info — clickable to open full screen player */}
           <div
             onClick={() => setShowFullScreen(true)}
-            className="flex items-center gap-3 min-w-0 w-1/4 cursor-pointer group"
+            className="flex items-center gap-2 md:gap-3 min-w-0 flex-1 md:flex-none md:w-1/4 cursor-pointer group"
           >
             <div className="relative flex-shrink-0">
               <img
                 src={currentTrack.cover}
                 alt={currentTrack.title}
-                className="w-14 h-14 rounded-md object-cover shadow-md"
+                className="w-11 h-11 md:w-14 md:h-14 rounded-md object-cover shadow-md"
               />
               <div className="absolute inset-0 rounded-md bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                <ChevronUp size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                <ChevronUp size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">{currentTrack.title}</p>
-              </div>
-              <p className="text-xs text-muted-foreground truncate">{currentTrack.artist}</p>
-              <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+              <p className="text-xs md:text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">{currentTrack.title}</p>
+              <p className="text-[10px] md:text-xs text-muted-foreground truncate">{currentTrack.artist}</p>
+              <p className="text-[8px] md:text-[9px] text-muted-foreground/50 mt-0.5 hidden md:block">
                 Tap to expand
               </p>
             </div>
