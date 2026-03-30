@@ -1,8 +1,9 @@
 import { useState, FormEvent } from "react";
-import { Search, Play, Clock, Loader2, AlertCircle, Pause, Heart, X, Trash2, History } from "lucide-react";
+import { Search, Play, Clock, Loader2, AlertCircle, Pause, Heart, X, Trash2, History, MoreHorizontal, ListPlus, PlaySquare, Plus } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useMusicSearch } from "@/hooks/useYouTubeSearch";
 import { useLocalData } from "@/hooks/useLocalData";
+import { usePlaylists } from "@/hooks/usePlaylists";
 import { Track } from "@/data/playlist";
 
 const formatDuration = (seconds: number) => {
@@ -23,9 +24,13 @@ const SongRow = ({
   isFavorite: boolean;
   onToggleFavorite: (track: Track) => void;
 }) => {
-  const { playTrack, currentTrack, isPlaying, pause } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, pause, playNext, addToQueue } = usePlayer();
+  const { playlists, addToPlaylist, createPlaylist } = usePlaylists();
   const isActive = currentTrack?.src === track.src;
   const isCurrentlyPlaying = isActive && isPlaying;
+  const [showMenu, setShowMenu] = useState(false);
+  const [showPlaylistSubmenu, setShowPlaylistSubmenu] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState("");
 
   return (
     <div
@@ -87,6 +92,84 @@ const SongRow = ({
       >
         <Heart size={16} fill={isFavorite ? "currentColor" : "none"} />
       </button>
+
+      {/* Context menu */}
+      <div className="relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMenu(!showMenu);
+            setShowPlaylistSubmenu(false);
+          }}
+          className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <MoreHorizontal size={16} />
+        </button>
+
+        {showMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => { setShowMenu(false); setShowPlaylistSubmenu(false); }} />
+            <div className="absolute right-0 top-full mt-1 z-50 w-48 glass-heavy border border-border rounded-lg shadow-2xl overflow-hidden">
+              <button
+                onClick={() => { playNext(track); setShowMenu(false); }}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-foreground hover:bg-accent transition-colors"
+              >
+                <PlaySquare size={14} />
+                Play Next
+              </button>
+              <button
+                onClick={() => { addToQueue(track); setShowMenu(false); }}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-foreground hover:bg-accent transition-colors"
+              >
+                <ListPlus size={14} />
+                Add to Queue
+              </button>
+              <div className="border-t border-border" />
+              <button
+                onClick={() => setShowPlaylistSubmenu(!showPlaylistSubmenu)}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-foreground hover:bg-accent transition-colors"
+              >
+                <Plus size={14} />
+                Add to Playlist
+              </button>
+              {showPlaylistSubmenu && (
+                <div className="border-t border-border max-h-40 overflow-y-auto">
+                  {playlists.map((pl) => (
+                    <button
+                      key={pl.id}
+                      onClick={() => { addToPlaylist(pl.id, track); setShowMenu(false); setShowPlaylistSubmenu(false); }}
+                      className="w-full text-left px-5 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors truncate"
+                    >
+                      {pl.name}
+                    </button>
+                  ))}
+                  {playlists.length === 0 && (
+                    <p className="px-5 py-2 text-[10px] text-muted-foreground/50">No playlists</p>
+                  )}
+                  <div className="flex items-center gap-1 px-3 py-2 border-t border-border">
+                    <input
+                      type="text"
+                      value={newPlaylistName}
+                      onChange={(e) => setNewPlaylistName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && newPlaylistName.trim()) {
+                          const pl = createPlaylist(newPlaylistName.trim());
+                          addToPlaylist(pl.id, track);
+                          setNewPlaylistName("");
+                          setShowMenu(false);
+                          setShowPlaylistSubmenu(false);
+                        }
+                      }}
+                      placeholder="New playlist..."
+                      className="flex-1 text-[11px] px-2 py-1 rounded bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };

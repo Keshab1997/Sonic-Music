@@ -1,3 +1,9 @@
+export interface AudioUrls {
+  "96kbps"?: string;
+  "160kbps"?: string;
+  "320kbps"?: string;
+}
+
 export interface Track {
   id: number;
   title: string;
@@ -7,6 +13,15 @@ export interface Track {
   src: string;
   duration: number;
   type: "audio" | "youtube";
+  songId?: string;
+  audioUrls?: AudioUrls;
+}
+
+export interface Playlist {
+  id: string;
+  name: string;
+  tracks: Track[];
+  createdAt: number;
 }
 
 export const playlist: Track[] = [

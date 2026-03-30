@@ -1,37 +1,58 @@
-import { Home, Search, Library, Plus, Heart } from "lucide-react";
+import { useState } from "react";
+import { Home, Search, Library, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
+import { useTheme } from "@/hooks/useTheme";
+import { usePlaylists } from "@/hooks/usePlaylists";
 import { Link, useLocation } from "react-router-dom";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
   { icon: Search, label: "Search", path: "/search" },
-  { icon: Library, label: "Your Library", path: "/" },
-];
-
-const dummyPlaylists = [
-  "Chill Vibes",
-  "Late Night Coding",
-  "Morning Coffee",
-  "Workout Mix",
-  "Road Trip Classics",
-  "Deep Focus",
-  "Throwback Jams",
-  "Indie Discoveries",
 ];
 
 export const AppSidebar = () => {
-  const { tracks, play, currentIndex, isPlaying } = usePlayer();
+  const { tracks, play, currentIndex, isPlaying, playTrackList } = usePlayer();
+  const { theme, toggleTheme } = useTheme();
+  const { playlists, createPlaylist, deletePlaylist, renamePlaylist } = usePlaylists();
   const location = useLocation();
+
+  const [showCreateInput, setShowCreateInput] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+
+  const handleCreate = () => {
+    if (newPlaylistName.trim()) {
+      createPlaylist(newPlaylistName.trim());
+      setNewPlaylistName("");
+      setShowCreateInput(false);
+    }
+  };
+
+  const handleRename = (id: string) => {
+    if (editName.trim()) {
+      renamePlaylist(id, editName.trim());
+    }
+    setEditingId(null);
+    setEditName("");
+  };
 
   return (
     <aside className="hidden md:flex flex-col w-64 lg:w-72 bg-sidebar border-r border-sidebar-border h-full overflow-hidden">
       {/* Logo */}
-      <div className="p-6 pb-4">
+      <div className="p-6 pb-4 flex items-center justify-between">
         <Link to="/">
           <h1 className="text-2xl font-bold text-foreground tracking-tight">
             <span className="text-gradient-brand">Pulse</span>
           </h1>
         </Link>
+        <button
+          onClick={toggleTheme}
+          className="p-2 rounded-full hover:bg-sidebar-accent text-muted-foreground hover:text-foreground transition-colors"
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
       </div>
 
       {/* Nav */}
@@ -56,10 +77,35 @@ export const AppSidebar = () => {
       <div className="mt-6 px-3">
         <div className="flex items-center justify-between px-3 mb-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Playlists</span>
-          <button className="p-1 rounded-full hover:bg-sidebar-accent text-muted-foreground hover:text-foreground transition-colors">
+          <button
+            onClick={() => setShowCreateInput(!showCreateInput)}
+            className="p-1 rounded-full hover:bg-sidebar-accent text-muted-foreground hover:text-foreground transition-colors"
+          >
             <Plus size={16} />
           </button>
         </div>
+
+        {/* Create playlist input */}
+        {showCreateInput && (
+          <div className="flex items-center gap-1 px-3 mb-2">
+            <input
+              type="text"
+              value={newPlaylistName}
+              onChange={(e) => setNewPlaylistName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              placeholder="Playlist name"
+              className="flex-1 text-xs px-2 py-1.5 rounded bg-sidebar-accent border border-sidebar-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              autoFocus
+            />
+            <button onClick={handleCreate} className="p-1 text-primary hover:text-primary/80">
+              <Check size={14} />
+            </button>
+            <button onClick={() => { setShowCreateInput(false); setNewPlaylistName(""); }} className="p-1 text-muted-foreground hover:text-foreground">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         <button className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors">
           <Heart size={18} />
           <span className="text-sm font-medium">Liked Songs</span>
@@ -71,14 +117,58 @@ export const AppSidebar = () => {
 
       {/* Playlist list */}
       <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-0.5">
-        {dummyPlaylists.map((name) => (
-          <button
-            key={name}
-            className="block w-full text-left px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors truncate"
-          >
-            {name}
-          </button>
+        {playlists.map((pl) => (
+          <div key={pl.id} className="group flex items-center">
+            {editingId === pl.id ? (
+              <div className="flex items-center gap-1 flex-1 px-1">
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleRename(pl.id);
+                    if (e.key === "Escape") { setEditingId(null); setEditName(""); }
+                  }}
+                  className="flex-1 text-xs px-2 py-1 rounded bg-sidebar-accent border border-sidebar-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  autoFocus
+                />
+                <button onClick={() => handleRename(pl.id)} className="p-0.5 text-primary">
+                  <Check size={12} />
+                </button>
+                <button onClick={() => { setEditingId(null); setEditName(""); }} className="p-0.5 text-muted-foreground">
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => playTrackList(pl.tracks, 0)}
+                  className="flex-1 text-left px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors truncate"
+                >
+                  {pl.name}
+                  <span className="text-[10px] text-muted-foreground/60 ml-1">({pl.tracks.length})</span>
+                </button>
+                <div className="hidden group-hover:flex items-center gap-0.5 pr-2">
+                  <button
+                    onClick={() => { setEditingId(pl.id); setEditName(pl.name); }}
+                    className="p-0.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil size={10} />
+                  </button>
+                  <button
+                    onClick={() => deletePlaylist(pl.id)}
+                    className="p-0.5 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 size={10} />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         ))}
+        {playlists.length === 0 && (
+          <p className="text-[11px] text-muted-foreground/50 px-3 py-2">No playlists yet. Click + to create one.</p>
+        )}
       </div>
 
       {/* Now playing mini */}
