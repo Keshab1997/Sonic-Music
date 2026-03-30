@@ -235,7 +235,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleRepeat,
       }}
     >
-      <audio ref={audioRef} src={getAudioSrc()} preload="auto" />
+      <audio ref={audioRef} src={getAudioSrc()} crossOrigin="anonymous" preload="auto" />
       {children}
     </PlayerContext.Provider>
   );

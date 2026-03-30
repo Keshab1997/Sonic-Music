@@ -11,6 +11,8 @@ interface SaavnSong {
   audioUrl: string;
 }
 
+const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
+
 export const useMusicSearch = () => {
   const [results, setResults] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,21 +25,32 @@ export const useMusicSearch = () => {
     setResults([]);
 
     try {
-      const res = await fetch(`/api/youtube-audio?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=20`);
       if (!res.ok) throw new Error("Search failed");
 
-      const data: SaavnSong[] = await res.json();
+      const data = await res.json();
+      const songs = data.data?.results || [];
 
-      const tracks: Track[] = data
-        .filter((s) => s.audioUrl)
-        .map((s, i) => ({
+      const tracks: Track[] = songs
+        .filter((s: SaavnSong & { downloadUrl: { quality: string; link: string }[] }) =>
+          s.downloadUrl?.length > 0
+        )
+        .map((s: SaavnSong & {
+          downloadUrl: { quality: string; link: string }[];
+          image: { quality: string; link: string }[];
+        }, i: number) => ({
           id: 2000 + i,
-          title: s.title,
-          artist: s.artist || "Unknown",
-          album: s.album || "",
-          cover: s.cover || "",
-          src: s.audioUrl,
-          duration: s.duration || 0,
+          title: s.name,
+          artist: s.primaryArtists || "Unknown",
+          album: s.album?.name || "",
+          cover: s.image?.find((img) => img.quality === "500x500")?.link ||
+                 s.image?.[s.image.length - 1]?.link ||
+                 "",
+          src: s.downloadUrl?.find((d) => d.quality === "160kbps")?.link ||
+               s.downloadUrl?.find((d) => d.quality === "96kbps")?.link ||
+               s.downloadUrl?.[0]?.link ||
+               "",
+          duration: parseInt(String(s.duration)) || 0,
           type: "audio" as const,
         }));
 
@@ -51,5 +64,5 @@ export const useMusicSearch = () => {
   return { results, loading, error, search };
 };
 
-// Keep backward compatibility
+// Backward compatibility
 export const useYouTubeSearch = useMusicSearch;
