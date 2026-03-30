@@ -8,11 +8,13 @@ import { AudioVisualizer } from "@/components/AudioVisualizer";
 import { ArtistDetail } from "@/components/ArtistDetail";
 import { ViewAllArtists } from "@/components/ViewAllArtists";
 import { TimeMachinePlaylist } from "@/components/TimeMachinePlaylist";
+import { MoodPlaylist } from "@/components/MoodPlaylist";
 import { Track } from "@/data/playlist";
 import {
   topArtists,
   allArtists,
   moodCategories,
+  MoodCategory,
   eraCategories,
   timeSuggestions,
   getTimeOfDay,
@@ -45,6 +47,7 @@ export const MainContent = () => {
   const [artistDetail, setArtistDetail] = useState<{ name: string; query: string } | null>(null);
   const [showViewAllArtists, setShowViewAllArtists] = useState(false);
   const [timeMachineEra, setTimeMachineEra] = useState<typeof eraCategories[0] | null>(null);
+  const [moodPlaylist, setMoodPlaylist] = useState<MoodCategory | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const carouselTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -431,8 +434,7 @@ export const MainContent = () => {
             {moodCategories.map((mood) => (
               <button
                 key={mood.name}
-                onClick={() => handleSearchAndPlay(mood.searchQuery)}
-                disabled={isLoading(mood.searchQuery)}
+                onClick={() => setMoodPlaylist(mood)}
                 className={`relative p-3.5 rounded-xl bg-gradient-to-br ${mood.gradient} cursor-pointer hover:scale-[1.03] transition-transform group overflow-hidden`}
               >
                 <div className="absolute inset-0 bg-black/10 group-hover:bg-black/5 transition-colors" />
@@ -440,11 +442,6 @@ export const MainContent = () => {
                   <span className="text-xl">{mood.emoji}</span>
                   <p className="text-xs font-bold text-white mt-1.5">{mood.name}</p>
                 </div>
-                {isLoading(mood.searchQuery) && (
-                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
               </button>
             ))}
           </div>
@@ -596,6 +593,17 @@ export const MainContent = () => {
           subtitle={timeMachineEra.subtitle}
           searchQuery={timeMachineEra.searchQuery}
           onClose={() => setTimeMachineEra(null)}
+        />
+      )}
+
+      {/* Mood Playlist Modal */}
+      {moodPlaylist && (
+        <MoodPlaylist
+          moodName={moodPlaylist.name}
+          emoji={moodPlaylist.emoji}
+          searchQuery={moodPlaylist.searchQuery}
+          gradient={moodPlaylist.gradient}
+          onClose={() => setMoodPlaylist(null)}
         />
       )}
     </main>
