@@ -1,7 +1,9 @@
 import { useState, FormEvent } from "react";
-import { Search, Play, Clock, Loader2, AlertCircle, Pause } from "lucide-react";
+import { Search, Play, Clock, Loader2, AlertCircle, Pause, Heart, X, Trash2, History } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useMusicSearch } from "@/hooks/useYouTubeSearch";
+import { useLocalData } from "@/hooks/useLocalData";
+import { Track } from "@/data/playlist";
 
 const formatDuration = (seconds: number) => {
   if (!seconds) return "--:--";
@@ -10,132 +12,298 @@ const formatDuration = (seconds: number) => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
+const SongRow = ({
+  track,
+  index,
+  isFavorite,
+  onToggleFavorite,
+}: {
+  track: Track;
+  index: number;
+  isFavorite: boolean;
+  onToggleFavorite: (track: Track) => void;
+}) => {
+  const { playTrack, currentTrack, isPlaying, pause } = usePlayer();
+  const isActive = currentTrack?.src === track.src;
+  const isCurrentlyPlaying = isActive && isPlaying;
+
+  return (
+    <div
+      className={`flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${
+        isActive ? "bg-primary/10 border border-primary/20" : "hover:bg-accent border border-transparent"
+      }`}
+    >
+      <div
+        onClick={() => {
+          if (isActive) {
+            isPlaying ? pause() : playTrack(track);
+          } else {
+            playTrack(track);
+          }
+        }}
+        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+      >
+        <div className="relative flex-shrink-0">
+          {track.cover ? (
+            <img src={track.cover} alt={track.title} className="w-14 h-14 rounded-md object-cover" />
+          ) : (
+            <div className="w-14 h-14 rounded-md bg-muted flex items-center justify-center">
+              <Play size={18} className="text-muted-foreground" />
+            </div>
+          )}
+          {isCurrentlyPlaying && (
+            <div className="absolute inset-0 rounded-md bg-black/40 flex items-center justify-center gap-0.5">
+              <span className="w-0.5 h-3 bg-white rounded-full animate-pulse-glow" />
+              <span className="w-0.5 h-4 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
+              <span className="w-0.5 h-2 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
+              <span className="w-0.5 h-3 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.45s" }} />
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className={`text-sm font-medium truncate ${isActive ? "text-primary" : "text-foreground"}`}>
+            {track.title}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">
+            {track.artist} {track.album ? `· ${track.album}` : ""}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1 text-muted-foreground">
+          <Clock size={12} />
+          <span className="text-xs tabular-nums">{formatDuration(track.duration)}</span>
+        </div>
+      </div>
+
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite(track);
+        }}
+        className={`p-2 rounded-full transition-colors ${
+          isFavorite ? "text-red-500" : "text-muted-foreground hover:text-red-400"
+        }`}
+      >
+        <Heart size={16} fill={isFavorite ? "currentColor" : "none"} />
+      </button>
+    </div>
+  );
+};
+
 export const SearchPage = () => {
   const [query, setQuery] = useState("");
+  const [view, setView] = useState<"search" | "favorites">("search");
   const { results, loading, error, search } = useMusicSearch();
-  const { playTrack, currentTrack, isPlaying, pause } = usePlayer();
+  const { playTrackList } = usePlayer();
+  const {
+    searchHistory,
+    favorites,
+    addToHistory,
+    clearHistory,
+    removeHistoryItem,
+    isFavorite,
+    toggleFavorite,
+  } = useLocalData();
   const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
+    setView("search");
     setHasSearched(true);
+    addToHistory(query.trim());
     search(query);
+  };
+
+  const handleHistoryClick = (historyQuery: string) => {
+    setQuery(historyQuery);
+    setView("search");
+    setHasSearched(true);
+    addToHistory(historyQuery);
+    search(historyQuery);
   };
 
   return (
     <main className="flex-1 overflow-y-auto pb-28">
       <div className="px-6 pt-8">
-        <h2 className="text-3xl font-bold text-foreground mb-6">Search Music</h2>
-
-        <form onSubmit={handleSearch} className="flex gap-2 mb-8">
-          <div className="relative flex-1">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search for any song, artist, or album..."
-              className="w-full pl-10 pr-4 py-3 rounded-lg bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-            />
-          </div>
+        <div className="flex items-center gap-3 mb-6">
           <button
-            type="submit"
-            disabled={loading || !query.trim()}
-            className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            onClick={() => setView("search")}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              view === "search" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            {loading ? <Loader2 size={18} className="animate-spin" /> : "Search"}
+            <div className="flex items-center gap-2">
+              <Search size={16} />
+              Search
+            </div>
           </button>
-        </form>
+          <button
+            onClick={() => setView("favorites")}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              view === "favorites" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Heart size={16} />
+              Favorites ({favorites.length})
+            </div>
+          </button>
+        </div>
 
-        {error && (
-          <div className="flex items-center gap-2 p-4 rounded-lg bg-destructive/10 text-destructive mb-6">
-            <AlertCircle size={18} />
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
+        {/* Search Tab */}
+        {view === "search" && (
+          <>
+            <form onSubmit={handleSearch} className="flex gap-2 mb-6">
+              <div className="relative flex-1">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search for any song, artist, or album..."
+                  className="w-full pl-10 pr-4 py-3 rounded-lg bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading || !query.trim()}
+                className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {loading ? <Loader2 size={18} className="animate-spin" /> : "Search"}
+              </button>
+            </form>
 
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 size={32} className="animate-spin text-primary" />
-          </div>
-        )}
-
-        {!loading && hasSearched && results.length === 0 && !error && (
-          <div className="text-center py-20">
-            <p className="text-muted-foreground">No results found for "{query}"</p>
-          </div>
-        )}
-
-        {!hasSearched && !loading && (
-          <div className="text-center py-20">
-            <Search size={48} className="mx-auto text-muted-foreground/30 mb-4" />
-            <p className="text-muted-foreground">Search for any song to start playing</p>
-          </div>
-        )}
-
-        {results.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground mb-3">
-              {results.length} results for "{query}"
-            </p>
-            {results.map((track, i) => {
-              const isActive = currentTrack?.src === track.src;
-              const isCurrentlyPlaying = isActive && isPlaying;
-
-              return (
-                <div
-                  key={`${track.src}-${i}`}
-                  onClick={() => {
-                    if (isActive) {
-                      isPlaying ? pause() : playTrack(track);
-                    } else {
-                      playTrack(track);
-                    }
-                  }}
-                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                    isActive
-                      ? "bg-primary/10 border border-primary/20"
-                      : "hover:bg-accent border border-transparent"
-                  }`}
-                >
-                  <div className="relative flex-shrink-0">
-                    {track.cover ? (
-                      <img
-                        src={track.cover}
-                        alt={track.title}
-                        className="w-14 h-14 rounded-md object-cover"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-md bg-muted flex items-center justify-center">
-                        <Play size={18} className="text-muted-foreground" />
-                      </div>
-                    )}
-                    {isCurrentlyPlaying && (
-                      <div className="absolute inset-0 rounded-md bg-black/40 flex items-center justify-center gap-0.5">
-                        <span className="w-0.5 h-3 bg-white rounded-full animate-pulse-glow" />
-                        <span className="w-0.5 h-4 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
-                        <span className="w-0.5 h-2 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
-                        <span className="w-0.5 h-3 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.45s" }} />
-                      </div>
-                    )}
+            {/* Search History */}
+            {!hasSearched && searchHistory.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <History size={14} />
+                    Recent Searches
                   </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${isActive ? "text-primary" : "text-foreground"}`}>
-                      {track.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
-                  </div>
-
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Clock size={12} />
-                    <span className="text-xs tabular-nums">{formatDuration(track.duration)}</span>
-                  </div>
+                  <button
+                    onClick={clearHistory}
+                    className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    Clear All
+                  </button>
                 </div>
-              );
-            })}
-          </div>
+                <div className="flex flex-wrap gap-2">
+                  {searchHistory.map((h) => (
+                    <div
+                      key={h}
+                      className="flex items-center gap-1 pl-3 pr-1 py-1 rounded-full bg-card border border-border hover:bg-accent transition-colors"
+                    >
+                      <button
+                        onClick={() => handleHistoryClick(h)}
+                        className="text-sm text-foreground"
+                      >
+                        {h}
+                      </button>
+                      <button
+                        onClick={() => removeHistoryItem(h)}
+                        className="p-1 rounded-full hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Error */}
+            {error && (
+              <div className="flex items-center gap-2 p-4 rounded-lg bg-destructive/10 text-destructive mb-6">
+                <AlertCircle size={18} />
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* Loading */}
+            {loading && (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 size={32} className="animate-spin text-primary" />
+              </div>
+            )}
+
+            {/* No results */}
+            {!loading && hasSearched && results.length === 0 && !error && (
+              <div className="text-center py-20">
+                <p className="text-muted-foreground">No results found for "{query}"</p>
+              </div>
+            )}
+
+            {/* Initial state */}
+            {!hasSearched && !loading && searchHistory.length === 0 && (
+              <div className="text-center py-20">
+                <Search size={48} className="mx-auto text-muted-foreground/30 mb-4" />
+                <p className="text-muted-foreground">Search for any song to start playing</p>
+              </div>
+            )}
+
+            {/* Results */}
+            {results.length > 0 && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm text-muted-foreground">
+                    {results.length} results for "{query}"
+                  </p>
+                  <button
+                    onClick={() => playTrackList(results, 0)}
+                    className="text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    Play All
+                  </button>
+                </div>
+                {results.map((track, i) => (
+                  <SongRow
+                    key={`${track.src}-${i}`}
+                    track={track}
+                    index={i}
+                    isFavorite={isFavorite(track.src)}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Favorites Tab */}
+        {view === "favorites" && (
+          <>
+            {favorites.length === 0 ? (
+              <div className="text-center py-20">
+                <Heart size={48} className="mx-auto text-muted-foreground/30 mb-4" />
+                <p className="text-muted-foreground">No favorites yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Search and tap the heart icon to add favorites</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm text-muted-foreground">{favorites.length} favorite songs</p>
+                  <button
+                    onClick={() => playTrackList(favorites, 0)}
+                    className="text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    Play All
+                  </button>
+                </div>
+                {favorites.map((track, i) => (
+                  <SongRow
+                    key={`fav-${track.src}-${i}`}
+                    track={track}
+                    index={i}
+                    isFavorite={true}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </main>
