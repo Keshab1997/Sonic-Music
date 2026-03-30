@@ -1,18 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause } from "lucide-react";
+import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause, ListMusic } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useHomeData } from "@/hooks/useHomeData";
 import { useRecentlyPlayed } from "@/hooks/useRecentlyPlayed";
 import { useListeningStats } from "@/hooks/useListeningStats";
 import { AudioVisualizer } from "@/components/AudioVisualizer";
 import { ArtistDetail } from "@/components/ArtistDetail";
+import { ViewAllArtists } from "@/components/ViewAllArtists";
+import { TimeMachinePlaylist } from "@/components/TimeMachinePlaylist";
 import { Track } from "@/data/playlist";
 import {
   topArtists,
+  allArtists,
   moodCategories,
   eraCategories,
   timeSuggestions,
   getTimeOfDay,
+  Artist,
 } from "@/data/homeData";
 
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
@@ -39,6 +43,8 @@ export const MainContent = () => {
   const [searchingFor, setSearchingFor] = useState<string | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [artistDetail, setArtistDetail] = useState<{ name: string; query: string } | null>(null);
+  const [showViewAllArtists, setShowViewAllArtists] = useState(false);
+  const [timeMachineEra, setTimeMachineEra] = useState<typeof eraCategories[0] | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const carouselTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -448,7 +454,12 @@ export const MainContent = () => {
         <section className="mb-8 animate-fade-in">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-bold text-foreground">Top Hindi Artists</h3>
-            <span className="text-[10px] text-muted-foreground">Tap to explore</span>
+            <button
+              onClick={() => setShowViewAllArtists(true)}
+              className="text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+            >
+              View All <ChevronRight size={14} />
+            </button>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
             {hindiArtists.map((artist) => (
@@ -473,7 +484,12 @@ export const MainContent = () => {
         <section className="mb-8 animate-fade-in">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-bold text-foreground">Top Bengali Artists</h3>
-            <span className="text-[10px] text-muted-foreground">Tap to explore</span>
+            <button
+              onClick={() => setShowViewAllArtists(true)}
+              className="text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+            >
+              View All <ChevronRight size={14} />
+            </button>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
             {bengaliArtists.map((artist) => (
@@ -507,8 +523,7 @@ export const MainContent = () => {
             {eraCategories.map((era) => (
               <button
                 key={era.name}
-                onClick={() => handleSearchAndPlay(era.searchQuery)}
-                disabled={isLoading(era.searchQuery)}
+                onClick={() => setTimeMachineEra(era)}
                 className={`relative p-3 rounded-xl bg-gradient-to-br ${era.gradient} cursor-pointer hover:scale-[1.03] transition-transform group overflow-hidden`}
               >
                 <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
@@ -516,11 +531,6 @@ export const MainContent = () => {
                   <p className="text-xl font-black text-white">{era.name}</p>
                   <p className="text-[9px] text-white/80 mt-0.5">{era.subtitle}</p>
                 </div>
-                {isLoading(era.searchQuery) && (
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
               </button>
             ))}
           </div>
@@ -565,6 +575,27 @@ export const MainContent = () => {
           artistName={artistDetail.name}
           searchQuery={artistDetail.query}
           onClose={() => setArtistDetail(null)}
+        />
+      )}
+
+      {/* View All Artists Modal */}
+      {showViewAllArtists && (
+        <ViewAllArtists
+          onSelectArtist={(artist) => {
+            setShowViewAllArtists(false);
+            setArtistDetail({ name: artist.name, query: artist.searchQuery });
+          }}
+          onClose={() => setShowViewAllArtists(false)}
+        />
+      )}
+
+      {/* Time Machine Playlist Modal */}
+      {timeMachineEra && (
+        <TimeMachinePlaylist
+          eraName={timeMachineEra.name}
+          subtitle={timeMachineEra.subtitle}
+          searchQuery={timeMachineEra.searchQuery}
+          onClose={() => setTimeMachineEra(null)}
         />
       )}
     </main>
