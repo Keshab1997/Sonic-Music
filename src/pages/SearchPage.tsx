@@ -1,5 +1,5 @@
-import { useState, FormEvent, useCallback } from "react";
-import { Search, Play, Clock, Loader2, AlertCircle, Pause } from "lucide-react";
+import { useState, FormEvent, useCallback, useRef, useEffect } from "react";
+import { Search, Play, Clock, Loader2, AlertCircle, Pause, ExternalLink } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useYouTubeSearch } from "@/hooks/useYouTubeSearch";
 
@@ -10,12 +10,70 @@ const formatDuration = (seconds: number) => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
+declare global {
+  interface Window {
+    YT: {
+      Player: new (
+        elementId: string,
+        options: {
+          videoId: string;
+          events?: {
+            onReady?: (event: { target: { playVideo: () => void } }) => void;
+            onStateChange?: (event: { data: number }) => void;
+            onError?: (event: { data: number }) => void;
+          };
+          playerVars?: Record<string, number | string>;
+        }
+      ) => YTPlayer;
+      PlayerState: { PLAYING: number };
+    };
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
+
+interface YTPlayer {
+  playVideo: () => void;
+  pauseVideo: () => void;
+  stopVideo: () => void;
+  destroy: () => void;
+  getPlayerState: () => number;
+}
+
+let ytApiLoaded = false;
+let ytApiLoading = false;
+const ytCallbacks: (() => void)[] = [];
+
+function loadYouTubeAPI() {
+  if (ytApiLoaded) return Promise.resolve();
+  if (ytApiLoading) {
+    return new Promise<void>((resolve) => ytCallbacks.push(resolve));
+  }
+  ytApiLoading = true;
+  return new Promise<void>((resolve) => {
+    ytCallbacks.push(resolve);
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    const firstScriptTag = document.getElementsByTagName("script")[0];
+    firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    window.onYouTubeIframeAPIReady = () => {
+      ytApiLoaded = true;
+      ytApiLoading = false;
+      ytCallbacks.forEach((cb) => cb());
+      ytCallbacks.length = 0;
+    };
+  });
+}
+
 export const SearchPage = () => {
   const [query, setQuery] = useState("");
   const { results, loading, error, search } = useYouTubeSearch();
   const { playTrack, currentTrack, isPlaying, pause } = usePlayer();
   const [hasSearched, setHasSearched] = useState(false);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const [playerReady, setPlayerReady] = useState(false);
+  const [embedFailed, setEmbedFailed] = useState(false);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+  const ytPlayerRef = useRef<YTPlayer | null>(null);
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
@@ -24,15 +82,80 @@ export const SearchPage = () => {
     search(query);
   };
 
-  const handlePlay = useCallback((videoId: string, track: typeof results[0]) => {
+  const destroyPlayer = useCallback(() => {
+    if (ytPlayerRef.current) {
+      try {
+        ytPlayerRef.current.destroy();
+      } catch {
+        // ignore
+      }
+      ytPlayerRef.current = null;
+    }
+    setPlayerReady(false);
+    setEmbedFailed(false);
+  }, []);
+
+  const handlePlay = useCallback(async (videoId: string, track: typeof results[0]) => {
+    destroyPlayer();
     setActiveVideoId(videoId);
+    setEmbedFailed(false);
     playTrack(track);
-  }, [playTrack]);
+
+    await loadYouTubeAPI();
+
+    if (!playerContainerRef.current) return;
+
+    // Create a div for the player
+    const playerDiv = document.createElement("div");
+    playerDiv.id = `yt-player-${videoId}`;
+    playerDiv.style.width = "100%";
+    playerDiv.style.height = "100%";
+    playerContainerRef.current.innerHTML = "";
+    playerContainerRef.current.appendChild(playerDiv);
+
+    try {
+      const player = new window.YT.Player(playerDiv.id, {
+        videoId: videoId,
+        events: {
+          onReady: (event) => {
+            event.target.playVideo();
+            setPlayerReady(true);
+          },
+          onError: () => {
+            setEmbedFailed(true);
+            setPlayerReady(false);
+          },
+        },
+        playerVars: {
+          autoplay: 1,
+          modestbranding: 1,
+          rel: 0,
+        },
+      });
+      ytPlayerRef.current = player;
+    } catch {
+      setEmbedFailed(true);
+    }
+  }, [destroyPlayer, playTrack]);
 
   const handlePause = useCallback(() => {
+    if (ytPlayerRef.current) {
+      try {
+        ytPlayerRef.current.pauseVideo();
+      } catch {
+        // ignore
+      }
+    }
+    destroyPlayer();
     setActiveVideoId(null);
     pause();
-  }, [pause]);
+  }, [destroyPlayer, pause]);
+
+  useEffect(() => {
+    return () => {
+      destroyPlayer();
+    };
+  }, [destroyPlayer]);
 
   return (
     <main className="flex-1 overflow-y-auto pb-28">
@@ -145,16 +268,14 @@ export const SearchPage = () => {
                   </div>
 
                   {/* YouTube player inline */}
-                  {isActive && (
+                  {isActive && !embedFailed && (
                     <div className="mt-2 mb-4 rounded-xl overflow-hidden bg-black border border-border">
-                      <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
-                        <iframe
-                          src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
-                          title={track.title}
-                          className="absolute top-0 left-0 w-full h-full"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
+                      <div
+                        ref={isActive ? playerContainerRef : undefined}
+                        className="relative w-full"
+                        style={{ paddingBottom: "56.25%" }}
+                      >
+                        <div id={`yt-player-${videoId}`} className="absolute top-0 left-0 w-full h-full" />
                       </div>
                       <div className="p-3 bg-card flex items-center gap-3">
                         <button
@@ -167,6 +288,34 @@ export const SearchPage = () => {
                           <Pause size={14} className="text-background" />
                         </button>
                         <p className="text-xs text-muted-foreground">Click pause or another song to stop</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fallback when embed is blocked */}
+                  {isActive && embedFailed && (
+                    <div className="mt-2 mb-4 rounded-xl overflow-hidden border border-border bg-card">
+                      <div className="p-6 text-center">
+                        <img
+                          src={track.cover}
+                          alt={track.title}
+                          className="w-24 h-24 rounded-lg object-cover mx-auto mb-3"
+                        />
+                        <p className="text-sm font-semibold text-foreground mb-1">{track.title}</p>
+                        <p className="text-xs text-muted-foreground mb-4">{track.artist}</p>
+                        <p className="text-xs text-muted-foreground mb-4">
+                          This video cannot be embedded. Watch it on YouTube:
+                        </p>
+                        <a
+                          href={`https://www.youtube.com/watch?v=${videoId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
+                        >
+                          <ExternalLink size={16} />
+                          Watch on YouTube
+                        </a>
                       </div>
                     </div>
                   )}
