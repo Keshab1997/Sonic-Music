@@ -13,11 +13,6 @@ export const usePlaylists = () => {
     } catch { /* ignore */ }
   }, []);
 
-  const save = useCallback((updated: Playlist[]) => {
-    setPlaylists(updated);
-    localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(updated));
-  }, []);
-
   const createPlaylist = useCallback((name: string) => {
     const newPlaylist: Playlist = {
       id: `pl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
