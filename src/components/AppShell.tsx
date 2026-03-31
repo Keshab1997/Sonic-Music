@@ -29,7 +29,7 @@ export const AppShell = ({ children }: AppShellProps) => {
       )}
 
       <AppSidebar />
-      <div className="relative flex-1 min-w-0 flex flex-col overflow-x-hidden">
+      <div className="relative flex-1 min-w-0 flex flex-col overflow-x-hidden z-10">
         {children}
       </div>
       <MobileNav />
