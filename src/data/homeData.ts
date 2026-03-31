@@ -117,3 +117,19 @@ export const getTimeOfDay = (): "morning" | "afternoon" | "evening" | "night" =>
   if (hour < 21) return "evening";
   return "night";
 };
+
+export interface MusicLabel {
+  name: string;
+  searchQuery: string;
+  gradient: string;
+  textColor: string;
+}
+
+export const musicLabels: MusicLabel[] = [
+  { name: "T-Series", searchQuery: "T-Series", gradient: "from-blue-600 to-blue-900", textColor: "text-white" },
+  { name: "Saregama", searchQuery: "Saregama", gradient: "from-amber-600 to-amber-900", textColor: "text-white" },
+  { name: "Zee Music", searchQuery: "Zee Music Company", gradient: "from-purple-600 to-purple-900", textColor: "text-white" },
+  { name: "Sony Music", searchQuery: "Sony Music India", gradient: "from-sky-600 to-sky-900", textColor: "text-white" },
+  { name: "YRF Music", searchQuery: "YRF Music", gradient: "from-red-600 to-red-900", textColor: "text-white" },
+  { name: "Tips", searchQuery: "Tips Official", gradient: "from-emerald-600 to-emerald-900", textColor: "text-white" },
+];

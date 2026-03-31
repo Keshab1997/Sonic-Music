@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2, Search } from "lucide-react";
+import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2, Search, Loader2 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useHomeData } from "@/hooks/useHomeData";
 import { useRecentlyPlayed } from "@/hooks/useRecentlyPlayed";
@@ -21,6 +21,8 @@ import {
   timeSuggestions,
   getTimeOfDay,
   Artist,
+  musicLabels,
+  MusicLabel,
 } from "@/data/homeData";
 import { useArtistFavorites } from "@/hooks/useArtistFavorites";
 
@@ -56,6 +58,7 @@ export const MainContent = () => {
   const [showFullHistory, setShowFullHistory] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [loadingLabel, setLoadingLabel] = useState<string | null>(null);
   const carouselTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { favorites: artistFavorites } = useArtistFavorites();
 
@@ -232,6 +235,60 @@ export const MainContent = () => {
   const activeCarouselSong = carouselSongs[carouselIndex] || null;
   const topArtistName = Object.entries(stats.topArtists).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
   const isLoading = (query: string) => searchLoading && searchingFor === query;
+
+  const parseLabelSong = (s: {
+    name: string;
+    primaryArtists: string;
+    album: { name: string } | string;
+    duration: string | number;
+    image: { quality: string; link: string }[];
+    downloadUrl: { quality: string; link: string }[];
+    id: string;
+  }, offset: number): Track | null => {
+    if (!s.downloadUrl?.length) return null;
+    const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+    const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+    const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
+    const bestUrl = url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "";
+    if (!bestUrl) return null;
+    return {
+      id: 20000 + offset,
+      title: s.name,
+      artist: s.primaryArtists || "Unknown",
+      album: typeof s.album === "string" ? s.album : s.album?.name || "",
+      cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
+             s.image?.[s.image.length - 1]?.link || "",
+      src: bestUrl,
+      duration: parseInt(String(s.duration)) || 0,
+      type: "audio" as const,
+      songId: s.id,
+      audioUrls: {
+        ...(url96 ? { "96kbps": url96 } : {}),
+        ...(url160 ? { "160kbps": url160 } : {}),
+        ...(url320 ? { "320kbps": url320 } : {}),
+      },
+    };
+  };
+
+  const playLabelSongs = async (label: MusicLabel, isRefresh = false) => {
+    setLoadingLabel(label.name);
+    try {
+      const page = isRefresh ? Math.floor(Math.random() * 10) + 1 : 1;
+      const res = await fetch(
+        `${API_BASE}/search/songs?query=${encodeURIComponent(label.searchQuery)}&page=${page}&limit=20`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const results = data.data?.results || [];
+      const tracks = results
+        .map((s: Parameters<typeof parseLabelSong>[0], i: number) => parseLabelSong(s, i))
+        .filter((t: Track | null): t is Track => t !== null);
+      if (tracks.length > 0) {
+        playTrackList(tracks, 0);
+      }
+    } catch { /* ignore */ }
+    setLoadingLabel(null);
+  };
 
   return (
     <main className="flex-1 overflow-y-auto overflow-x-hidden pb-32 md:pb-28">
@@ -576,6 +633,42 @@ export const MainContent = () => {
                   <p className="text-[10px] md:text-xs font-bold text-white mt-1">{mood.name}</p>
                 </div>
               </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Top Music Labels */}
+        <section className="mb-6 md:mb-8 animate-fade-in">
+          <div className="flex items-center gap-2 mb-2 md:mb-3">
+            <Music2 size={16} className="text-primary" />
+            <h3 className="text-base md:text-lg font-bold text-foreground">Top Music Labels</h3>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 md:gap-2.5">
+            {musicLabels.map((label) => (
+              <div
+                key={label.name}
+                onClick={() => loadingLabel !== label.name && playLabelSongs(label)}
+                className={`relative p-3 md:p-3.5 rounded-xl bg-gradient-to-br ${label.gradient} cursor-pointer hover:scale-[1.03] active:scale-[0.97] transition-transform group overflow-hidden`}
+              >
+                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/5 transition-colors" />
+                <div className="relative text-center">
+                  <p className={`text-[11px] md:text-sm font-bold ${label.textColor}`}>{label.name}</p>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (loadingLabel !== label.name) playLabelSongs(label, true);
+                  }}
+                  className="absolute bottom-1.5 right-1.5 p-1 rounded-full bg-black/30 hover:bg-black/50 transition-colors"
+                  title="Shuffle songs"
+                >
+                  {loadingLabel === label.name ? (
+                    <Loader2 size={12} className="text-white/80 animate-spin" />
+                  ) : (
+                    <RefreshCw size={12} className="text-white/80" />
+                  )}
+                </button>
+              </div>
             ))}
           </div>
         </section>
