@@ -73,10 +73,10 @@ export const ArtistPlaylist = ({ artistName, searchQuery, onClose }: ArtistPlayl
     setShowEnded(false);
     setSongs([]);
     try {
-      const page = Math.floor(Math.random() * 5) + 1;
+      const page = Math.floor(Math.random() * 3) + 1;
       const ts = Date.now();
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=30&_t=${ts}`);
-      if (!res.ok) return;
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=20&_t=${ts}`);
+      if (!res.ok) { setLoading(false); return; }
       const data = await res.json();
       const results = data.data?.results || [];
       const filtered = results.filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0);
