@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, Search, Library, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X, User } from "lucide-react";
+import { Home, Search, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X, User } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { usePlaylists } from "@/hooks/usePlaylists";
@@ -45,7 +45,7 @@ export const AppSidebar = () => {
   return (
     <aside className="hidden md:flex flex-col w-64 lg:w-72 bg-sidebar border-r border-sidebar-border h-full overflow-hidden flex-shrink-0 z-10 relative">
       {/* Logo */}
-      <div className="p-5 pb-3 flex items-center justify-between">
+      <div className="p-5 pb-3 flex items-center justify-between flex-shrink-0">
         <Link to="/">
           <h1 className="text-2xl font-bold text-foreground tracking-tight">
             <span className="text-gradient-brand">Pulse</span>
@@ -61,7 +61,7 @@ export const AppSidebar = () => {
       </div>
 
       {/* Nav */}
-      <nav className="px-3 space-y-1">
+      <nav className="px-3 space-y-1 flex-shrink-0">
         {navItems.map(({ icon: Icon, label, path }) => (
           <Link
             key={label}
@@ -79,7 +79,7 @@ export const AppSidebar = () => {
       </nav>
 
       {/* Search Bar */}
-      <div className="px-3 mt-3">
+      <div className="px-3 mt-3 flex-shrink-0">
         <button
           onClick={() => setShowSearch(true)}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-sidebar-accent text-sidebar-foreground hover:text-foreground transition-colors"
@@ -93,9 +93,9 @@ export const AppSidebar = () => {
       {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} />}
 
       {/* Playlist header */}
-      <div className="mt-6 px-3">
-        <div className="flex items-center justify-between px-3 mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Playlists</span>
+      <div className="mt-4 px-3 flex-shrink-0">
+        <div className="flex items-center justify-between px-3 mb-1">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Library</span>
           <button
             onClick={() => setShowCreateInput(!showCreateInput)}
             className="p-1 rounded-full hover:bg-sidebar-accent text-muted-foreground hover:text-foreground transition-colors"
@@ -103,7 +103,10 @@ export const AppSidebar = () => {
             <Plus size={16} />
           </button>
         </div>
+      </div>
 
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto px-3 pb-4 mt-1 space-y-1">
         {/* Create playlist input */}
         {showCreateInput && (
           <div className="flex items-center gap-1 px-3 mb-2">
@@ -125,6 +128,7 @@ export const AppSidebar = () => {
           </div>
         )}
 
+        {/* Liked Songs */}
         <button className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors">
           <Heart size={18} />
           <span className="text-sm font-medium">Liked Songs</span>
@@ -132,39 +136,35 @@ export const AppSidebar = () => {
 
         {/* Saved Artists */}
         {artistFavorites.length > 0 && (
-          <div className="mt-2">
-            <div className="flex items-center gap-3 w-full px-3 py-2">
-              <User size={16} className="text-primary" />
-              <span className="text-xs font-semibold text-muted-foreground">Saved Artists ({artistFavorites.length})</span>
+          <div>
+            <div className="flex items-center gap-3 w-full px-3 py-1.5">
+              <User size={15} className="text-primary" />
+              <span className="text-[11px] font-semibold text-muted-foreground">Saved Artists ({artistFavorites.length})</span>
             </div>
-            <div className="max-h-32 overflow-y-auto space-y-0.5 px-1">
-              {artistFavorites.map((a) => (
-                <div key={a.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-sidebar-accent transition-colors">
-                  <button
-                    onClick={() => setSelectedArtist({ name: a.name, id: a.id })}
-                    className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                  >
-                    <img src={a.image} alt={a.name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
-                    <span className="text-xs text-muted-foreground group-hover:text-foreground truncate">{a.name}</span>
-                  </button>
-                  <button
-                    onClick={() => removeArtistFav(a.id)}
-                    className="p-0.5 text-muted-foreground/0 group-hover:text-destructive rounded-full transition-colors"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
+            {artistFavorites.map((a) => (
+              <div key={a.id} className="group flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-sidebar-accent transition-colors">
+                <button
+                  onClick={() => setSelectedArtist({ name: a.name, id: a.id })}
+                  className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                >
+                  <img src={a.image} alt={a.name} className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                  <span className="text-[11px] text-muted-foreground group-hover:text-foreground truncate">{a.name}</span>
+                </button>
+                <button
+                  onClick={() => removeArtistFav(a.id)}
+                  className="p-0.5 text-muted-foreground/0 group-hover:text-destructive rounded-full transition-colors"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
           </div>
         )}
-      </div>
 
-      {/* Divider */}
-      <div className="mx-6 my-3 border-t border-sidebar-border" />
+        {/* Divider */}
+        <div className="mx-3 my-2 border-t border-sidebar-border" />
 
-      {/* Playlist list */}
-      <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-0.5">
+        {/* Playlists */}
         {playlists.map((pl) => (
           <div key={pl.id} className="group flex items-center">
             {editingId === pl.id ? (
@@ -215,14 +215,14 @@ export const AppSidebar = () => {
           </div>
         ))}
         {playlists.length === 0 && (
-          <p className="text-[11px] text-muted-foreground/50 px-3 py-2">No playlists yet. Click + to create one.</p>
+          <p className="text-[11px] text-muted-foreground/50 px-3 py-1">No playlists yet. Click + to create one.</p>
         )}
       </div>
 
       {/* Now playing mini */}
       {isPlaying && tracks[currentIndex] && (
         <div
-          className="mx-3 mb-3 p-3 rounded-lg bg-sidebar-accent cursor-pointer group"
+          className="mx-3 mb-3 p-3 rounded-lg bg-sidebar-accent cursor-pointer group flex-shrink-0"
           onClick={() => play(currentIndex)}
         >
           <div className="flex items-center gap-3">
