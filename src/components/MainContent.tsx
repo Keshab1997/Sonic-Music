@@ -15,7 +15,6 @@ import { SearchOverlay } from "@/components/SearchOverlay";
 import { Track } from "@/data/playlist";
 import {
   topArtists,
-  allArtists,
   moodCategories,
   MoodCategory,
   eraCategories,
