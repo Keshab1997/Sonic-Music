@@ -196,10 +196,10 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   const hasResults = data && (data.songs?.results?.length > 0 || data.albums?.results?.length > 0 || data.artists?.results?.length > 0);
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center">
+      <div className="absolute inset-0 bg-black/80" onClick={onClose} />
 
-      <div ref={overlayRef} className="relative w-full max-w-2xl mx-auto mt-8 md:mt-16 max-h-[85vh] bg-background/95 backdrop-blur-xl border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div ref={overlayRef} className="relative w-full max-w-2xl mx-auto mt-12 md:mt-20 max-h-[85vh] bg-[#0d0d12] border border-white/10 rounded-2xl overflow-hidden flex flex-col" style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }}>
         {/* Search Bar */}
         <div className="flex items-center gap-2 p-3 md:p-4 border-b border-border">
           <div className="flex-1 relative">
