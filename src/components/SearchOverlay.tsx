@@ -235,17 +235,17 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     setArtistLoading(false);
   }, []);
 
-  const fetchAlbumSongs = useCallback(async (albumName: string, refresh = false) => {
+  const fetchAlbumSongs = useCallback(async (albumId: string, albumName: string) => {
     setAlbumLoading(true);
     try {
-      const page = refresh ? Math.floor(Math.random() * 5) + 1 : 1;
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(albumName)}&page=${page}&limit=20`);
+      const res = await fetch(`${API_BASE}/albums?id=${albumId}`);
       if (!res.ok) return;
       const json = await res.json();
-      const results = json.data?.results || [];
-      const tracks: Track[] = results
+      const songs = json.data?.songs || [];
+      const albumImage = json.data?.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
+                         json.data?.image?.find((img: { quality: string }) => img.quality === "150x150")?.link || "";
+      const tracks: Track[] = songs
         .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
-        .slice(0, 10)
         .map((s: {
           name: string;
           primaryArtists: string;
@@ -259,13 +259,15 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
           const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
           const bestUrl = url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "";
+          const cover = s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
+                        s.image?.find((img: { quality: string }) => img.quality === "150x150")?.link ||
+                        albumImage || "";
           return {
             id: 9500 + i,
             title: s.name,
             artist: s.primaryArtists || "Unknown",
-            album: typeof s.album === "string" ? s.album : s.album?.name || "",
-            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
-                   s.image?.find((img: { quality: string }) => img.quality === "150x150")?.link || "",
+            album: typeof s.album === "string" ? s.album : s.album?.name || albumName,
+            cover,
             src: bestUrl,
             duration: parseInt(String(s.duration)) || 0,
             type: "audio" as const,
@@ -277,7 +279,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
             },
           };
         });
-      setAlbumSongs({ name: albumName, query: albumName, songs: tracks });
+      setAlbumSongs({ name: albumName, query: albumId, songs: tracks });
       if (tracks.length > 0) playTrackList(tracks, 0);
     } catch { /* ignore */ }
     setAlbumLoading(false);
@@ -652,7 +654,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                     {(showAllAlbums ? albumResults : albumResults.slice(0, 6)).map((album) => (
                       <div
                         key={album.id}
-                        onClick={() => fetchAlbumSongs(album.title)}
+                        onClick={() => fetchAlbumSongs(album.id, album.title)}
                         className={`${showAllAlbums ? "" : "flex-shrink-0"} w-28 md:w-32 group cursor-pointer`}
                       >
                         <div className="relative mb-1.5">
@@ -728,7 +730,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                   })}
                   {!albumLoading && albumSongs.songs.length > 0 && (
                     <button
-                      onClick={() => fetchAlbumSongs(albumSongs.name, true)}
+                      onClick={() => fetchAlbumSongs(albumSongs.query, albumSongs.name)}
                       className="w-full mt-3 py-2 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
                     >
                       <RefreshCw size={13} /> Refresh Songs
