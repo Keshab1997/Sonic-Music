@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause, ListMusic } from "lucide-react";
+import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useHomeData } from "@/hooks/useHomeData";
 import { useRecentlyPlayed } from "@/hooks/useRecentlyPlayed";
@@ -9,6 +9,7 @@ import { ArtistDetail } from "@/components/ArtistDetail";
 import { ViewAllArtists } from "@/components/ViewAllArtists";
 import { TimeMachinePlaylist } from "@/components/TimeMachinePlaylist";
 import { MoodPlaylist } from "@/components/MoodPlaylist";
+import { FullPlaylist } from "@/components/FullPlaylist";
 import { Track } from "@/data/playlist";
 import {
   topArtists,
@@ -47,6 +48,9 @@ export const MainContent = () => {
   const [showViewAllArtists, setShowViewAllArtists] = useState(false);
   const [timeMachineEra, setTimeMachineEra] = useState<typeof eraCategories[0] | null>(null);
   const [moodPlaylist, setMoodPlaylist] = useState<MoodCategory | null>(null);
+  const [showFullTrending, setShowFullTrending] = useState(false);
+  const [showFullNewReleases, setShowFullNewReleases] = useState(false);
+  const [showFullHistory, setShowFullHistory] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const carouselTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -115,6 +119,86 @@ export const MainContent = () => {
     setSearchingFor(null);
     setSearchLoading(false);
   }, [playTrackList]);
+
+  const loadMoreTrending = useCallback(async (page: number): Promise<Track[]> => {
+    try {
+      const res = await fetch(`${API_BASE}/search/songs?query=latest%20bollywood%20hits&page=${page + 1}&limit=20`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const songs = data.data?.results || [];
+      return songs
+        .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
+        .map((s: {
+          name: string;
+          primaryArtists: string;
+          album: { name: string } | string;
+          duration: string | number;
+          image: { quality: string; link: string }[];
+          downloadUrl: { quality: string; link: string }[];
+          id: string;
+        }, i: number) => {
+          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+          const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
+          return {
+            id: 5100 + page * 20 + i,
+            title: s.name,
+            artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "",
+            src: url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "",
+            duration: parseInt(String(s.duration)) || 0,
+            type: "audio" as const,
+            songId: s.id,
+            audioUrls: {
+              ...(url96 ? { "96kbps": url96 } : {}),
+              ...(url160 ? { "160kbps": url160 } : {}),
+              ...(url320 ? { "320kbps": url320 } : {}),
+            },
+          };
+        });
+    } catch { return []; }
+  }, []);
+
+  const loadMoreNewReleases = useCallback(async (page: number): Promise<Track[]> => {
+    try {
+      const res = await fetch(`${API_BASE}/search/songs?query=new%20hindi%20songs&page=${page + 1}&limit=20`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const songs = data.data?.results || [];
+      return songs
+        .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
+        .map((s: {
+          name: string;
+          primaryArtists: string;
+          album: { name: string } | string;
+          duration: string | number;
+          image: { quality: string; link: string }[];
+          downloadUrl: { quality: string; link: string }[];
+          id: string;
+        }, i: number) => {
+          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+          const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
+          return {
+            id: 6100 + page * 20 + i,
+            title: s.name,
+            artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "",
+            src: url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "",
+            duration: parseInt(String(s.duration)) || 0,
+            type: "audio" as const,
+            songId: s.id,
+            audioUrls: {
+              ...(url96 ? { "96kbps": url96 } : {}),
+              ...(url160 ? { "160kbps": url160 } : {}),
+              ...(url320 ? { "320kbps": url320 } : {}),
+            },
+          };
+        });
+    } catch { return []; }
+  }, []);
 
   const hindiArtists = topArtists.filter((a) => a.language === "hindi");
   const bengaliArtists = topArtists.filter((a) => a.language === "bengali");
@@ -307,7 +391,12 @@ export const MainContent = () => {
                 <TrendingUp size={16} className="text-primary" />
                 <h3 className="text-base md:text-lg font-bold text-foreground">Trending Now</h3>
               </div>
-              <span className="text-[9px] md:text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">Live</span>
+              <button
+                onClick={() => setShowFullTrending(true)}
+                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+              >
+                View All <ChevronRight size={12} />
+              </button>
             </div>
             <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {trendingSongs.map((track, i) => (
@@ -349,6 +438,12 @@ export const MainContent = () => {
                 <Music2 size={16} className="text-primary" />
                 <h3 className="text-base md:text-lg font-bold text-foreground">New Releases</h3>
               </div>
+              <button
+                onClick={() => setShowFullNewReleases(true)}
+                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+              >
+                View All <ChevronRight size={12} />
+              </button>
             </div>
             <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {newReleases.map((track, i) => (
@@ -384,7 +479,12 @@ export const MainContent = () => {
                 <Clock size={16} className="text-primary" />
                 <h3 className="text-base md:text-lg font-bold text-foreground">Recently Played</h3>
               </div>
-              <span className="text-[9px] md:text-[10px] text-muted-foreground">{history.length}</span>
+              <button
+                onClick={() => setShowFullHistory(true)}
+                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+              >
+                View All <ChevronRight size={12} />
+              </button>
             </div>
             <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {history.slice(0, 12).map((entry, i) => (
@@ -587,6 +687,34 @@ export const MainContent = () => {
           searchQuery={moodPlaylist.searchQuery}
           gradient={moodPlaylist.gradient}
           onClose={() => setMoodPlaylist(null)}
+        />
+      )}
+
+      {/* Full Playlist Modals */}
+      {showFullTrending && (
+        <FullPlaylist
+          title="Trending Now"
+          icon="trending"
+          initialSongs={trendingSongs}
+          loadMore={loadMoreTrending}
+          onClose={() => setShowFullTrending(false)}
+        />
+      )}
+      {showFullNewReleases && (
+        <FullPlaylist
+          title="New Releases"
+          icon="new"
+          initialSongs={newReleases}
+          loadMore={loadMoreNewReleases}
+          onClose={() => setShowFullNewReleases(false)}
+        />
+      )}
+      {showFullHistory && (
+        <FullPlaylist
+          title="Recently Played"
+          icon="history"
+          initialSongs={history.map((h) => h.track)}
+          onClose={() => setShowFullHistory(false)}
         />
       )}
     </main>
