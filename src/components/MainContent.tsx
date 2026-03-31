@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye } from "lucide-react";
+import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useHomeData } from "@/hooks/useHomeData";
 import { useRecentlyPlayed } from "@/hooks/useRecentlyPlayed";
@@ -39,7 +39,7 @@ const getSongOfDayIndex = (max: number) => {
 export const MainContent = () => {
   const { currentTrack, isPlaying, playTrackList, playTrack, togglePlay } = usePlayer();
   const { trendingSongs, newReleases, charts, loading: homeLoading } = useHomeData();
-  const { history, addToHistory } = useRecentlyPlayed();
+  const { history, addToHistory, clearHistory } = useRecentlyPlayed();
   const { stats, recordPlay } = useListeningStats();
 
   const [searchingFor, setSearchingFor] = useState<string | null>(null);
@@ -479,12 +479,20 @@ export const MainContent = () => {
                 <Clock size={16} className="text-primary" />
                 <h3 className="text-base md:text-lg font-bold text-foreground">Recently Played</h3>
               </div>
-              <button
-                onClick={() => setShowFullHistory(true)}
-                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
-              >
-                View All <ChevronRight size={12} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={clearHistory}
+                  className="text-[10px] md:text-xs text-muted-foreground hover:text-destructive font-medium transition-colors flex items-center gap-1"
+                >
+                  <Trash2 size={12} /> Clear
+                </button>
+                <button
+                  onClick={() => setShowFullHistory(true)}
+                  className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+                >
+                  View All <ChevronRight size={12} />
+                </button>
+              </div>
             </div>
             <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {history.slice(0, 12).map((entry, i) => (
