@@ -36,6 +36,21 @@ interface ChartItem {
 
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 
+const getDailySeed = () => {
+  const today = new Date();
+  return today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+};
+
+const dailyShuffle = <T,>(arr: T[]): T[] => {
+  const seed = getDailySeed();
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = (seed * (i + 1)) % shuffled.length;
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 const saavnToTrack = (s: SaavnSong, idOffset: number): Track => {
   const url96 = s.downloadUrl?.find((d) => d.quality === "96kbps")?.link;
   const url160 = s.downloadUrl?.find((d) => d.quality === "160kbps")?.link;
@@ -81,6 +96,7 @@ export const useHomeData = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const dailyPage = (getDailySeed() % 3) + 1;
         const res = await fetch(`${API_BASE}/modules?language=hindi`);
         if (!res.ok) return;
         const data = await res.json();
@@ -123,7 +139,7 @@ export const useHomeData = () => {
           if (songRes.ok) {
             const songData = await songRes.json();
             const songs: SaavnSong[] = songData.data || [];
-            setNewReleases(songs.map((s, i) => saavnToTrack(s, 6000 + i)));
+            setNewReleases(dailyShuffle(songs.map((s, i) => saavnToTrack(s, 6000 + i))));
           }
         }
       } catch {
@@ -164,7 +180,7 @@ export const useHomeData = () => {
         const songRes = await fetch(`${API_BASE}/songs?id=${newReleaseIds.join(",")}`);
         if (songRes.ok) {
           const songData = await songRes.json();
-          setNewReleases((songData.data || []).map((s: SaavnSong, i: number) => saavnToTrack(s, 6000 + i)));
+          setNewReleases(dailyShuffle((songData.data || []).map((s: SaavnSong, i: number) => saavnToTrack(s, 6000 + i))));
         }
       }
     } catch { /* ignore */ }

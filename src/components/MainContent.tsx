@@ -160,13 +160,32 @@ export const MainContent = () => {
     } catch { return []; }
   }, []);
 
+  const getDailySeed = () => {
+    const today = new Date();
+    return today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  };
+
+  const dailyShuffle = <T,>(arr: T[]): T[] => {
+    const seed = getDailySeed();
+    const shuffled = [...arr];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = (seed * (i + 1)) % shuffled.length;
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
   const loadMoreNewReleases = useCallback(async (page: number): Promise<Track[]> => {
     try {
-      const res = await fetch(`${API_BASE}/search/songs?query=new%20hindi%20songs&page=${page + 1}&limit=20`);
+      const dailyOffset = getDailySeed() % 3;
+      const actualPage = page + dailyOffset;
+      const queries = ["new hindi songs 2025", "latest bollywood songs", "new bengali songs", "new punjabi songs"];
+      const query = queries[getDailySeed() % queries.length];
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=${actualPage}&limit=20`);
       if (!res.ok) return [];
       const data = await res.json();
       const songs = data.data?.results || [];
-      return songs
+      const tracks = songs
         .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
         .map((s: {
           name: string;
@@ -197,6 +216,7 @@ export const MainContent = () => {
             },
           };
         });
+      return page === 1 ? dailyShuffle(tracks) : tracks;
     } catch { return []; }
   }, []);
 
