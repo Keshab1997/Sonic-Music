@@ -38,9 +38,9 @@ export const AppSidebar = () => {
   };
 
   return (
-    <aside className="hidden md:flex md:flex-col w-64 lg:w-72 bg-sidebar border-r border-sidebar-border h-full overflow-hidden flex-shrink-0">
+    <aside className="hidden md:flex flex-col w-64 lg:w-72 bg-sidebar border-r border-sidebar-border h-full overflow-hidden flex-shrink-0">
       {/* Logo */}
-      <div className="p-6 pb-4 flex items-center justify-between">
+      <div className="p-5 pb-3 flex items-center justify-between">
         <Link to="/">
           <h1 className="text-2xl font-bold text-foreground tracking-tight">
             <span className="text-gradient-brand">Pulse</span>
