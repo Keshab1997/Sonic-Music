@@ -19,6 +19,7 @@ import {
   ChevronUp,
   Sliders,
   Minimize2,
+  MoreVertical,
 } from "lucide-react";
 import { usePlayer, AudioQuality } from "@/context/PlayerContext";
 import { FullScreenPlayer } from "@/components/FullScreenPlayer";
@@ -79,6 +80,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
   const [showPlaylist, setShowPlaylist] = useState(false);
   const [showFullScreen, setShowFullScreen] = useState(false);
   const [showEqualizer, setShowEqualizer] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   if (!currentTrack) return null;
 
@@ -365,6 +367,17 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
               </div>
           </div>
 
+          {/* Mobile More Button */}
+          <div className="flex md:hidden">
+            <button
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              className="p-2 rounded-full text-muted-foreground hover:text-foreground active:bg-accent transition-colors"
+              title="More options"
+            >
+              <MoreVertical size={20} />
+            </button>
+          </div>
+
           {/* Right section: volume + action buttons */}
           <div className="hidden md:flex items-center gap-2 w-1/4 justify-end">
             {/* Lyrics */}
@@ -461,6 +474,72 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
           </div>
         </div>
       </div>
+
+      {/* Mobile Menu Panel */}
+      {showMobileMenu && (
+        <>
+          <div className="fixed inset-0 z-40 md:hidden" onClick={() => setShowMobileMenu(false)} />
+          <div className="fixed bottom-[88px] right-2 z-50 md:hidden w-52 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-up">
+            <div className="p-2">
+              <button
+                onClick={() => { setShowLyrics(true); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+              >
+                <Music2 size={16} /> Lyrics
+              </button>
+              <button
+                onClick={() => { setShowPlaylist(true); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+              >
+                <ListMusic size={16} /> Playlist
+              </button>
+              <button
+                onClick={() => { setShowQueue(!showQueue); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+              >
+                <ListMusic size={16} /> Queue
+                {queue.length > 0 && <span className="ml-auto text-[10px] text-primary">{queue.length}</span>}
+              </button>
+              <button
+                onClick={() => { setShowSleepMenu(true); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+              >
+                <Moon size={16} /> Sleep Timer
+                {sleepMinutes !== null && <span className="ml-auto text-[10px] text-primary">{sleepMinutes}m</span>}
+              </button>
+              <button
+                onClick={() => { setShowQualityMenu(true); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+              >
+                <Settings size={16} /> Quality
+                <span className="ml-auto text-[10px] text-primary">{quality.replace("kbps", "")}</span>
+              </button>
+              <button
+                onClick={() => { setShowEqualizer(true); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+              >
+                <Sliders size={16} /> Equalizer
+              </button>
+              <div className="border-t border-border my-1" />
+              <div className="flex items-center gap-3 px-3 py-2">
+                {volume === 0 ? <VolumeX size={16} className="text-muted-foreground" /> : <Volume2 size={16} className="text-muted-foreground" />}
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={volume}
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                  className="flex-1 h-1 accent-primary cursor-pointer appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted"
+                  style={{
+                    background: `linear-gradient(to right, hsl(var(--foreground)) ${volume * 100}%, hsl(var(--muted)) ${volume * 100}%)`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Full Screen Player */}
       {showFullScreen && (
