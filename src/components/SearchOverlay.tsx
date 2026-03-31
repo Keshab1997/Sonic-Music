@@ -269,9 +269,10 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           };
         });
       setAlbumSongs({ name: albumName, query: albumName, songs: tracks });
+      if (tracks.length > 0) playTrackList(tracks, 0);
     } catch { /* ignore */ }
     setAlbumLoading(false);
-  }, []);
+  }, [playTrackList]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -634,11 +635,9 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Albums</h3>
-                    {data.albums.results.length > 6 && (
-                      <button onClick={() => setShowAllAlbums(!showAllAlbums)} className="text-[10px] text-primary hover:text-primary/80 font-medium">
-                        {showAllAlbums ? "Show Less" : "View All"}
-                      </button>
-                    )}
+                    <button onClick={() => setShowAllAlbums(!showAllAlbums)} className="text-[10px] text-primary hover:text-primary/80 font-medium">
+                      {showAllAlbums ? "Show Less" : "View All"}
+                    </button>
                   </div>
                   <div className={`${showAllAlbums ? "grid grid-cols-3 md:grid-cols-4 gap-3" : "flex gap-3 overflow-x-auto pb-1 scrollbar-hide"}`}>
                     {(showAllAlbums ? data.albums.results : data.albums.results.slice(0, 6)).map((album) => (
