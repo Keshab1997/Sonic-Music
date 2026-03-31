@@ -22,6 +22,7 @@ import {
   getTimeOfDay,
   Artist,
 } from "@/data/homeData";
+import { useArtistFavorites } from "@/hooks/useArtistFavorites";
 
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 
@@ -56,6 +57,7 @@ export const MainContent = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const carouselTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { favorites: artistFavorites } = useArtistFavorites();
 
   const timeOfDay = getTimeOfDay();
   const timeData = timeSuggestions[timeOfDay];
@@ -577,6 +579,32 @@ export const MainContent = () => {
             ))}
           </div>
         </section>
+
+        {/* Saved Artists (Mobile) */}
+        {artistFavorites.length > 0 && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <h3 className="text-base md:text-lg font-bold text-foreground">Saved Artists ({artistFavorites.length})</h3>
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 scrollbar-hide">
+              {artistFavorites.map((artist) => (
+                <button
+                  key={artist.id}
+                  onClick={() => setArtistPlaylist({ name: artist.name, query: artist.name, artistId: artist.id })}
+                  className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 group"
+                >
+                  <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-primary transition-all">
+                    <img src={artist.image} alt={artist.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                      <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] md:text-xs text-muted-foreground group-hover:text-foreground transition-colors text-center w-16 md:w-20 truncate">{artist.name}</p>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Top Hindi Artists */}
         <section className="mb-6 md:mb-8 animate-fade-in">
