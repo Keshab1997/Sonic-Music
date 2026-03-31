@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
-import { Sliders, X, Volume2 } from "lucide-react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { Sliders, X } from "lucide-react";
+import { usePlayer } from "@/context/PlayerContext";
 
 interface EqPreset {
   name: string;
@@ -24,17 +25,89 @@ interface EqualizerProps {
 }
 
 export const Equalizer = ({ onClose }: EqualizerProps) => {
-  const [activePreset, setActivePreset] = useState("Flat");
-  const [bass, setBass] = useState(0);
-  const [mid, setMid] = useState(0);
-  const [treble, setTreble] = useState(0);
+  const { analyserRef, eqBass, eqMid, eqTreble, setEqBass, setEqMid, setEqTreble, isPlaying } = usePlayer();
+  const [activePreset, setActivePreset] = useState(() => {
+    const match = presets.find((p) => p.bass === eqBass && p.mid === eqMid && p.treble === eqTreble);
+    return match ? match.name : "Custom";
+  });
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animFrameRef = useRef<number>(0);
 
   const applyPreset = useCallback((preset: EqPreset) => {
     setActivePreset(preset.name);
-    setBass(preset.bass);
-    setMid(preset.mid);
-    setTreble(preset.treble);
-  }, []);
+    setEqBass(preset.bass);
+    setEqMid(preset.mid);
+    setEqTreble(preset.treble);
+  }, [setEqBass, setEqMid, setEqTreble]);
+
+  const handleBassChange = useCallback((v: number) => {
+    setEqBass(v);
+    setActivePreset("Custom");
+  }, [setEqBass]);
+
+  const handleMidChange = useCallback((v: number) => {
+    setEqMid(v);
+    setActivePreset("Custom");
+  }, [setEqMid]);
+
+  const handleTrebleChange = useCallback((v: number) => {
+    setEqTreble(v);
+    setActivePreset("Custom");
+  }, [setEqTreble]);
+
+  // Analyser-driven canvas visualizer
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const analyser = analyserRef.current;
+    if (!canvas || !analyser) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const draw = () => {
+      animFrameRef.current = requestAnimationFrame(draw);
+      analyser.getByteFrequencyData(dataArray);
+
+      const { width, height } = canvas;
+      ctx.clearRect(0, 0, width, height);
+
+      const barCount = 16;
+      const barWidth = (width / barCount) * 0.7;
+      const gap = (width / barCount) * 0.3;
+
+      for (let i = 0; i < barCount; i++) {
+        // Map bar index to frequency bin range
+        const binStart = Math.floor((i / barCount) * bufferLength);
+        const binEnd = Math.floor(((i + 1) / barCount) * bufferLength);
+        let sum = 0;
+        for (let j = binStart; j < binEnd; j++) {
+          sum += dataArray[j];
+        }
+        const avg = sum / (binEnd - binStart || 1);
+        const barHeight = (avg / 255) * height * 0.9;
+
+        const x = i * (barWidth + gap) + gap / 2;
+        const y = height - barHeight;
+
+        const gradient = ctx.createLinearGradient(x, y, x, height);
+        gradient.addColorStop(0, "hsl(262, 83%, 58%)");
+        gradient.addColorStop(1, "hsla(262, 83%, 58%, 0.3)");
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.roundRect(x, y, barWidth, barHeight, 3);
+        ctx.fill();
+      }
+    };
+
+    draw();
+
+    return () => {
+      cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [analyserRef, isPlaying]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -77,18 +150,18 @@ export const Equalizer = ({ onClose }: EqualizerProps) => {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-foreground">Bass</span>
-              <span className="text-xs text-muted-foreground tabular-nums">{bass > 0 ? "+" : ""}{bass} dB</span>
+              <span className="text-xs text-muted-foreground tabular-nums">{eqBass > 0 ? "+" : ""}{eqBass} dB</span>
             </div>
             <input
               type="range"
               min={-12}
               max={12}
               step={1}
-              value={bass}
-              onChange={(e) => { setBass(Number(e.target.value)); setActivePreset("Custom"); }}
+              value={eqBass}
+              onChange={(e) => handleBassChange(Number(e.target.value))}
               className="w-full h-1.5 accent-primary cursor-pointer appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted"
               style={{
-                background: `linear-gradient(to right, hsl(var(--primary)) ${((bass + 12) / 24) * 100}%, hsl(var(--muted)) ${((bass + 12) / 24) * 100}%)`,
+                background: `linear-gradient(to right, hsl(var(--primary)) ${((eqBass + 12) / 24) * 100}%, hsl(var(--muted)) ${((eqBass + 12) / 24) * 100}%)`,
               }}
             />
           </div>
@@ -97,18 +170,18 @@ export const Equalizer = ({ onClose }: EqualizerProps) => {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-foreground">Mid</span>
-              <span className="text-xs text-muted-foreground tabular-nums">{mid > 0 ? "+" : ""}{mid} dB</span>
+              <span className="text-xs text-muted-foreground tabular-nums">{eqMid > 0 ? "+" : ""}{eqMid} dB</span>
             </div>
             <input
               type="range"
               min={-12}
               max={12}
               step={1}
-              value={mid}
-              onChange={(e) => { setMid(Number(e.target.value)); setActivePreset("Custom"); }}
+              value={eqMid}
+              onChange={(e) => handleMidChange(Number(e.target.value))}
               className="w-full h-1.5 accent-primary cursor-pointer appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted"
               style={{
-                background: `linear-gradient(to right, hsl(var(--primary)) ${((mid + 12) / 24) * 100}%, hsl(var(--muted)) ${((mid + 12) / 24) * 100}%)`,
+                background: `linear-gradient(to right, hsl(var(--primary)) ${((eqMid + 12) / 24) * 100}%, hsl(var(--muted)) ${((eqMid + 12) / 24) * 100}%)`,
               }}
             />
           </div>
@@ -117,39 +190,32 @@ export const Equalizer = ({ onClose }: EqualizerProps) => {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-foreground">Treble</span>
-              <span className="text-xs text-muted-foreground tabular-nums">{treble > 0 ? "+" : ""}{treble} dB</span>
+              <span className="text-xs text-muted-foreground tabular-nums">{eqTreble > 0 ? "+" : ""}{eqTreble} dB</span>
             </div>
             <input
               type="range"
               min={-12}
               max={12}
               step={1}
-              value={treble}
-              onChange={(e) => { setTreble(Number(e.target.value)); setActivePreset("Custom"); }}
+              value={eqTreble}
+              onChange={(e) => handleTrebleChange(Number(e.target.value))}
               className="w-full h-1.5 accent-primary cursor-pointer appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted"
               style={{
-                background: `linear-gradient(to right, hsl(var(--primary)) ${((treble + 12) / 24) * 100}%, hsl(var(--muted)) ${((treble + 12) / 24) * 100}%)`,
+                background: `linear-gradient(to right, hsl(var(--primary)) ${((eqTreble + 12) / 24) * 100}%, hsl(var(--muted)) ${((eqTreble + 12) / 24) * 100}%)`,
               }}
             />
           </div>
         </div>
 
-        {/* Visualizer bars */}
+        {/* Real-time visualizer */}
         <div className="px-6 pb-4">
-          <div className="flex items-end justify-center gap-1 h-16 p-3 rounded-xl bg-card border border-border">
-            {Array.from({ length: 16 }).map((_, i) => {
-              const baseH = 10 + Math.random() * 30;
-              const bassBoost = bass > 0 && i < 5 ? bass * 2 : 0;
-              const trebleBoost = treble > 0 && i > 11 ? treble * 2 : 0;
-              const h = baseH + bassBoost + trebleBoost;
-              return (
-                <div
-                  key={i}
-                  className="w-2 rounded-full bg-gradient-to-t from-primary to-primary/40 transition-all duration-300"
-                  style={{ height: `${h}px` }}
-                />
-              );
-            })}
+          <div className="rounded-xl bg-card border border-border overflow-hidden">
+            <canvas
+              ref={canvasRef}
+              width={320}
+              height={64}
+              className="w-full h-16"
+            />
           </div>
         </div>
       </div>

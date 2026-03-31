@@ -15,6 +15,13 @@ interface PlayerContextType {
   repeat: "off" | "all" | "one";
   audioRef: React.RefObject<HTMLAudioElement>;
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
+  // Equalizer
+  eqBass: number;
+  eqMid: number;
+  eqTreble: number;
+  setEqBass: (v: number) => void;
+  setEqMid: (v: number) => void;
+  setEqTreble: (v: number) => void;
   // Queue
   queue: Track[];
   addToQueue: (track: Track) => void;
@@ -51,6 +58,7 @@ export const usePlayer = () => {
 };
 
 const QUALITY_KEY = "sonic_quality";
+const EQ_KEY = "sonic_eq";
 
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [trackList, setTrackList] = useState<Track[]>(playlist);
@@ -83,6 +91,41 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const bassFilterRef = useRef<BiquadFilterNode | null>(null);
+  const midFilterRef = useRef<BiquadFilterNode | null>(null);
+  const trebleFilterRef = useRef<BiquadFilterNode | null>(null);
+
+  // EQ state with localStorage persistence
+  const [eqBass, setEqBassState] = useState(() => {
+    try {
+      const stored = localStorage.getItem(EQ_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (typeof parsed.bass === "number") return parsed.bass;
+      }
+    } catch { /* ignore */ }
+    return 0;
+  });
+  const [eqMid, setEqMidState] = useState(() => {
+    try {
+      const stored = localStorage.getItem(EQ_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (typeof parsed.mid === "number") return parsed.mid;
+      }
+    } catch { /* ignore */ }
+    return 0;
+  });
+  const [eqTreble, setEqTrebleState] = useState(() => {
+    try {
+      const stored = localStorage.getItem(EQ_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (typeof parsed.treble === "number") return parsed.treble;
+      }
+    } catch { /* ignore */ }
+    return 0;
+  });
 
   const currentTrack = trackList[currentIndex] || null;
 
@@ -91,17 +134,44 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       const ctx = new AudioContext();
       const source = ctx.createMediaElementSource(audioRef.current);
+
+      // EQ filters: lowshelf @ 320Hz, peaking @ 1kHz, highshelf @ 3.2kHz
+      const bassFilter = ctx.createBiquadFilter();
+      bassFilter.type = "lowshelf";
+      bassFilter.frequency.value = 320;
+      bassFilter.gain.value = eqBass;
+
+      const midFilter = ctx.createBiquadFilter();
+      midFilter.type = "peaking";
+      midFilter.frequency.value = 1000;
+      midFilter.Q.value = 1;
+      midFilter.gain.value = eqMid;
+
+      const trebleFilter = ctx.createBiquadFilter();
+      trebleFilter.type = "highshelf";
+      trebleFilter.frequency.value = 3200;
+      trebleFilter.gain.value = eqTreble;
+
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
-      source.connect(analyser);
+
+      // Chain: source -> bass -> mid -> treble -> analyser -> destination
+      source.connect(bassFilter);
+      bassFilter.connect(midFilter);
+      midFilter.connect(trebleFilter);
+      trebleFilter.connect(analyser);
       analyser.connect(ctx.destination);
+
       audioCtxRef.current = ctx;
       sourceRef.current = source;
+      bassFilterRef.current = bassFilter;
+      midFilterRef.current = midFilter;
+      trebleFilterRef.current = trebleFilter;
       analyserRef.current = analyser;
     } catch {
       // ignore
     }
-  }, []);
+  }, [eqBass, eqMid, eqTreble]);
 
   const playAudio = useCallback(() => {
     setupAudioContext();
@@ -163,6 +233,37 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current);
     };
+  }, []);
+
+  // EQ setters that update filter nodes + persist
+  const setEqBass = useCallback((v: number) => {
+    setEqBassState(v);
+    if (bassFilterRef.current) bassFilterRef.current.gain.value = v;
+    try {
+      const stored = localStorage.getItem(EQ_KEY);
+      const prev = stored ? JSON.parse(stored) : {};
+      localStorage.setItem(EQ_KEY, JSON.stringify({ ...prev, bass: v }));
+    } catch { /* ignore */ }
+  }, []);
+
+  const setEqMid = useCallback((v: number) => {
+    setEqMidState(v);
+    if (midFilterRef.current) midFilterRef.current.gain.value = v;
+    try {
+      const stored = localStorage.getItem(EQ_KEY);
+      const prev = stored ? JSON.parse(stored) : {};
+      localStorage.setItem(EQ_KEY, JSON.stringify({ ...prev, mid: v }));
+    } catch { /* ignore */ }
+  }, []);
+
+  const setEqTreble = useCallback((v: number) => {
+    setEqTrebleState(v);
+    if (trebleFilterRef.current) trebleFilterRef.current.gain.value = v;
+    try {
+      const stored = localStorage.getItem(EQ_KEY);
+      const prev = stored ? JSON.parse(stored) : {};
+      localStorage.setItem(EQ_KEY, JSON.stringify({ ...prev, treble: v }));
+    } catch { /* ignore */ }
   }, []);
 
   const play = useCallback((index?: number) => {
@@ -337,6 +438,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         repeat,
         audioRef,
         analyserRef,
+        // Equalizer
+        eqBass,
+        eqMid,
+        eqTreble,
+        setEqBass,
+        setEqMid,
+        setEqTreble,
         queue,
         addToQueue,
         playNext,
