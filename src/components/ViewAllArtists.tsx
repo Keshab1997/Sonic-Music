@@ -7,12 +7,17 @@ interface ViewAllArtistsProps {
   onClose: () => void;
 }
 
+const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
+
+const getImage = (images: { quality: string; link: string }[], prefer = "500x500") =>
+  images?.find((img) => img.quality === prefer)?.link ||
+  images?.find((img) => img.quality === "150x150")?.link ||
+  images?.[images.length - 1]?.link || "";
+
 interface ApiArtist {
   id: string;
-  name: string;
-  image: { url: string }[];
-  role?: string;
-  type?: string;
+  title: string;
+  image: { quality: string; link: string }[];
 }
 
 export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps) => {
@@ -30,19 +35,16 @@ export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps)
     setLoading(true);
     try {
       const res = await fetch(
-        `https://saavn.dev/api/search/artists?query=${encodeURIComponent(query)}`
+        `${API_BASE}/search/artists?query=${encodeURIComponent(query)}&page=1&limit=30`
       );
       const json = await res.json();
       const results: ApiArtist[] = json?.data?.results ?? [];
-      const mapped: Artist[] = results.map((a) => {
-        const lastImage = a.image?.[a.image.length - 1]?.url ?? "";
-        return {
-          name: a.name,
-          image: lastImage,
-          searchQuery: a.name,
-          language: "hindi" as const,
-        };
-      });
+      const mapped: Artist[] = results.map((a) => ({
+        name: a.title,
+        image: getImage(a.image),
+        searchQuery: a.title,
+        language: "hindi" as const,
+      }));
       setArtists(mapped);
     } catch {
       setArtists([]);
