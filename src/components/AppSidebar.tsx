@@ -3,11 +3,11 @@ import { Home, Search, Library, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X
 import { usePlayer } from "@/context/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { usePlaylists } from "@/hooks/usePlaylists";
+import { SearchOverlay } from "@/components/SearchOverlay";
 import { Link, useLocation } from "react-router-dom";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
-  { icon: Search, label: "Search", path: "/search" },
 ];
 
 export const AppSidebar = () => {
@@ -20,6 +20,7 @@ export const AppSidebar = () => {
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
 
   const handleCreate = () => {
     if (newPlaylistName.trim()) {
@@ -72,6 +73,20 @@ export const AppSidebar = () => {
           </Link>
         ))}
       </nav>
+
+      {/* Search Bar */}
+      <div className="px-3 mt-3">
+        <button
+          onClick={() => setShowSearch(true)}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-sidebar-accent text-sidebar-foreground hover:text-foreground transition-colors"
+        >
+          <Search size={18} />
+          <span className="text-sm text-muted-foreground">Search songs, artists...</span>
+        </button>
+      </div>
+
+      {/* Search Overlay */}
+      {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} />}
 
       {/* Playlist header */}
       <div className="mt-6 px-3">

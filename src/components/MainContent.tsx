@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2 } from "lucide-react";
+import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2, Search } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useHomeData } from "@/hooks/useHomeData";
 import { useRecentlyPlayed } from "@/hooks/useRecentlyPlayed";
@@ -10,6 +10,7 @@ import { ViewAllArtists } from "@/components/ViewAllArtists";
 import { TimeMachinePlaylist } from "@/components/TimeMachinePlaylist";
 import { MoodPlaylist } from "@/components/MoodPlaylist";
 import { FullPlaylist } from "@/components/FullPlaylist";
+import { SearchOverlay } from "@/components/SearchOverlay";
 import { Track } from "@/data/playlist";
 import {
   topArtists,
@@ -51,6 +52,7 @@ export const MainContent = () => {
   const [showFullTrending, setShowFullTrending] = useState(false);
   const [showFullNewReleases, setShowFullNewReleases] = useState(false);
   const [showFullHistory, setShowFullHistory] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const carouselTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -230,6 +232,17 @@ export const MainContent = () => {
 
   return (
     <main className="flex-1 overflow-y-auto overflow-x-hidden pb-32 md:pb-28">
+      {/* Mobile Search Bar */}
+      <div className="md:hidden sticky top-0 z-10 px-4 pt-4 pb-2 bg-background/80 backdrop-blur-md">
+        <button
+          onClick={() => setShowSearch(true)}
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl bg-card border border-border text-muted-foreground"
+        >
+          <Search size={16} />
+          <span className="text-sm">Search songs, artists, albums...</span>
+        </button>
+      </div>
+
       {/* Hero Carousel */}
       {carouselSongs.length > 0 && (
         <div className="relative h-52 sm:h-64 md:h-80 overflow-hidden mb-4 md:mb-6">
@@ -745,6 +758,7 @@ export const MainContent = () => {
           onClose={() => setShowFullHistory(false)}
         />
       )}
+      {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} />}
     </main>
   );
 };
