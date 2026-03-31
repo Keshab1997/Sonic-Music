@@ -81,6 +81,9 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   const [showAllAlbums, setShowAllAlbums] = useState(false);
   const [albumSongs, setAlbumSongs] = useState<{ name: string; query: string; songs: Track[] } | null>(null);
   const [albumLoading, setAlbumLoading] = useState(false);
+  const [searchType, setSearchType] = useState<"songs" | "playlists">("songs");
+  const [playlistResults, setPlaylistResults] = useState<{ id: string; name: string; image: string; songCount: string }[]>([]);
+  const [playlistLoading, setPlaylistLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -188,6 +191,75 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     setLoading(false);
   }, []);
 
+  const doPlaylistSearch = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setPlaylistResults([]);
+      return;
+    }
+    setPlaylistLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/search/playlists?query=${encodeURIComponent(q)}&page=1&limit=20`);
+      if (!res.ok) return;
+      const json = await res.json();
+      const results = json.data?.results || [];
+      setPlaylistResults(results.map((p: { id: string; name: string; image: { quality: string; link: string }[]; songCount: string }) => ({
+        id: p.id,
+        name: p.name,
+        image: getImage(p.image),
+        songCount: p.songCount || "0",
+      })));
+    } catch { setPlaylistResults([]); }
+    setPlaylistLoading(false);
+  }, []);
+
+  const handlePlaylistClick = async (playlistId: string, playlistName: string) => {
+    setPlaylistLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/playlists?id=${playlistId}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      const songs = json.data?.songs || [];
+      const tracks: Track[] = songs
+        .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
+        .map((s: {
+          name: string;
+          primaryArtists: string;
+          album: { name: string } | string;
+          duration: string | number;
+          image: { quality: string; link: string }[];
+          downloadUrl: { quality: string; link: string }[];
+          id: string;
+        }, i: number) => {
+          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+          const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
+          const bestUrl = url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "";
+          return {
+            id: 30000 + i,
+            title: s.name,
+            artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
+                   s.image?.find((img: { quality: string }) => img.quality === "150x150")?.link || "",
+            src: bestUrl,
+            duration: parseInt(String(s.duration)) || 0,
+            type: "audio" as const,
+            songId: s.id,
+            audioUrls: {
+              ...(url96 ? { "96kbps": url96 } : {}),
+              ...(url160 ? { "160kbps": url160 } : {}),
+              ...(url320 ? { "320kbps": url320 } : {}),
+            },
+          };
+        });
+      if (tracks.length > 0) {
+        playTrackList(tracks, 0);
+        onClose();
+      }
+    } catch { /* ignore */ }
+    setPlaylistLoading(false);
+  };
+
   const fetchArtistSongs = useCallback(async (artistName: string, refresh = false) => {
     setArtistLoading(true);
     try {
@@ -290,9 +362,29 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     setQuery(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      doSearch(val);
+      if (searchType === "playlists") {
+        doPlaylistSearch(val);
+      } else {
+        doSearch(val);
+      }
       if (val.trim()) addToHistory(val.trim());
     }, DEBOUNCE_MS);
+  };
+
+  const handleSearchTypeChange = (type: "songs" | "playlists") => {
+    setSearchType(type);
+    setPlaylistResults([]);
+    setData(null);
+    setSongResults([]);
+    setAlbumResults([]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (query.trim()) {
+      if (type === "playlists") {
+        doPlaylistSearch(query);
+      } else {
+        doSearch(query);
+      }
+    }
   };
 
   const handleSongClick = (track: Track, allTracks?: Track[]) => {
@@ -326,7 +418,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
             />
             {query && (
               <button
-                onClick={() => { setQuery(""); setData(null); setSongResults([]); inputRef.current?.focus(); }}
+                onClick={() => { setQuery(""); setData(null); setSongResults([]); setPlaylistResults([]); inputRef.current?.focus(); }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 <X size={14} />
@@ -338,8 +430,32 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           </button>
         </div>
 
+        {/* Search Type Filters */}
+        <div className="flex items-center gap-2 px-3 md:px-4 pb-2">
+          <button
+            onClick={() => handleSearchTypeChange("songs")}
+            className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
+              searchType === "songs"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Songs
+          </button>
+          <button
+            onClick={() => handleSearchTypeChange("playlists")}
+            className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
+              searchType === "playlists"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Podcasts & Playlists
+          </button>
+        </div>
+
         {/* Loading */}
-        {loading && (
+        {(loading || playlistLoading) && (
           <div className="flex items-center justify-center py-8">
             <Loader2 size={24} className="animate-spin text-primary" />
           </div>
@@ -414,7 +530,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           )}
 
           {/* Search Results */}
-          {isSearchMode && !loading && (
+          {isSearchMode && !loading && searchType === "songs" && (
             <>
               {!hasResults && songResults.length === 0 && (
                 <div className="text-center py-12">
@@ -758,6 +874,45 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Playlist Results */}
+          {isSearchMode && searchType === "playlists" && !playlistLoading && (
+            <>
+              {playlistResults.length === 0 ? (
+                <div className="text-center py-12">
+                  <Search size={32} className="mx-auto text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">No playlists found for "{query}"</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {playlistResults.map((pl) => (
+                    <button
+                      key={pl.id}
+                      onClick={() => handlePlaylistClick(pl.id, pl.name)}
+                      className="flex flex-col items-center gap-2 p-3 rounded-xl bg-card hover:bg-accent transition-colors group text-center"
+                    >
+                      <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-muted">
+                        {pl.image ? (
+                          <img src={pl.image} alt={pl.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" loading="lazy" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <PlaySquare size={32} className="text-muted-foreground/30" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                          <Play size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+                      <div className="min-w-0 w-full">
+                        <p className="text-xs font-semibold text-foreground truncate">{pl.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{pl.songCount} songs</p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               )}
             </>
