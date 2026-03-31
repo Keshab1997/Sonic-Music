@@ -3,7 +3,7 @@ import { X, Play, Search } from "lucide-react";
 import { Artist } from "@/data/homeData";
 
 interface ViewAllArtistsProps {
-  onSelectArtist: (artist: Artist) => void;
+  onSelectArtist: (artist: Artist & { artistId?: string }) => void;
   onClose: () => void;
 }
 
@@ -16,13 +16,13 @@ const getImage = (images: { quality: string; link: string }[], prefer = "500x500
 
 interface ApiArtist {
   id: string;
-  title: string;
+  name: string;
   image: { quality: string; link: string }[];
 }
 
 export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps) => {
   const [search, setSearch] = useState("");
-  const [artists, setArtists] = useState<Artist[]>([]);
+  const [artists, setArtists] = useState<(Artist & { artistId: string })[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -39,11 +39,12 @@ export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps)
       );
       const json = await res.json();
       const results: ApiArtist[] = json?.data?.results ?? [];
-      const mapped: Artist[] = results.map((a) => ({
-        name: a.title,
+      const mapped = results.map((a) => ({
+        name: a.name,
         image: getImage(a.image),
-        searchQuery: a.title,
+        searchQuery: a.name,
         language: "hindi" as const,
+        artistId: a.id,
       }));
       setArtists(mapped);
     } catch {
@@ -63,10 +64,10 @@ export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps)
   }, [search, fetchArtists]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pt-4 pb-24 md:pb-28">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl max-h-[85vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden">
-        <div className="p-4 border-b border-border">
+      <div className="relative w-full max-w-2xl h-full max-h-[calc(100vh-140px)] md:max-h-[calc(100vh-120px)] glass-heavy border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-border flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h2 className="text-lg font-bold text-foreground">Top Indian Artists</h2>
@@ -78,7 +79,7 @@ export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps)
           </div>
 
           {/* Search */}
-          <div className="relative mb-3">
+          <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
@@ -90,7 +91,7 @@ export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps)
           </div>
         </div>
 
-        <div className="overflow-y-auto max-h-[60vh] p-4">
+        <div className="flex-1 overflow-y-auto p-4">
           {!search.trim() ? null : loading ? (
             <p className="text-sm text-muted-foreground text-center py-8">Searching...</p>
           ) : artists.length === 0 ? (
@@ -99,18 +100,20 @@ export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps)
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {artists.map((artist) => (
                 <button
-                  key={`${artist.name}-${artist.searchQuery}`}
+                  key={artist.artistId}
                   onClick={() => onSelectArtist(artist)}
                   className="flex items-center gap-3 p-3 rounded-xl bg-card hover:bg-accent transition-colors group text-left"
                 >
-                  <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-                    <img src={artist.image} alt={artist.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                  <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-muted">
+                    {artist.image && (
+                      <img src={artist.image} alt={artist.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" loading="lazy" />
+                    )}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{artist.name}</p>
+                    <p className="text-sm font-semibold text-foreground truncate">{artist.name}</p>
                   </div>
                 </button>
               ))}

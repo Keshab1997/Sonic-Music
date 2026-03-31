@@ -7,6 +7,7 @@ import { usePlaylists } from "@/hooks/usePlaylists";
 interface ArtistPlaylistProps {
   artistName: string;
   searchQuery: string;
+  artistId?: string;
   onClose: () => void;
 }
 
@@ -59,7 +60,7 @@ const formatDuration = (s: number) => {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 };
 
-export const ArtistPlaylist = ({ artistName, searchQuery, onClose }: ArtistPlaylistProps) => {
+export const ArtistPlaylist = ({ artistName, searchQuery, artistId, onClose }: ArtistPlaylistProps) => {
   const { playTrackList, currentTrack, isPlaying, tracks: playerTracks } = usePlayer();
   const { createPlaylist, addToPlaylist } = usePlaylists();
 
@@ -76,7 +77,10 @@ export const ArtistPlaylist = ({ artistName, searchQuery, onClose }: ArtistPlayl
     setSongs([]);
     try {
       const page = Math.floor(Math.random() * 3) + 1;
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=20`);
+      const url = artistId
+        ? `${API_BASE}/artists/${artistId}/songs?page=${page}`
+        : `${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=20`;
+      const res = await fetch(url);
       if (!res.ok) { setLoading(false); setError(true); return; }
       const data = await res.json();
       const results = data.data?.results || [];
@@ -95,7 +99,7 @@ export const ArtistPlaylist = ({ artistName, searchQuery, onClose }: ArtistPlayl
       setSaved(false);
     } catch { setError(true); }
     setLoading(false);
-  }, [searchQuery]);
+  }, [searchQuery, artistId]);
 
   useEffect(() => {
     fetchSongs();

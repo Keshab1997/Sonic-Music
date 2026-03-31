@@ -46,7 +46,7 @@ export const MainContent = () => {
   const [searchingFor, setSearchingFor] = useState<string | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [artistDetail, setArtistDetail] = useState<{ name: string; query: string } | null>(null);
-  const [artistPlaylist, setArtistPlaylist] = useState<{ name: string; query: string } | null>(null);
+  const [artistPlaylist, setArtistPlaylist] = useState<{ name: string; query: string; artistId?: string } | null>(null);
   const [showViewAllArtists, setShowViewAllArtists] = useState(false);
   const [timeMachineEra, setTimeMachineEra] = useState<typeof eraCategories[0] | null>(null);
   const [moodPlaylist, setMoodPlaylist] = useState<MoodCategory | null>(null);
@@ -709,6 +709,7 @@ export const MainContent = () => {
         <ArtistPlaylist
           artistName={artistPlaylist.name}
           searchQuery={artistPlaylist.query}
+          artistId={artistPlaylist.artistId}
           onClose={() => setArtistPlaylist(null)}
         />
       )}
@@ -716,7 +717,7 @@ export const MainContent = () => {
         <ViewAllArtists
           onSelectArtist={(artist) => {
             setShowViewAllArtists(false);
-            setArtistPlaylist({ name: artist.name, query: artist.searchQuery });
+            setArtistPlaylist({ name: artist.name, query: artist.searchQuery, artistId: (artist as { artistId?: string }).artistId });
           }}
           onClose={() => setShowViewAllArtists(false)}
         />
