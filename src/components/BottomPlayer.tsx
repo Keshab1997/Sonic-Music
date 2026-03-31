@@ -20,8 +20,14 @@ import {
   Sliders,
   Minimize2,
   MoreVertical,
+  Heart,
+  Plus,
+  Save,
+  Check,
 } from "lucide-react";
 import { usePlayer, AudioQuality } from "@/context/PlayerContext";
+import { useLocalData } from "@/hooks/useLocalData";
+import { usePlaylists } from "@/hooks/usePlaylists";
 import { FullScreenPlayer } from "@/components/FullScreenPlayer";
 import { Equalizer } from "@/components/Equalizer";
 
@@ -73,6 +79,9 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
     cancelSleepTimer,
   } = usePlayer();
 
+  const { isFavorite, toggleFavorite } = useLocalData();
+  const { playlists, createPlaylist, addToPlaylist } = usePlaylists();
+
   const [showQueue, setShowQueue] = useState(false);
   const [showSleepMenu, setShowSleepMenu] = useState(false);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
@@ -81,6 +90,18 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
   const [showFullScreen, setShowFullScreen] = useState(false);
   const [showEqualizer, setShowEqualizer] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [savedPlaylist, setSavedPlaylist] = useState(false);
+  const [songMenu, setSongMenu] = useState<number | null>(null);
+  const [songMenuPlSubmenu, setSongMenuPlSubmenu] = useState(false);
+  const [newPlName, setNewPlName] = useState("");
+
+  const handleSavePlaylist = () => {
+    if (tracks.length === 0) return;
+    const pl = createPlaylist(`Now Playing - ${new Date().toLocaleDateString()}`);
+    tracks.forEach((track) => addToPlaylist(pl.id, track));
+    setSavedPlaylist(true);
+    setTimeout(() => setSavedPlaylist(false), 2000);
+  };
 
   if (!currentTrack) return null;
 
@@ -97,9 +118,22 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                   <h2 className="text-lg font-bold text-foreground">Now Playing</h2>
                   <p className="text-xs text-muted-foreground">{tracks.length} songs in playlist</p>
                 </div>
-                <button onClick={() => setShowPlaylist(false)} className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground">
-                  <X size={18} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSavePlaylist}
+                    disabled={tracks.length === 0 || savedPlaylist}
+                    className={`px-3 py-1.5 text-xs rounded-full font-medium transition-all flex items-center gap-1.5 ${
+                      savedPlaylist
+                        ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                        : "bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20"
+                    }`}
+                  >
+                    {savedPlaylist ? <><Check size={13} /> Saved</> : <><Save size={13} /> Save Playlist</>}
+                  </button>
+                  <button onClick={() => setShowPlaylist(false)} className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground">
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
               {/* Current song big display */}
               <div className="flex items-center gap-3 mt-3 p-3 rounded-xl bg-primary/10 border border-primary/20">
@@ -129,15 +163,15 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
             <div className="overflow-y-auto max-h-[55vh] p-2 space-y-0.5">
               {tracks.map((track, i) => {
                 const isCurrent = i === currentIndex;
+                const liked = isFavorite(track.src);
                 return (
                   <div
                     key={`${track.src}-${i}`}
-                    onClick={() => playTrackList(tracks, i)}
-                    className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors group ${
+                    className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors group ${
                       isCurrent ? "bg-primary/10 border border-primary/20" : "hover:bg-accent border border-transparent"
                     }`}
                   >
-                    <div className="relative flex-shrink-0 w-8 text-center">
+                    <div className="relative flex-shrink-0 w-8 text-center cursor-pointer" onClick={() => playTrackList(tracks, i)}>
                       {isCurrent && isPlaying ? (
                         <div className="flex items-center justify-center gap-0.5">
                           <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" />
@@ -153,16 +187,69 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                         </>
                       )}
                     </div>
-                    <div className="relative flex-shrink-0">
+                    <div className="relative flex-shrink-0 cursor-pointer" onClick={() => playTrackList(tracks, i)}>
                       <img src={track.cover} alt="" className={`w-10 h-10 rounded-md object-cover ${isCurrent ? "ring-2 ring-primary" : ""}`} />
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => playTrackList(tracks, i)}>
                       <p className={`text-sm font-medium truncate ${isCurrent ? "text-primary" : "text-foreground"}`}>{track.title}</p>
                       <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
                     </div>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                    <span className="text-[10px] text-muted-foreground tabular-nums cursor-pointer" onClick={() => playTrackList(tracks, i)}>
                       {track.duration ? formatTime(track.duration) : "--:--"}
                     </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
+                      className={`p-1.5 rounded-full transition-colors ${
+                        liked ? "text-red-500" : "text-muted-foreground/0 group-hover:text-muted-foreground hover:text-red-400"
+                      }`}
+                      title={liked ? "Remove from favorites" : "Add to favorites"}
+                    >
+                      <Heart size={14} fill={liked ? "currentColor" : "none"} />
+                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSongMenu(songMenu === i ? null : i); setSongMenuPlSubmenu(false); }}
+                        className="p-1.5 rounded-full text-muted-foreground/0 group-hover:text-muted-foreground hover:text-foreground transition-colors"
+                        title="Add to playlist"
+                      >
+                        <Plus size={14} />
+                      </button>
+                      {songMenu === i && (
+                        <>
+                          <div className="fixed inset-0 z-50" onClick={(e) => { e.stopPropagation(); setSongMenu(null); setSongMenuPlSubmenu(false); }} />
+                          <div className="absolute right-0 top-full mt-1 z-[60] w-44 glass-heavy border border-border rounded-lg shadow-2xl overflow-hidden">
+                            {playlists.map((pl) => (
+                              <button
+                                key={pl.id}
+                                onClick={(e) => { e.stopPropagation(); addToPlaylist(pl.id, track); setSongMenu(null); setSongMenuPlSubmenu(false); }}
+                                className="w-full text-left px-3 py-2 text-[11px] text-foreground hover:bg-accent transition-colors truncate"
+                              >
+                                {pl.name}
+                              </button>
+                            ))}
+                            {playlists.length === 0 && <p className="px-3 py-2 text-[10px] text-muted-foreground/50">No playlists</p>}
+                            <div className="border-t border-border flex items-center gap-1 px-2 py-1.5">
+                              <input
+                                type="text"
+                                value={newPlName}
+                                onChange={(e) => setNewPlName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && newPlName.trim()) {
+                                    const pl = createPlaylist(newPlName.trim());
+                                    addToPlaylist(pl.id, track);
+                                    setNewPlName("");
+                                    setSongMenu(null);
+                                    setSongMenuPlSubmenu(false);
+                                  }
+                                }}
+                                placeholder="New playlist..."
+                                className="flex-1 text-[10px] px-2 py-1 rounded bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
               })}
