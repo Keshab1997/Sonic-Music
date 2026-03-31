@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, Play, TrendingUp, Music2, Disc3, User, Loader2, Heart, Clock, MoreHorizontal, ListPlus, PlaySquare, Plus, Check } from "lucide-react";
+import { Search, X, Play, TrendingUp, Music2, Disc3, User, Loader2, Heart, Clock, MoreHorizontal, ListPlus, PlaySquare, Plus, Check, RefreshCw } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useLocalData } from "@/hooks/useLocalData";
 import { usePlaylists } from "@/hooks/usePlaylists";
@@ -75,6 +75,8 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   const [songMenu, setSongMenu] = useState<string | null>(null);
   const [songMenuPlSubmenu, setSongMenuPlSubmenu] = useState(false);
   const [newPlName, setNewPlName] = useState("");
+  const [artistSongs, setArtistSongs] = useState<{ name: string; query: string; songs: Track[] } | null>(null);
+  const [artistLoading, setArtistLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -172,6 +174,53 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
       }
     } catch { /* ignore */ }
     setLoading(false);
+  }, []);
+
+  const fetchArtistSongs = useCallback(async (artistName: string, refresh = false) => {
+    setArtistLoading(true);
+    try {
+      const page = refresh ? Math.floor(Math.random() * 10) + 1 : 1;
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(artistName)}&page=${page}&limit=20`);
+      if (!res.ok) return;
+      const json = await res.json();
+      const results = json.data?.results || [];
+      const tracks: Track[] = results
+        .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
+        .slice(0, 10)
+        .map((s: {
+          name: string;
+          primaryArtists: string;
+          album: { name: string } | string;
+          duration: string | number;
+          image: { quality: string; link: string }[];
+          downloadUrl: { quality: string; link: string }[];
+          id: string;
+        }, i: number) => {
+          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+          const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
+          const bestUrl = url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "";
+          return {
+            id: 9000 + i,
+            title: s.name,
+            artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
+                   s.image?.find((img: { quality: string }) => img.quality === "150x150")?.link || "",
+            src: bestUrl,
+            duration: parseInt(String(s.duration)) || 0,
+            type: "audio" as const,
+            songId: s.id,
+            audioUrls: {
+              ...(url96 ? { "96kbps": url96 } : {}),
+              ...(url160 ? { "160kbps": url160 } : {}),
+              ...(url320 ? { "320kbps": url320 } : {}),
+            },
+          };
+        });
+      setArtistSongs({ name: artistName, query: artistName, songs: tracks });
+    } catch { /* ignore */ }
+    setArtistLoading(false);
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -313,7 +362,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
               )}
 
               {/* Top Result */}
-              {data?.topQuery?.results?.length > 0 && (
+              {data?.topQuery?.results?.length > 0 && !artistSongs && (
                 <div className="mb-6">
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Top Result</h3>
                   {(() => {
@@ -323,9 +372,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                       <div
                         onClick={() => {
                           if (isArtist) {
-                            // Search for artist's songs
-                            setQuery(top.title);
-                            doSearch(top.title);
+                            fetchArtistSongs(top.title);
                           } else if (songResults.length > 0) {
                             handleSongClick(songResults[0], songResults);
                           }
@@ -350,6 +397,72 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                       </div>
                     );
                   })()}
+                </div>
+              )}
+
+              {/* Artist Songs List */}
+              {artistSongs && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{artistSongs.name} — Songs</h3>
+                    <button onClick={() => setArtistSongs(null)} className="text-[10px] text-muted-foreground hover:text-foreground">
+                      <X size={14} />
+                    </button>
+                  </div>
+                  {artistLoading && (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 size={20} className="animate-spin text-primary" />
+                    </div>
+                  )}
+                  {!artistLoading && artistSongs.songs.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4">No songs found</p>
+                  )}
+                  {!artistLoading && artistSongs.songs.map((track) => {
+                    const isActive = currentTrack?.src === track.src;
+                    const liked = isFavorite(track.src);
+                    return (
+                      <div
+                        key={track.src}
+                        onClick={() => handleSongClick(track, artistSongs.songs)}
+                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${
+                          isActive ? "bg-primary/10" : "hover:bg-accent"
+                        }`}
+                      >
+                        <div className="relative flex-shrink-0">
+                          <img src={track.cover} alt="" className={`w-10 h-10 rounded object-cover ${isActive ? "ring-1 ring-primary" : ""}`} />
+                          <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                            {isActive && isPlaying ? (
+                              <div className="flex items-end gap-0.5">
+                                <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" />
+                                <span className="w-0.5 h-3 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
+                                <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
+                              </div>
+                            ) : (
+                              <Play size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium truncate ${isActive ? "text-primary" : "text-foreground"}`}>{track.title}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
+                          className={`p-1.5 rounded-full transition-colors ${liked ? "text-red-500" : "text-muted-foreground/0 group-hover:text-muted-foreground"}`}
+                        >
+                          <Heart size={13} fill={liked ? "currentColor" : "none"} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {!artistLoading && artistSongs.songs.length > 0 && (
+                    <button
+                      onClick={() => fetchArtistSongs(artistSongs.name, true)}
+                      className="w-full mt-3 py-2 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <RefreshCw size={13} /> Refresh Songs
+                    </button>
+                  )}
                 </div>
               )}
 
