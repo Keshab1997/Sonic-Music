@@ -61,22 +61,25 @@ const formatDuration = (s: number) => {
 
 export const ArtistPlaylist = ({ artistName, searchQuery, onClose }: ArtistPlaylistProps) => {
   const { playTrackList, currentTrack, isPlaying, tracks: playerTracks } = usePlayer();
-  const { createPlaylist, addToPlaylist, playlists } = usePlaylists();
+  const { createPlaylist, addToPlaylist } = usePlaylists();
 
   const [songs, setSongs] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [showEnded, setShowEnded] = useState(false);
+  const [error, setError] = useState(false);
 
   const fetchSongs = useCallback(async () => {
     setLoading(true);
     setShowEnded(false);
+    setError(false);
     setSongs([]);
     try {
       const page = Math.floor(Math.random() * 3) + 1;
       const ts = Date.now();
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=20&_t=${ts}`);
-      if (!res.ok) { setLoading(false); return; }
+      const rand = Math.random().toString(36).slice(2, 10);
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=20&_t=${ts}&_r=${rand}`);
+      if (!res.ok) { setLoading(false); setError(true); return; }
       const data = await res.json();
       const results = data.data?.results || [];
       const filtered = results.filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0);
@@ -92,7 +95,7 @@ export const ArtistPlaylist = ({ artistName, searchQuery, onClose }: ArtistPlayl
       }, i: number) => parseSong(s, i));
       setSongs(tracks);
       setSaved(false);
-    } catch { /* ignore */ }
+    } catch { setError(true); }
     setLoading(false);
   }, [searchQuery]);
 
@@ -105,7 +108,7 @@ export const ArtistPlaylist = ({ artistName, searchQuery, onClose }: ArtistPlayl
     const isCurrentArtistPlaylist = songs.some((s) => s.src === currentTrack?.src);
     if (!isCurrentArtistPlaylist) return;
     if (isPlaying) setShowEnded(false);
-  }, [currentTrack?.src, isPlaying]);
+  }, [currentTrack?.src, isPlaying, songs]);
 
   useEffect(() => {
     if (songs.length === 0 || !currentTrack) return;
@@ -115,7 +118,7 @@ export const ArtistPlaylist = ({ artistName, searchQuery, onClose }: ArtistPlayl
     if (currentIdx === playerTracks.length - 1 && !isPlaying) {
       setShowEnded(true);
     }
-  }, [isPlaying, currentTrack?.src, playerTracks.length, songs]);
+  }, [isPlaying, currentTrack, playerTracks, songs]);
 
   const handleSave = () => {
     if (songs.length === 0) return;
@@ -196,8 +199,19 @@ export const ArtistPlaylist = ({ artistName, searchQuery, onClose }: ArtistPlayl
               <Loader2 size={28} className="animate-spin text-primary" />
             </div>
           )}
-          {!loading && songs.length === 0 && (
+          {!loading && songs.length === 0 && !error && (
             <p className="text-sm text-muted-foreground text-center py-12">No songs found</p>
+          )}
+          {!loading && error && (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <p className="text-sm text-destructive">Songs load korte somossa hoyeche</p>
+              <button
+                onClick={fetchSongs}
+                className="px-4 py-2 text-xs rounded-full bg-primary text-primary-foreground font-medium hover:brightness-110 transition-all"
+              >
+                Abar try korun
+              </button>
+            </div>
           )}
           {songs.map((track, i) => {
             const isActive = currentTrack?.src === track.src;
