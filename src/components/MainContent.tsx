@@ -125,7 +125,7 @@ export const MainContent = () => {
   const isLoading = (query: string) => searchLoading && searchingFor === query;
 
   return (
-    <main className="flex-1 overflow-y-auto pb-32 md:pb-28">
+    <main className="flex-1 overflow-y-auto overflow-x-hidden pb-32 md:pb-28">
       {/* Hero Carousel */}
       {carouselSongs.length > 0 && (
         <div className="relative h-52 sm:h-64 md:h-80 overflow-hidden mb-4 md:mb-6">

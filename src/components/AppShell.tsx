@@ -19,17 +19,17 @@ export const AppShell = ({ children }: AppShellProps) => {
   const [showMiniPlayer, setShowMiniPlayer] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background relative">
+    <div className="flex h-screen overflow-hidden bg-background relative overflow-x-hidden">
       {/* Cover gradient background */}
       {gradient && (
         <div
-          className="absolute inset-0 opacity-15 pointer-events-none transition-all duration-1000"
+          className="absolute inset-0 opacity-15 pointer-events-none transition-all duration-1000 z-0"
           style={{ background: gradient }}
         />
       )}
 
       <AppSidebar />
-      <div className="relative flex-1 flex flex-col">
+      <div className="relative flex-1 min-w-0 flex flex-col overflow-x-hidden">
         {children}
       </div>
       <MobileNav />

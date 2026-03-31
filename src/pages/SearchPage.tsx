@@ -208,7 +208,7 @@ export const SearchPage = () => {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto pb-28">
+    <main className="flex-1 overflow-y-auto overflow-x-hidden pb-28">
       <div className="px-4 md:px-6 pt-8">
         <div className="flex items-center gap-3 mb-6">
           <button
