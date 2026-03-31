@@ -70,6 +70,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<SearchData | null>(null);
   const [songResults, setSongResults] = useState<Track[]>([]);
+  const [albumResults, setAlbumResults] = useState<SearchResult[]>([]);
   const [trending, setTrending] = useState<Track[]>([]);
   const [trendingLoading, setTrendingLoading] = useState(true);
   const [songMenu, setSongMenu] = useState<string | null>(null);
@@ -121,6 +122,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     if (!q.trim()) {
       setData(null);
       setSongResults([]);
+      setAlbumResults([]);
       return;
     }
     setLoading(true);
@@ -129,12 +131,19 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
       const allRes = fetch(`${API_BASE}/search/all?query=${encodeURIComponent(q)}`);
       // Fetch full song list with download URLs
       const songRes = fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=20`);
+      // Fetch albums separately
+      const albumRes = fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(q)}&page=1&limit=20`);
 
-      const [allData, songData] = await Promise.all([allRes, songRes]);
+      const [allData, songData, albumData] = await Promise.all([allRes, songRes, albumRes]);
 
       if (allData.ok) {
         const json = await allData.json();
         setData(json.data || null);
+      }
+
+      if (albumData.ok) {
+        const json = await albumData.json();
+        setAlbumResults(json.data?.results || []);
       }
 
       if (songData.ok) {
@@ -631,7 +640,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
               )}
 
               {/* Albums */}
-              {data?.albums?.results?.length > 0 && !albumSongs && (
+              {albumResults.length > 0 && !albumSongs && (
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Albums</h3>
@@ -640,7 +649,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                     </button>
                   </div>
                   <div className={`${showAllAlbums ? "grid grid-cols-3 md:grid-cols-4 gap-3" : "flex gap-3 overflow-x-auto pb-1 scrollbar-hide"}`}>
-                    {(showAllAlbums ? data.albums.results : data.albums.results.slice(0, 6)).map((album) => (
+                    {(showAllAlbums ? albumResults : albumResults.slice(0, 6)).map((album) => (
                       <div
                         key={album.id}
                         onClick={() => fetchAlbumSongs(album.title)}
