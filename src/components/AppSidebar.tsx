@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Home, Search, Library, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X } from "lucide-react";
+import { Home, Search, Library, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X, User } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { usePlaylists } from "@/hooks/usePlaylists";
+import { useArtistFavorites } from "@/hooks/useArtistFavorites";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { Link, useLocation } from "react-router-dom";
 
@@ -14,6 +15,7 @@ export const AppSidebar = () => {
   const { tracks, play, currentIndex, isPlaying, playTrackList } = usePlayer();
   const { theme, toggleTheme } = useTheme();
   const { playlists, createPlaylist, deletePlaylist, renamePlaylist } = usePlaylists();
+  const { favorites: artistFavorites, removeFavorite: removeArtistFav } = useArtistFavorites();
   const location = useLocation();
 
   const [showCreateInput, setShowCreateInput] = useState(false);
@@ -125,6 +127,30 @@ export const AppSidebar = () => {
           <Heart size={18} />
           <span className="text-sm font-medium">Liked Songs</span>
         </button>
+
+        {/* Saved Artists */}
+        {artistFavorites.length > 0 && (
+          <div className="mt-2">
+            <div className="flex items-center gap-3 w-full px-3 py-2">
+              <User size={16} className="text-primary" />
+              <span className="text-xs font-semibold text-muted-foreground">Saved Artists ({artistFavorites.length})</span>
+            </div>
+            <div className="max-h-32 overflow-y-auto space-y-0.5 px-1">
+              {artistFavorites.map((a) => (
+                <div key={a.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-sidebar-accent transition-colors">
+                  <img src={a.image} alt={a.name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground group-hover:text-foreground truncate flex-1">{a.name}</span>
+                  <button
+                    onClick={() => removeArtistFav(a.id)}
+                    className="p-0.5 text-muted-foreground/0 group-hover:text-destructive rounded-full transition-colors"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Divider */}
