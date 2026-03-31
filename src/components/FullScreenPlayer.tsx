@@ -11,10 +11,17 @@ import {
   Heart,
   Music2,
   ListMusic,
-  Share2,
+  Volume2,
+  Volume1,
+  VolumeX,
+  Moon,
+  Sun,
+  Sliders,
+  Settings,
 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useLocalData } from "@/hooks/useLocalData";
+import { useTheme } from "@/hooks/useTheme";
 import { Track } from "@/data/playlist";
 
 const formatTime = (s: number) => {
@@ -27,9 +34,10 @@ interface FullScreenPlayerProps {
   onClose: () => void;
   onShowPlaylist: () => void;
   onShowLyrics: () => void;
+  onShowEqualizer?: () => void;
 }
 
-export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: FullScreenPlayerProps) => {
+export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics, onShowEqualizer }: FullScreenPlayerProps) => {
   const {
     currentTrack,
     isPlaying,
@@ -45,9 +53,13 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
     toggleRepeat,
     tracks,
     currentIndex,
+    volume,
+    setVolume,
+    quality,
   } = usePlayer();
 
   const { isFavorite, toggleFavorite } = useLocalData();
+  const { theme, toggleTheme } = useTheme();
   const [showLyrics, setShowLyrics] = useState(false);
   const [lyrics, setLyrics] = useState<string | null>(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
@@ -225,21 +237,78 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
         </div>
 
         {/* Bottom actions */}
-        <div className="px-5 md:px-8 pb-10 flex-shrink-0 flex items-center justify-center gap-8">
-          <button
-            onClick={() => setShowLyrics(!showLyrics)}
-            className={`p-2 rounded-full transition-colors ${
-              showLyrics ? "text-primary bg-primary/10" : "text-white/40 hover:text-white"
-            }`}
-          >
-            <Music2 size={18} />
-          </button>
-          <button
-            onClick={onShowPlaylist}
-            className="p-2 rounded-full text-white/40 hover:text-white transition-colors"
-          >
-            <ListMusic size={18} />
-          </button>
+        <div className="px-5 md:px-8 pb-10 flex-shrink-0">
+          <div className="flex items-center justify-center gap-4 md:gap-6">
+            {/* Theme */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-full text-white/40 hover:text-white transition-colors"
+              title={theme === "dark" ? "Light mode" : "Dark mode"}
+            >
+              {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
+
+            {/* Quality */}
+            <button
+              className="p-2 rounded-full text-white/40 hover:text-white transition-colors flex items-center gap-1"
+              title="Audio Quality"
+            >
+              <Settings size={14} />
+              <span className="text-[9px] font-medium">{quality.replace("kbps", "")}</span>
+            </button>
+
+            {/* Equalizer */}
+            <button
+              onClick={() => onShowEqualizer?.()}
+              className="p-2 rounded-full text-white/40 hover:text-white transition-colors"
+              title="Equalizer"
+            >
+              <Sliders size={17} />
+            </button>
+
+            {/* Lyrics */}
+            <button
+              onClick={() => setShowLyrics(!showLyrics)}
+              className={`p-2 rounded-full transition-colors ${
+                showLyrics ? "text-primary bg-primary/10" : "text-white/40 hover:text-white"
+              }`}
+              title="Lyrics"
+            >
+              <Music2 size={17} />
+            </button>
+
+            {/* Queue */}
+            <button
+              onClick={onShowPlaylist}
+              className="p-2 rounded-full text-white/40 hover:text-white transition-colors"
+              title="Queue"
+            >
+              <ListMusic size={17} />
+            </button>
+
+            {/* Volume */}
+            <button
+              onClick={() => setVolume(volume === 0 ? 0.7 : 0)}
+              className="text-white/40 hover:text-white transition-colors"
+              title="Volume"
+            >
+              {volume === 0 ? <VolumeX size={17} /> : volume < 0.5 ? <Volume1 size={17} /> : <Volume2 size={17} />}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={volume}
+              onChange={(e) => setVolume(Number(e.target.value))}
+              className="w-16 md:w-20 h-1 cursor-pointer appearance-none
+                [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none
+                [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-white/20"
+              style={{
+                background: `linear-gradient(to right, white ${volume * 100}%, rgba(255,255,255,0.2) ${volume * 100}%)`,
+              }}
+            />
+          </div>
         </div>
 
         {/* Lyrics overlay */}

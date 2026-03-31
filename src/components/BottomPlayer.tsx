@@ -637,6 +637,10 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
             setShowPlaylist(true);
           }}
           onShowLyrics={() => setShowLyrics(true)}
+          onShowEqualizer={() => {
+            setShowFullScreen(false);
+            setShowEqualizer(true);
+          }}
         />
       )}
 
