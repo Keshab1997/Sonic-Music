@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { X, Play, Search } from "lucide-react";
+import { X, Play, Search, Heart } from "lucide-react";
 import { Artist } from "@/data/homeData";
+import { useArtistFavorites } from "@/hooks/useArtistFavorites";
 
 interface ViewAllArtistsProps {
   onSelectArtist: (artist: Artist & { artistId?: string }) => void;
@@ -25,6 +26,7 @@ export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps)
   const [artists, setArtists] = useState<(Artist & { artistId: string })[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const { isFavorite, toggleFavorite } = useArtistFavorites();
 
   const fetchArtists = useCallback(async (query: string) => {
     if (!query.trim()) {
@@ -98,25 +100,43 @@ export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps)
             <p className="text-sm text-muted-foreground text-center py-8">No artist found</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {artists.map((artist) => (
-                <button
-                  key={artist.artistId}
-                  onClick={() => onSelectArtist(artist)}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-card hover:bg-accent transition-colors group text-left"
-                >
-                  <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-muted">
-                    {artist.image && (
-                      <img src={artist.image} alt={artist.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" loading="lazy" />
-                    )}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
+              {artists.map((artist) => {
+                const liked = isFavorite(artist.artistId);
+                return (
+                  <div
+                    key={artist.artistId}
+                    className="flex items-center gap-3 p-3 rounded-xl bg-card hover:bg-accent transition-colors group text-left"
+                  >
+                    <button
+                      onClick={() => onSelectArtist(artist)}
+                      className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                    >
+                      <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-muted">
+                        {artist.image && (
+                          <img src={artist.image} alt={artist.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" loading="lazy" />
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                          <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground truncate">{artist.name}</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite({ id: artist.artistId, name: artist.name, image: artist.image });
+                      }}
+                      className={`p-1.5 rounded-full transition-colors flex-shrink-0 ${
+                        liked ? "text-red-500" : "text-muted-foreground/0 group-hover:text-muted-foreground"
+                      }`}
+                    >
+                      <Heart size={14} fill={liked ? "currentColor" : "none"} />
+                    </button>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-foreground truncate">{artist.name}</p>
-                  </div>
-                </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
