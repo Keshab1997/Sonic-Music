@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { usePlaylists } from "@/hooks/usePlaylists";
 import { useArtistFavorites } from "@/hooks/useArtistFavorites";
 import { SearchOverlay } from "@/components/SearchOverlay";
+import { ArtistPlaylist } from "@/components/ArtistPlaylist";
 import { Link, useLocation } from "react-router-dom";
 
 const navItems = [
@@ -23,6 +24,7 @@ export const AppSidebar = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [selectedArtist, setSelectedArtist] = useState<{ name: string; id: string } | null>(null);
 
   const handleCreate = () => {
     if (newPlaylistName.trim()) {
@@ -138,8 +140,13 @@ export const AppSidebar = () => {
             <div className="max-h-32 overflow-y-auto space-y-0.5 px-1">
               {artistFavorites.map((a) => (
                 <div key={a.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-sidebar-accent transition-colors">
-                  <img src={a.image} alt={a.name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
-                  <span className="text-xs text-muted-foreground group-hover:text-foreground truncate flex-1">{a.name}</span>
+                  <button
+                    onClick={() => setSelectedArtist({ name: a.name, id: a.id })}
+                    className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                  >
+                    <img src={a.image} alt={a.name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                    <span className="text-xs text-muted-foreground group-hover:text-foreground truncate">{a.name}</span>
+                  </button>
                   <button
                     onClick={() => removeArtistFav(a.id)}
                     className="p-0.5 text-muted-foreground/0 group-hover:text-destructive rounded-full transition-colors"
@@ -230,6 +237,14 @@ export const AppSidebar = () => {
             </div>
           </div>
         </div>
+      )}
+      {selectedArtist && (
+        <ArtistPlaylist
+          artistName={selectedArtist.name}
+          searchQuery={selectedArtist.name}
+          artistId={selectedArtist.id}
+          onClose={() => setSelectedArtist(null)}
+        />
       )}
     </aside>
   );
