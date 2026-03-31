@@ -73,7 +73,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
   const progressPercent = duration ? (progress / duration) * 100 : 0;
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col animate-slide-up">
+    <div className="fixed inset-0 z-[60] flex flex-col h-[100dvh] overflow-hidden animate-slide-up">
       {/* Background - blurred cover */}
       <div className="absolute inset-0 overflow-hidden">
         <img
@@ -85,9 +85,9 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
       </div>
 
       {/* Content */}
-      <div className="relative flex flex-col h-full">
+      <div className="relative flex flex-col flex-1 min-h-0">
         {/* Top bar */}
-        <div className="flex items-center justify-between px-5 py-4">
+        <div className="flex items-center justify-between px-5 py-3 flex-shrink-0">
           <button
             onClick={onClose}
             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
@@ -107,12 +107,12 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
         </div>
 
         {/* Cover Art */}
-        <div className="flex-1 flex items-center justify-center px-4 md:px-8 py-4">
-          <div className="w-full max-w-sm aspect-square relative group">
+        <div className="flex-1 min-h-0 flex items-center justify-center px-6 md:px-10 py-2">
+          <div className="w-full max-w-sm max-h-full aspect-square relative group">
             <img
               src={currentTrack.cover}
               alt={currentTrack.title}
-              className={`w-full h-full object-cover rounded-2xl shadow-2xl transition-transform duration-700 ${
+              className={`w-full h-full object-contain rounded-2xl shadow-2xl transition-transform duration-700 ${
                 isPlaying ? "scale-100" : "scale-95"
               }`}
             />
@@ -133,7 +133,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
         </div>
 
         {/* Song info + actions */}
-        <div className="px-5 md:px-8 pb-2">
+        <div className="px-5 md:px-8 pb-1 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0 mr-4">
               <h2 className="text-lg md:text-xl font-bold text-white truncate">{currentTrack.title}</h2>
@@ -158,7 +158,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
         </div>
 
         {/* Progress bar */}
-        <div className="px-5 md:px-8 py-3">
+        <div className="px-5 md:px-8 py-2 flex-shrink-0">
           <input
             type="range"
             min={0}
@@ -170,14 +170,14 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
               background: `linear-gradient(to right, white ${progressPercent}%, rgba(255,255,255,0.2) ${progressPercent}%)`,
             }}
           />
-          <div className="flex items-center justify-between mt-1.5">
+          <div className="flex items-center justify-between mt-1">
             <span className="text-[11px] text-white/50 tabular-nums">{formatTime(progress)}</span>
             <span className="text-[11px] text-white/50 tabular-nums">{formatTime(duration)}</span>
           </div>
         </div>
 
         {/* Controls */}
-        <div className="px-5 md:px-8 py-4">
+        <div className="px-5 md:px-8 py-3 flex-shrink-0">
           <div className="flex items-center justify-center gap-5 md:gap-8">
             <button
               onClick={toggleShuffle}
@@ -225,7 +225,7 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics }: Full
         </div>
 
         {/* Bottom actions */}
-        <div className="px-5 md:px-8 pb-8 flex items-center justify-center gap-8">
+        <div className="px-5 md:px-8 pb-10 flex-shrink-0 flex items-center justify-center gap-8">
           <button
             onClick={() => setShowLyrics(!showLyrics)}
             className={`p-2 rounded-full transition-colors ${
