@@ -404,6 +404,24 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentIndex, currentTrack]);
 
+  // Dynamic browser tab title and favicon
+  useEffect(() => {
+    if (currentTrack) {
+      document.title = `${currentTrack.title} • ${currentTrack.artist}`;
+      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.href = currentTrack.cover;
+    } else {
+      document.title = "Sonic Bloom Player";
+      const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
+      if (link) link.href = "/favicon.ico";
+    }
+  }, [currentTrack, isPlaying]);
+
   // Get audio src based on quality preference
   const getAudioSrc = (): string | undefined => {
     if (!currentTrack) return undefined;
