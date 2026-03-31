@@ -26,7 +26,7 @@ export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps)
   const [artists, setArtists] = useState<(Artist & { artistId: string })[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-  const { isFavorite, toggleFavorite } = useArtistFavorites();
+  const { isFavorite, toggleFavorite, favorites } = useArtistFavorites();
 
   const fetchArtists = useCallback(async (query: string) => {
     if (!query.trim()) {
@@ -94,7 +94,49 @@ export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps)
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          {!search.trim() ? null : loading ? (
+          {!search.trim() ? (
+            favorites.length > 0 ? (
+              <div>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                  Saved Artists ({favorites.length})
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {favorites.map((fav) => (
+                    <div
+                      key={fav.id}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-card hover:bg-accent transition-colors group text-left"
+                    >
+                      <button
+                        onClick={() => onSelectArtist({ name: fav.name, image: fav.image, searchQuery: fav.name, language: "hindi" as const, artistId: fav.id } as Artist & { artistId: string })}
+                        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                      >
+                        <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-muted">
+                          {fav.image && (
+                            <img src={fav.image} alt={fav.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" loading="lazy" />
+                          )}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                            <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-foreground truncate">{fav.name}</p>
+                        </div>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite({ id: fav.id, name: fav.name, image: fav.image });
+                        }}
+                        className="p-1.5 rounded-full transition-colors flex-shrink-0 text-red-500"
+                      >
+                        <Heart size={14} fill="currentColor" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null
+          ) : loading ? (
             <p className="text-sm text-muted-foreground text-center py-8">Searching...</p>
           ) : artists.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">No artist found</p>
