@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, Search, Library, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X, Disc } from "lucide-react";
+import { Home, Search, Library, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { usePlaylists } from "@/hooks/usePlaylists";
@@ -8,7 +8,6 @@ import { Link, useLocation } from "react-router-dom";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
-  { icon: Disc, label: "DJ Mixer", path: "/dj" },
 ];
 
 export const AppSidebar = () => {
