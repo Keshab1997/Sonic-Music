@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Home, Search, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X, User } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -238,13 +239,14 @@ export const AppSidebar = () => {
           </div>
         </div>
       )}
-      {selectedArtist && (
+      {selectedArtist && createPortal(
         <ArtistPlaylist
           artistName={selectedArtist.name}
           searchQuery={selectedArtist.name}
           artistId={selectedArtist.id}
           onClose={() => setSelectedArtist(null)}
-        />
+        />,
+        document.body
       )}
     </aside>
   );
