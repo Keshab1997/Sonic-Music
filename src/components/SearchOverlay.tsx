@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Search, X, Play, TrendingUp, Music2, Disc3, User, Loader2, Heart, Clock, MoreHorizontal, ListPlus, PlaySquare, Plus, Check } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useLocalData } from "@/hooks/useLocalData";
@@ -195,7 +196,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   const isSearchMode = query.trim().length > 0;
   const hasResults = data && (data.songs?.results?.length > 0 || data.albums?.results?.length > 0 || data.artists?.results?.length > 0);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-start justify-center">
       <div className="absolute inset-0 bg-black/80" onClick={onClose} />
 
@@ -517,6 +518,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
