@@ -6,6 +6,7 @@ import { useRecentlyPlayed } from "@/hooks/useRecentlyPlayed";
 import { useListeningStats } from "@/hooks/useListeningStats";
 import { AudioVisualizer } from "@/components/AudioVisualizer";
 import { ArtistDetail } from "@/components/ArtistDetail";
+import { ArtistPlaylist } from "@/components/ArtistPlaylist";
 import { ViewAllArtists } from "@/components/ViewAllArtists";
 import { TimeMachinePlaylist } from "@/components/TimeMachinePlaylist";
 import { MoodPlaylist } from "@/components/MoodPlaylist";
@@ -46,6 +47,7 @@ export const MainContent = () => {
   const [searchingFor, setSearchingFor] = useState<string | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [artistDetail, setArtistDetail] = useState<{ name: string; query: string } | null>(null);
+  const [artistPlaylist, setArtistPlaylist] = useState<{ name: string; query: string } | null>(null);
   const [showViewAllArtists, setShowViewAllArtists] = useState(false);
   const [timeMachineEra, setTimeMachineEra] = useState<typeof eraCategories[0] | null>(null);
   const [moodPlaylist, setMoodPlaylist] = useState<MoodCategory | null>(null);
@@ -592,7 +594,7 @@ export const MainContent = () => {
             {hindiArtists.map((artist) => (
               <button
                 key={artist.name}
-                onClick={() => setArtistDetail({ name: artist.name, query: artist.searchQuery })}
+                onClick={() => setArtistPlaylist({ name: artist.name, query: artist.searchQuery })}
                 className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 group"
               >
                 <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-primary transition-all">
@@ -622,7 +624,7 @@ export const MainContent = () => {
             {bengaliArtists.map((artist) => (
               <button
                 key={artist.name}
-                onClick={() => setArtistDetail({ name: artist.name, query: artist.searchQuery })}
+                onClick={() => setArtistPlaylist({ name: artist.name, query: artist.searchQuery })}
                 className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 group"
               >
                 <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-primary transition-all">
@@ -704,11 +706,18 @@ export const MainContent = () => {
           onClose={() => setArtistDetail(null)}
         />
       )}
+      {artistPlaylist && (
+        <ArtistPlaylist
+          artistName={artistPlaylist.name}
+          searchQuery={artistPlaylist.query}
+          onClose={() => setArtistPlaylist(null)}
+        />
+      )}
       {showViewAllArtists && (
         <ViewAllArtists
           onSelectArtist={(artist) => {
             setShowViewAllArtists(false);
-            setArtistDetail({ name: artist.name, query: artist.searchQuery });
+            setArtistPlaylist({ name: artist.name, query: artist.searchQuery });
           }}
           onClose={() => setShowViewAllArtists(false)}
         />
