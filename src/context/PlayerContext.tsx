@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Track, playlist } from "@/data/playlist";
 
 export type AudioQuality = "96kbps" | "160kbps" | "320kbps";
@@ -484,7 +484,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let crossfading = false;
     const onTime = () => {
       const now = Date.now();
-      if (now - lastUpdate > 400) {
+      if (now - lastUpdate > 800) {
         lastUpdate = now;
         setProgress(audio.currentTime);
       }
@@ -590,57 +590,65 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return currentTrack.src;
   };
 
+  const contextValue = useMemo(() => ({
+    tracks: trackList,
+    currentTrack,
+    currentIndex,
+    isPlaying,
+    progress,
+    duration,
+    volume,
+    shuffle,
+    repeat,
+    audioRef,
+    analyserRef,
+    // Equalizer
+    eqBass,
+    eqMid,
+    eqTreble,
+    setEqBass,
+    setEqMid,
+    setEqTreble,
+    applyEqPreset,
+    playbackSpeed,
+    setPlaybackSpeed,
+    crossfade,
+    setCrossfade,
+    queue,
+    addToQueue,
+    playNext,
+    removeFromQueue,
+    clearQueue,
+    moveQueueItem,
+    shuffleQueue,
+    quality,
+    setQuality,
+    sleepMinutes,
+    setSleepTimer,
+    cancelSleepTimer,
+    play,
+    playTrack,
+    playTrackList,
+    pause,
+    togglePlay,
+    next,
+    prev,
+    seek,
+    setVolume,
+    toggleShuffle,
+    toggleRepeat,
+  }), [
+    trackList, currentTrack, currentIndex, isPlaying, progress, duration,
+    volume, shuffle, repeat, eqBass, eqMid, eqTreble, playbackSpeed,
+    crossfade, queue, quality, sleepMinutes, play, playTrack, playTrackList,
+    pause, togglePlay, next, prev, seek, setVolume, toggleShuffle, toggleRepeat,
+    addToQueue, playNext, removeFromQueue, clearQueue, moveQueueItem, shuffleQueue,
+    setEqBass, setEqMid, setEqTreble, applyEqPreset, setPlaybackSpeed,
+    setCrossfade, setQuality, setSleepTimer, cancelSleepTimer,
+  ]);
+
   return (
-    <PlayerContext.Provider
-      value={{
-        tracks: trackList,
-        currentTrack,
-        currentIndex,
-        isPlaying,
-        progress,
-        duration,
-        volume,
-        shuffle,
-        repeat,
-        audioRef,
-        analyserRef,
-        // Equalizer
-        eqBass,
-        eqMid,
-        eqTreble,
-        setEqBass,
-        setEqMid,
-        setEqTreble,
-        applyEqPreset,
-        playbackSpeed,
-        setPlaybackSpeed,
-        crossfade,
-        setCrossfade,
-        queue,
-        addToQueue,
-        playNext,
-        removeFromQueue,
-        clearQueue,
-        moveQueueItem,
-        shuffleQueue,
-        quality,
-        setQuality,
-        sleepMinutes,
-        setSleepTimer,
-        cancelSleepTimer,
-        play,
-        playTrack,
-        playTrackList,
-        pause,
-        togglePlay,
-        next,
-        prev,
-        seek,
-        setVolume,
-        toggleShuffle,
-        toggleRepeat,
-      }}
-    >
+    <PlayerContext.Provider value={contextValue}>
       <audio ref={audioRef} src={getAudioSrc()} crossOrigin="anonymous" preload="auto" />
       {children}
     </PlayerContext.Provider>
