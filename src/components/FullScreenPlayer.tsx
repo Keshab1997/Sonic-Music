@@ -12,6 +12,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { SyncedLyrics } from "@/components/SyncedLyrics";
 import { parseLyrics } from "@/lib/lyricsParser";
 import { fetchLyrics } from "@/lib/lyricsFetcher";
+import { ShareButton } from "@/components/ShareButton";
 
 const formatTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -214,6 +215,7 @@ export const FullScreenPlayer = ({
             >
               <Heart size={18} className={liked ? "text-red-500" : "text-white/40"} fill={liked ? "currentColor" : "none"} />
             </button>
+            <ShareButton track={currentTrack} className="text-white/40 hover:text-white flex-shrink-0" iconSize={16} />
           </div>
 
           {/* Progress bar */}

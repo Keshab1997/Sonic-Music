@@ -13,6 +13,7 @@ import { MoodPlaylist } from "@/components/MoodPlaylist";
 import { FullPlaylist } from "@/components/FullPlaylist";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { SectionSkeleton, HeroSkeleton, ArtistGridSkeleton } from "@/components/Skeletons";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { Track } from "@/data/playlist";
 import {
   topArtists,
@@ -361,8 +362,28 @@ export const MainContent = () => {
     setLoadingLabel(null);
   };
 
+  const { containerRef: pullRef, pullDistance, isRefreshing } = usePullToRefresh({
+    onRefresh: async () => {
+      trendingInitialized.current = false;
+      newReleasesInitialized.current = false;
+      setDisplayedTrending([]);
+      setDisplayedNewReleases([]);
+    },
+    enabled: true,
+  });
+
   return (
-    <main className="flex-1 overflow-y-auto overflow-x-hidden pb-32 md:pb-28">
+    <main ref={pullRef} className="flex-1 overflow-y-auto overflow-x-hidden pb-32 md:pb-28">
+      {/* Pull to refresh indicator */}
+      {(pullDistance > 0 || isRefreshing) && (
+        <div className="flex justify-center py-3 md:hidden">
+          <RefreshCw
+            size={20}
+            className={`text-primary transition-transform ${isRefreshing ? "animate-spin" : ""}`}
+            style={{ transform: `rotate(${pullDistance * 3}deg)` }}
+          />
+        </div>
+      )}
       {/* Mobile Search Bar */}
       <div className="md:hidden sticky top-0 z-10 px-4 pt-4 pb-2 bg-background/80 backdrop-blur-md">
         <button
