@@ -76,6 +76,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
     tracks,
     currentIndex,
     playTrackList,
+    playTrack,
     queue,
     addToQueue,
     playNext,
@@ -291,7 +292,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Queue Panel */}
       {showQueue && (
-        <div className="fixed bottom-[60px] md:bottom-20 right-2 md:right-4 z-50 w-[calc(100vw-1rem)] max-w-80 max-h-96 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-[60px] md:bottom-20 right-2 md:right-4 z-50 w-[calc(100vw-1rem)] max-w-80 max-h-[70vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between p-3 border-b border-border">
             <h3 className="text-sm font-semibold text-foreground">Queue ({queue.length})</h3>
             <div className="flex items-center gap-1">
@@ -315,24 +316,24 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
               <p className="text-xs text-muted-foreground text-center py-6">Queue is empty</p>
             ) : (
               queue.map((track, i) => (
-                <div key={`${track.src}-${i}`} className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent group">
+                <div key={`${track.src}-${i}`} onClick={() => { removeFromQueue(i); playTrack(track); }} className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent group cursor-pointer">
                   <img src={track.cover} alt="" width={32} height={32} className="w-8 h-8 rounded object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-foreground truncate">{track.title}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
                   </div>
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                     {i > 0 && (
-                      <button onClick={() => moveQueueItem(i, i - 1)} className="p-1 text-muted-foreground hover:text-foreground" title="Move up">
+                      <button onClick={(e) => { e.stopPropagation(); moveQueueItem(i, i - 1); }} className="p-1 text-muted-foreground hover:text-foreground" title="Move up">
                         <ChevronUp size={12} />
                       </button>
                     )}
                     {i < queue.length - 1 && (
-                      <button onClick={() => moveQueueItem(i, i + 1)} className="p-1 text-muted-foreground hover:text-foreground" title="Move down">
+                      <button onClick={(e) => { e.stopPropagation(); moveQueueItem(i, i + 1); }} className="p-1 text-muted-foreground hover:text-foreground" title="Move down">
                         <ChevronDown size={12} />
                       </button>
                     )}
-                    <button onClick={() => removeFromQueue(i)} className="p-1 text-muted-foreground hover:text-destructive" title="Remove">
+                    <button onClick={(e) => { e.stopPropagation(); removeFromQueue(i); }} className="p-1 text-muted-foreground hover:text-destructive" title="Remove">
                       <X size={12} />
                     </button>
                   </div>
