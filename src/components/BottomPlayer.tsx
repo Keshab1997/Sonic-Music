@@ -17,12 +17,14 @@ import {
   X,
   Trash2,
   ChevronUp,
+  ChevronDown,
   Sliders,
   Minimize2,
   MoreVertical,
   Heart,
   Plus,
   Save,
+  Zap,
   Check,
 } from "lucide-react";
 import { usePlayer, AudioQuality } from "@/context/PlayerContext";
@@ -75,11 +77,17 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
     queue,
     removeFromQueue,
     clearQueue,
+    moveQueueItem,
+    shuffleQueue,
     quality,
     setQuality,
     sleepMinutes,
     setSleepTimer,
     cancelSleepTimer,
+    playbackSpeed,
+    setPlaybackSpeed,
+    crossfade,
+    setCrossfade,
   } = usePlayer();
 
   const { isFavorite, toggleFavorite } = useLocalData();
@@ -88,6 +96,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
   const [showQueue, setShowQueue] = useState(false);
   const [showSleepMenu, setShowSleepMenu] = useState(false);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
   const [showPlaylist, setShowPlaylist] = useState(false);
   const [showFullScreen, setShowFullScreen] = useState(false);
@@ -267,6 +276,11 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
           <div className="flex items-center justify-between p-3 border-b border-border">
             <h3 className="text-sm font-semibold text-foreground">Queue ({queue.length})</h3>
             <div className="flex items-center gap-1">
+              {queue.length > 1 && (
+                <button onClick={shuffleQueue} className="p-1 text-muted-foreground hover:text-primary transition-colors" title="Shuffle queue">
+                  <Shuffle size={14} />
+                </button>
+              )}
               {queue.length > 0 && (
                 <button onClick={clearQueue} className="p-1 text-muted-foreground hover:text-destructive transition-colors" title="Clear queue">
                   <Trash2 size={14} />
@@ -288,12 +302,21 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                     <p className="text-xs font-medium text-foreground truncate">{track.title}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
                   </div>
-                  <button
-                    onClick={() => removeFromQueue(i)}
-                    className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
-                  >
-                    <X size={12} />
-                  </button>
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                    {i > 0 && (
+                      <button onClick={() => moveQueueItem(i, i - 1)} className="p-1 text-muted-foreground hover:text-foreground" title="Move up">
+                        <ChevronUp size={12} />
+                      </button>
+                    )}
+                    {i < queue.length - 1 && (
+                      <button onClick={() => moveQueueItem(i, i + 1)} className="p-1 text-muted-foreground hover:text-foreground" title="Move down">
+                        <ChevronDown size={12} />
+                      </button>
+                    )}
+                    <button onClick={() => removeFromQueue(i)} className="p-1 text-muted-foreground hover:text-destructive" title="Remove">
+                      <X size={12} />
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -353,6 +376,34 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                 }`}
               >
                 {opt.label} {quality === opt.value && "✓"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Playback Speed Menu */}
+      {showSpeedMenu && (
+        <div className="fixed bottom-20 md:bottom-20 right-2 md:right-48 z-50 w-36 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+          <div className="p-2 border-b border-border">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">Speed</span>
+              <button onClick={() => setShowSpeedMenu(false)} className="p-0.5 text-muted-foreground hover:text-foreground">
+                <X size={12} />
+              </button>
+            </div>
+          </div>
+          <div className="p-1">
+            {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
+              <button
+                key={speed}
+                onClick={() => { setPlaybackSpeed(speed); setShowSpeedMenu(false); }}
+                className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-between ${
+                  playbackSpeed === speed ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                }`}
+              >
+                <span>{speed}x</span>
+                {playbackSpeed === speed && <Check size={12} />}
               </button>
             ))}
           </div>
@@ -532,6 +583,30 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                 <span className="text-[9px] font-medium">{quality.replace("kbps", "")}</span>
               </button>
             </div>
+
+            {/* Playback Speed */}
+            <div className="relative">
+              <button
+                onClick={() => { setShowSpeedMenu(!showSpeedMenu); setShowQualityMenu(false); setShowQueue(false); setShowSleepMenu(false); }}
+                className={`p-1.5 rounded-full transition-colors flex items-center gap-0.5 ${
+                  playbackSpeed !== 1 ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Playback Speed"
+              >
+                <span className="text-[10px] font-bold">{playbackSpeed}x</span>
+              </button>
+            </div>
+
+            {/* Crossfade */}
+            <button
+              onClick={() => setCrossfade(crossfade === 0 ? 3 : crossfade === 3 ? 5 : crossfade === 5 ? 0 : 0)}
+              className={`p-1.5 rounded-full transition-colors ${
+                crossfade > 0 ? "text-primary" : "text-muted-foreground hover:text-foreground"
+              }`}
+              title={crossfade > 0 ? `Crossfade: ${crossfade}s` : "Crossfade: Off"}
+            >
+              <Zap size={15} />
+            </button>
 
             {/* Equalizer */}
             <button
