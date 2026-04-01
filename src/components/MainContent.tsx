@@ -869,6 +869,38 @@ export const MainContent = () => {
           </section>
         )}
 
+        {/* Continue Listening — Enhanced Recently Played */}
+        {history.length > 0 && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">▶️</span>
+                <h3 className="text-base md:text-lg font-bold text-foreground">Continue Listening</h3>
+              </div>
+            </div>
+            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {history.slice(0, 8).map((entry, i) => (
+                <div key={`${entry.track.src}-${i}`} onClick={() => playTrack(entry.track)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
+                  <div className="relative mb-1.5 md:mb-2">
+                    <img src={entry.track.cover} alt="" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                        <Play size={14} className="text-primary-foreground ml-0.5" />
+                      </div>
+                    </div>
+                    {/* Progress bar at bottom */}
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 rounded-b-lg overflow-hidden">
+                      <div className="h-full bg-primary rounded-b-lg" style={{ width: `${Math.random() * 60 + 20}%` }} />
+                    </div>
+                  </div>
+                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{entry.track.title}</p>
+                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{entry.track.artist}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Mood Categories */}
         <section className="mb-6 md:mb-8 animate-fade-in">
           <div className="flex items-center gap-2 mb-2 md:mb-3">
@@ -1098,38 +1130,6 @@ export const MainContent = () => {
                   </div>
                   <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
                   <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Continue Listening — Enhanced Recently Played */}
-        {history.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">▶️</span>
-                <h3 className="text-base md:text-lg font-bold text-foreground">Continue Listening</h3>
-              </div>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {history.slice(0, 8).map((entry, i) => (
-                <div key={`${entry.track.src}-${i}`} onClick={() => playTrack(entry.track)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img src={entry.track.cover} alt="" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
-                        <Play size={14} className="text-primary-foreground ml-0.5" />
-                      </div>
-                    </div>
-                    {/* Progress bar at bottom */}
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 rounded-b-lg overflow-hidden">
-                      <div className="h-full bg-primary rounded-b-lg" style={{ width: `${Math.random() * 60 + 20}%` }} />
-                    </div>
-                  </div>
-                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{entry.track.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{entry.track.artist}</p>
                 </div>
               ))}
             </div>
