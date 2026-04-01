@@ -39,16 +39,26 @@ export function isLRCFormat(text: string): boolean {
 /**
  * Convert plain text lyrics to estimated timed lines.
  * Distributes lines evenly across the track duration.
+ * Handles both newline-separated and double-space-separated lyrics.
  * Skips empty lines and uses a small padding at start/end.
  */
 export function estimateTimings(
   plainText: string,
   duration: number
 ): LyricLine[] {
-  const rawLines = plainText
+  // Normalize: split on newlines first, then on double-spaces if result is too few lines
+  let rawLines = plainText
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
+
+  // If only 1-2 "lines" but text has content, try splitting on double spaces
+  if (rawLines.length <= 2 && plainText.includes("  ")) {
+    rawLines = plainText
+      .split(/\s{2,}/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+  }
 
   if (rawLines.length === 0) return [];
 
