@@ -147,7 +147,7 @@
   }
 
   .lyric-active {
-    text-shadow: 0 0 20px hsl(var(--primary) / 0.4), 0 0 40px hsl(var(--primary) / 0.2);
+    text-shadow: 0 0 1px rgba(0,0,0,0.15);
   }
 
   .animate-slide-up {

@@ -29,21 +29,6 @@ function findActiveLine(lines: LyricLine[], time: number): number {
   return result;
 }
 
-const variantStyles = {
-  dark: {
-    active: "text-white font-bold",
-    past: "text-white/30",
-    upcoming: "text-white/50",
-    hover: "hover:text-white/80",
-  },
-  light: {
-    active: "text-foreground font-bold lyric-active",
-    past: "text-muted-foreground/40",
-    upcoming: "text-muted-foreground/60",
-    hover: "hover:text-foreground/80",
-  },
-};
-
 export function SyncedLyrics({
   lines,
   currentTime,
@@ -61,15 +46,12 @@ export function SyncedLyrics({
   const [showRoman, setShowRoman] = useState(false);
 
   const activeIdx = findActiveLine(lines, currentTime);
-  const styles = variantStyles[variant];
 
-  // Check if any line contains Devanagari
   const hasDevanagariLyrics = useMemo(
     () => lines.some((l) => hasDevanagari(l.text)),
     [lines]
   );
 
-  // Transliterated lines
   const displayLines = useMemo(() => {
     if (!showRoman || !hasDevanagariLyrics) return lines;
     return lines.map((l) => ({
@@ -87,10 +69,7 @@ export function SyncedLyrics({
     if (now - lastScrollTime.current < 400) return;
     lastScrollTime.current = now;
 
-    activeRef.current.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
+    activeRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [activeIdx]);
 
   const handleScroll = useCallback(() => {
@@ -113,69 +92,85 @@ export function SyncedLyrics({
 
   if (lines.length === 0) return null;
 
+  const isDark = variant === "dark";
   const isActiveToggle = showRoman && hasDevanagariLyrics;
 
-  const toggleBtnBase = variant === "dark"
-    ? `border transition-all ${
-        isActiveToggle
-          ? "text-white bg-white/30 border-white/40 shadow-md"
-          : "text-white/60 hover:text-white bg-white/10 hover:bg-white/20 border-white/15"
-      }`
-    : `border transition-all ${
-        isActiveToggle
-          ? "text-foreground bg-primary/15 border-primary/30 shadow-md"
-          : "text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border-border/50"
-      }`;
-
   return (
-    <div
-      ref={containerRef}
-      className={`overflow-y-auto scrollbar-hide ${className}`}
-    >
-      {/* Transliteration toggle — sticky at top of lyrics */}
+    <div ref={containerRef} className={`overflow-y-auto scrollbar-hide ${className}`}>
+      {/* Toggle button — sticky header */}
       <div
-        className="sticky top-0 z-10 flex justify-end px-3 pt-2 pb-1 pointer-events-none"
-        style={
-          variant === "dark"
-            ? { background: "linear-gradient(to bottom, rgba(0,0,0,0.7) 60%, transparent)" }
-            : { background: "linear-gradient(to bottom, hsl(var(--background) / 0.9) 60%, transparent)" }
-        }
+        className="sticky top-0 z-10 flex justify-end px-4 pt-3 pb-2 pointer-events-none"
+        style={{
+          background: isDark
+            ? "linear-gradient(to bottom, rgba(0,0,0,0.8) 40%, rgba(0,0,0,0.4) 75%, transparent)"
+            : "linear-gradient(to bottom, hsl(var(--background) / 0.95) 40%, hsl(var(--background) / 0.6) 75%, transparent)",
+        }}
       >
         <button
           onClick={() => hasDevanagariLyrics && setShowRoman(!showRoman)}
           disabled={!hasDevanagariLyrics}
-          className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold shadow-sm ${toggleBtnBase} ${!hasDevanagariLyrics ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+          className={`
+            pointer-events-auto relative flex items-center gap-2
+            pl-3 pr-4 py-2 rounded-full text-xs font-semibold
+            transition-all duration-300 ease-out select-none
+            ${
+              isDark
+                ? isActiveToggle
+                  ? "bg-white text-black shadow-lg shadow-white/10 ring-1 ring-white/30"
+                  : hasDevanagariLyrics
+                  ? "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white border border-white/10 hover:border-white/25"
+                  : "bg-white/5 text-white/25 border border-white/5 cursor-not-allowed"
+                : isActiveToggle
+                ? "bg-foreground text-background shadow-lg shadow-foreground/10 ring-1 ring-foreground/20"
+                : hasDevanagariLyrics
+                ? "bg-muted text-muted-foreground hover:bg-foreground/10 hover:text-foreground border border-border/60 hover:border-foreground/20"
+                : "bg-muted/40 text-muted-foreground/40 border border-border/30 cursor-not-allowed"
+            }
+          `}
           title={
             hasDevanagariLyrics
-              ? showRoman
-                ? "Show original Hindi script"
-                : "Show Roman transliteration"
-              : "No Devanagari text to transliterate"
+              ? showRoman ? "Show original script" : "Transliterate to Roman"
+              : "No Devanagari text available"
           }
         >
-          <Languages size={13} />
-          {hasDevanagariLyrics
-            ? showRoman
-              ? "हिन्दी"
-              : "ABC"
-            : "ABC"}
+          <Languages size={14} strokeWidth={2.5} />
+          <span className="tracking-wide">
+            {hasDevanagariLyrics ? (showRoman ? "हिन्दी" : "ABC") : "ABC"}
+          </span>
         </button>
       </div>
 
-      <div className="py-[35%]">
+      {/* Lyrics lines */}
+      <div className="px-2 pb-[40vh] pt-4">
         {displayLines.map((line, i) => {
           const isActive = i === activeIdx;
           const isPast = i < activeIdx;
+          const isUpcoming = i > activeIdx;
+
           return (
             <button
               key={`${line.time}-${i}`}
               ref={isActive ? activeRef : undefined}
               onClick={() => onSeek?.(line.time)}
               disabled={!onSeek}
-              className={`block w-full text-left px-4 py-2.5 transition-all duration-500 ease-out
-                ${isActive ? styles.active : isPast ? styles.past : styles.upcoming}
-                ${isActive ? "text-lg scale-[1.02] opacity-100" : "text-base opacity-70"}
-                ${onSeek ? `cursor-pointer ${styles.hover}` : "cursor-default"}
+              className={`
+                block w-full text-left rounded-lg
+                px-5 py-3 my-1.5
+                transition-all duration-300 ease-in-out
+                ${onSeek ? "cursor-pointer" : "cursor-default"}
+                ${
+                  isActive
+                    ? isDark
+                      ? "text-white font-extrabold text-[22px] leading-tight tracking-tight scale-[1.03] py-4 my-2"
+                      : "text-black font-extrabold text-[22px] leading-tight tracking-tight scale-[1.03] py-4 my-2 lyric-active"
+                    : isPast
+                    ? isDark
+                      ? "text-white/25 font-normal text-[15px] hover:text-white/40"
+                      : "text-black/25 font-normal text-[15px] hover:text-black/40"
+                    : isDark
+                    ? "text-white/45 font-medium text-[16px] hover:text-white/65"
+                    : "text-black/40 font-medium text-[16px] hover:text-black/60"
+                }
               `}
             >
               {line.text}
