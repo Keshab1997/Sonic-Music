@@ -9,7 +9,6 @@ interface SyncedLyricsProps {
   isPlaying: boolean;
   onSeek?: (time: number) => void;
   className?: string;
-  /** "dark" = for dark overlays (FullScreenPlayer). Default auto-adapts via theme. */
   variant?: "light" | "dark";
 }
 
@@ -62,24 +61,19 @@ export function SyncedLyrics({
     }));
   }, [lines, showRoman, hasDevanagariLyrics]);
 
-  // Auto-scroll to active line
   useEffect(() => {
     if (!activeRef.current || !containerRef.current) return;
     if (userScrolling.current) return;
-
     const now = Date.now();
     if (now - lastScrollTime.current < 400) return;
     lastScrollTime.current = now;
-
     activeRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [activeIdx]);
 
   const handleScroll = useCallback(() => {
     userScrolling.current = true;
     if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
-    scrollTimeout.current = setTimeout(() => {
-      userScrolling.current = false;
-    }, 3000);
+    scrollTimeout.current = setTimeout(() => { userScrolling.current = false; }, 3000);
   }, []);
 
   useEffect(() => {
@@ -96,76 +90,78 @@ export function SyncedLyrics({
 
   const isActiveToggle = showRoman && hasDevanagariLyrics;
 
-  // Toggle button styles — adapts to variant
-  const toggleBtn = isDark
-    ? isActiveToggle
-      ? "bg-white text-black shadow-lg ring-1 ring-white/30"
-      : hasDevanagariLyrics
-      ? "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white border border-white/10"
-      : "bg-white/5 text-white/25 border border-white/5 cursor-not-allowed"
-    : isActiveToggle
-    ? "bg-foreground text-background shadow-lg ring-1 ring-foreground/20"
-    : hasDevanagariLyrics
-    ? "bg-foreground/10 text-foreground/70 hover:bg-foreground/15 hover:text-foreground border border-foreground/10"
-    : "bg-foreground/5 text-foreground/25 border border-foreground/5 cursor-not-allowed";
-
-  // Header gradient for sticky toggle
-  const headerGradient = isDark
-    ? { background: "linear-gradient(to bottom, rgba(0,0,0,0.8) 40%, rgba(0,0,0,0.4) 75%, transparent)" }
-    : { background: "linear-gradient(to bottom, hsl(var(--background) / 0.95) 40%, hsl(var(--background) / 0.6) 75%, transparent)" };
-
-  // Line color classes — use semantic colors for auto theme adaptation
-  function getLineClass(isActive: boolean, isPast: boolean) {
-    if (isActive) {
-      return isDark
-        ? "text-white font-extrabold text-[22px] leading-snug tracking-tight scale-[1.03] py-4 my-2 bg-white/10 rounded-2xl"
-        : "text-foreground font-extrabold text-[22px] leading-snug tracking-tight scale-[1.03] py-4 my-2 bg-foreground/5 rounded-2xl";
-    }
-    if (isPast) {
-      return isDark
-        ? "text-white/50 font-normal text-[15px] py-2.5 hover:text-white/65"
-        : "text-foreground/40 font-normal text-[15px] py-2.5 hover:text-foreground/55";
-    }
-    // Upcoming
-    return isDark
-      ? "text-white/65 font-medium text-[16px] py-2.5 hover:text-white/80"
-      : "text-foreground/55 font-medium text-[16px] py-2.5 hover:text-foreground/70";
-  }
-
   return (
-    <div ref={containerRef} className={`overflow-y-auto scrollbar-hide ${className}`}>
-      {/* Toggle button — sticky header */}
-      <div className="sticky top-0 z-10 flex justify-end px-4 pt-3 pb-2 pointer-events-none" style={headerGradient}>
+    <div className="relative h-full flex flex-col">
+      {/* Toggle button — fixed top-right, does not scroll */}
+      <div className="flex justify-end px-3 pt-1 pb-1 flex-shrink-0">
         <button
           onClick={() => hasDevanagariLyrics && setShowRoman(!showRoman)}
           disabled={!hasDevanagariLyrics}
-          className={`pointer-events-auto flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 ease-out select-none ${toggleBtn}`}
-          title={hasDevanagariLyrics ? (showRoman ? "Show original script" : "Transliterate to Roman") : "No Devanagari text available"}
+          className={`
+            flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full text-[11px] font-semibold
+            transition-all duration-200 select-none
+            ${
+              isDark
+                ? isActiveToggle
+                  ? "bg-white text-black shadow-sm"
+                  : hasDevanagariLyrics
+                  ? "bg-white/15 text-white/80 hover:bg-white/25 hover:text-white border border-white/10"
+                  : "bg-white/5 text-white/30 border border-white/5 cursor-not-allowed"
+                : isActiveToggle
+                ? "bg-foreground text-background shadow-sm"
+                : hasDevanagariLyrics
+                ? "bg-foreground/10 text-foreground/60 hover:bg-foreground/15 hover:text-foreground border border-foreground/10"
+                : "bg-foreground/5 text-foreground/25 border border-foreground/5 cursor-not-allowed"
+            }
+          `}
+          title={hasDevanagariLyrics ? (showRoman ? "Show original script" : "Transliterate to Roman") : "No Devanagari text"}
         >
-          <Languages size={14} strokeWidth={2.5} />
-          <span className="tracking-wide">
-            {hasDevanagariLyrics ? (showRoman ? "हिन्दी" : "ABC") : "ABC"}
-          </span>
+          <Languages size={12} strokeWidth={2.5} />
+          {hasDevanagariLyrics ? (showRoman ? "हिन्दी" : "ABC") : "ABC"}
         </button>
       </div>
 
-      {/* Lyrics lines */}
-      <div className="px-2 pb-[40vh] pt-4">
+      {/* Scrollable lyrics area */}
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
+        {/* Top padding for centering first line */}
+        <div className="h-[30%]" />
+
         {displayLines.map((line, i) => {
           const isActive = i === activeIdx;
           const isPast = i < activeIdx;
+
           return (
             <button
               key={`${line.time}-${i}`}
               ref={isActive ? activeRef : undefined}
               onClick={() => onSeek?.(line.time)}
               disabled={!onSeek}
-              className={`block w-full text-left rounded-xl px-5 my-1 transition-all duration-300 ease-in-out ${onSeek ? "cursor-pointer" : "cursor-default"} ${getLineClass(isActive, isPast)}`}
+              className={`
+                block w-full text-left px-5
+                transition-all duration-300 ease-out
+                ${onSeek ? "cursor-pointer" : "cursor-default"}
+                ${
+                  isActive
+                    ? isDark
+                      ? "text-white font-extrabold text-2xl md:text-3xl leading-snug py-4 my-2 opacity-100"
+                      : "text-black font-extrabold text-2xl md:text-3xl leading-snug py-4 my-2 opacity-100"
+                    : isPast
+                    ? isDark
+                      ? "text-white/40 font-normal text-base md:text-lg py-2 my-0.5 opacity-60 hover:text-white/60 hover:opacity-80"
+                      : "text-foreground/35 font-normal text-base md:text-lg py-2 my-0.5 opacity-60 hover:text-foreground/55 hover:opacity-80"
+                    : isDark
+                    ? "text-white/55 font-medium text-base md:text-lg py-2 my-0.5 opacity-75 hover:text-white/75 hover:opacity-90"
+                    : "text-foreground/50 font-medium text-base md:text-lg py-2 my-0.5 opacity-75 hover:text-foreground/70 hover:opacity-90"
+                }
+              `}
             >
               {line.text}
             </button>
           );
         })}
+
+        {/* Bottom padding for centering last line */}
+        <div className="h-[40%]" />
       </div>
     </div>
   );
