@@ -744,7 +744,6 @@ const LyricsPanel = ({
             isPlaying={isPlaying}
             onSeek={onSeek}
             className="h-full"
-            variant="dark"
           />
         )}
       </div>
