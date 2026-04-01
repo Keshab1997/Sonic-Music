@@ -415,10 +415,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Preload next track audio for gapless-like playback
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
-    const nextIdx = (currentIndex + 1) % tracks.length;
-    const nextTrack = tracks[nextIdx];
+    const nextIdx = (currentIndex + 1) % trackList.length;
+    const nextTrack = trackList[nextIdx];
     if (nextTrack?.src) {
-      // Use link preload for the next audio
       const link = document.createElement("link");
       link.rel = "preload";
       link.as = "audio";
@@ -426,7 +425,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       document.head.appendChild(link);
       return () => { try { document.head.removeChild(link); } catch { /* */ } };
     }
-  }, [currentIndex, currentTrack, tracks]);
+  }, [currentIndex, currentTrack, trackList]);
 
   // Dynamic browser tab title and favicon
   useEffect(() => {
