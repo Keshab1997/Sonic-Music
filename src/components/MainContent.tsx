@@ -64,9 +64,13 @@ export const MainContent = () => {
   const [shufflingTrending, setShufflingTrending] = useState(false);
   const [shufflingNewReleases, setShufflingNewReleases] = useState(false);
   const carouselTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const trendingInitialized = useRef(false);
+  const newReleasesInitialized = useRef(false);
   const { favorites: artistFavorites } = useArtistFavorites();
 
   const DISPLAY_COUNT = 10;
+  const AUTO_REFRESH_MS = 30000; // 30 seconds
 
   const getRandomBatch = useCallback((allTracks: Track[], count: number): Track[] => {
     if (allTracks.length <= count) return [...allTracks];
@@ -78,20 +82,24 @@ export const MainContent = () => {
     return shuffled.slice(0, count);
   }, []);
 
-  // Initialize displayed batches when master data loads
+  // Initialize displayed batch when master data arrives (run once per dataset)
   useEffect(() => {
-    if (trendingSongs.length > 0 && displayedTrending.length === 0) {
+    if (trendingSongs.length > 0 && !trendingInitialized.current) {
+      trendingInitialized.current = true;
       setDisplayedTrending(getRandomBatch(trendingSongs, DISPLAY_COUNT));
     }
-  }, [trendingSongs]);
+  }, [trendingSongs.length, getRandomBatch]);
 
   useEffect(() => {
-    if (newReleases.length > 0 && displayedNewReleases.length === 0) {
+    if (newReleases.length > 0 && !newReleasesInitialized.current) {
+      newReleasesInitialized.current = true;
       setDisplayedNewReleases(getRandomBatch(newReleases, DISPLAY_COUNT));
     }
-  }, [newReleases]);
+  }, [newReleases.length, getRandomBatch]);
 
+  // Manual refresh handlers
   const refreshTrending = useCallback(() => {
+    if (trendingSongs.length === 0) return;
     setShufflingTrending(true);
     setTimeout(() => {
       setDisplayedTrending(getRandomBatch(trendingSongs, DISPLAY_COUNT));
@@ -100,12 +108,29 @@ export const MainContent = () => {
   }, [trendingSongs, getRandomBatch]);
 
   const refreshNewReleases = useCallback(() => {
+    if (newReleases.length === 0) return;
     setShufflingNewReleases(true);
     setTimeout(() => {
       setDisplayedNewReleases(getRandomBatch(newReleases, DISPLAY_COUNT));
       setShufflingNewReleases(false);
     }, 500);
   }, [newReleases, getRandomBatch]);
+
+  // Auto-refresh both sections every 30 seconds
+  useEffect(() => {
+    autoRefreshTimerRef.current = setInterval(() => {
+      if (trendingSongs.length > DISPLAY_COUNT) {
+        setDisplayedTrending(getRandomBatch(trendingSongs, DISPLAY_COUNT));
+      }
+      if (newReleases.length > DISPLAY_COUNT) {
+        setDisplayedNewReleases(getRandomBatch(newReleases, DISPLAY_COUNT));
+      }
+    }, AUTO_REFRESH_MS);
+
+    return () => {
+      if (autoRefreshTimerRef.current) clearInterval(autoRefreshTimerRef.current);
+    };
+  }, [trendingSongs, newReleases, getRandomBatch]);
 
   const timeOfDay = getTimeOfDay();
   const timeData = timeSuggestions[timeOfDay];
