@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2, Search, Loader2, Plus } from "lucide-react";
+import { Play, ChevronRight, Music2, Sparkles, TrendingUp, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2, Search, Loader2, Plus } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useHomeData } from "@/hooks/useHomeData";
 import { useRecentlyPlayed } from "@/hooks/useRecentlyPlayed";
@@ -675,40 +675,6 @@ export const MainContent = () => {
           </div>
         </div>
 
-        {/* Listening Stats */}
-        {stats.totalPlays > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="p-3 md:p-4 rounded-xl bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/20">
-              <div className="flex items-center gap-2 mb-2 md:mb-3">
-                <BarChart3 size={14} className="text-indigo-400" />
-                <h3 className="text-xs md:text-sm font-semibold text-foreground">Your Stats</h3>
-              </div>
-              <div className="grid grid-cols-4 gap-2 md:gap-3">
-                <div className="text-center">
-                  <p className="text-lg md:text-2xl font-bold text-foreground">{stats.totalPlays}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground">Played</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg md:text-2xl font-bold text-foreground">{stats.totalMinutes}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground">Minutes</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg md:text-2xl font-bold text-foreground">{stats.songsPlayedToday}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground">Today</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg md:text-2xl font-bold text-primary">{stats.streakDays}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground">Streak</p>
-                </div>
-              </div>
-              {topArtistName && (
-                <p className="text-[10px] md:text-xs text-muted-foreground mt-2 text-center">
-                  Top: <span className="text-foreground font-medium">{topArtistName}</span>
-                </p>
-              )}
-            </div>
-          </section>
-        )}
 
         {/* Song of the Day */}
         {songOfDay && (
@@ -753,6 +719,13 @@ export const MainContent = () => {
               </div>
             </div>
           )}
+        </div>
+
+        {/* ── TRENDING ── */}
+        <div className="flex items-center gap-2 mb-4">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">🔥 Trending</span>
+          <div className="h-px flex-1 bg-border" />
         </div>
 
         {/* Trending Now */}
