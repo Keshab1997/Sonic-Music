@@ -71,10 +71,57 @@ export const MainContent = () => {
   const newReleasesInitialized = useRef(false);
   const { favorites: artistFavorites } = useArtistFavorites();
 
-  const DISPLAY_COUNT = 10;
-  const AUTO_REFRESH_MS = 30000; // 30 seconds
+  // New personalized sections
+  const [bengaliHits, setBengaliHits] = useState<Track[]>([]);
+  const [thrillerVibes, setThrillerVibes] = useState<Track[]>([]);
+  const [forYouTracks, setForYouTracks] = useState<Track[]>([]);
 
-  const getRandomBatch = useCallback((allTracks: Track[], count: number): Track[] => {
+  const DISPLAY_COUNT = 10;
+
+  // Fetch personalized playlists on mount
+  useEffect(() => {
+    const API = "https://jiosaavn-api-privatecvc2.vercel.app";
+    const fetchSection = async (query: string, setter: (t: Track[]) => void, offset: number) => {
+      try {
+        const res = await fetch(`${API}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=20`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const songs = data.data?.results || [];
+        const tracks: Track[] = songs
+          .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
+          .map((s: { downloadUrl: { quality: string; link: string }[]; name: string; primaryArtists: string; album?: { name?: string } | string; image: { quality: string; link: string }[]; duration: string | number; id: string }, i: number) => {
+            const url96 = s.downloadUrl?.find((d) => d.quality === "96kbps")?.link;
+            const url160 = s.downloadUrl?.find((d) => d.quality === "160kbps")?.link;
+            const bestUrl = url160 || url96 || s.downloadUrl?.[0]?.link || "";
+            return {
+              id: offset + i,
+              title: s.name?.replace(/&quot;/g, '"').replace(/&amp;/g, "&") || "Unknown",
+              artist: s.primaryArtists || "Unknown",
+              album: typeof s.album === "string" ? s.album : s.album?.name || "",
+              cover: s.image?.find((img) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
+              src: bestUrl,
+              duration: parseInt(String(s.duration)) || 0,
+              type: "audio" as const,
+              songId: s.id,
+            } as Track;
+          });
+        setter(getRandomBatch(tracks, DISPLAY_COUNT));
+      } catch { /* skip */ }
+    };
+
+    fetchSection("bangla gaan modern hits", setBengaliHits, 7000);
+    fetchSection("thriller suspense dark moody hindi", setThrillerVibes, 8000);
+
+    // For You: use top artist from listening history or fallback
+    const topArtist = stats.topArtists?.[0]?.artist;
+    if (topArtist) {
+      fetchSection(`${topArtist} best songs`, setForYouTracks, 9000);
+    } else {
+      fetchSection("bollywood romantic hits", setForYouTracks, 9000);
+    }
+  }, []);
+
+  function getRandomBatch(allTracks: Track[], count: number): Track[] {
     if (allTracks.length <= count) return [...allTracks];
     const shuffled = [...allTracks];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -82,7 +129,9 @@ export const MainContent = () => {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled.slice(0, count);
-  }, []);
+  }
+
+  const AUTO_REFRESH_MS = 30000; // 30 seconds
 
   // Initialize displayed batch when master data arrives (run once per dataset)
   useEffect(() => {
@@ -873,6 +922,96 @@ export const MainContent = () => {
             ))}
           </div>
         </section>
+
+        {/* Bengali Hits */}
+        {bengaliHits.length > 0 && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🎵</span>
+                <h3 className="text-base md:text-lg font-bold text-foreground">Bangla Hits</h3>
+              </div>
+            </div>
+            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {bengaliHits.map((track, i) => (
+                <div key={track.src + i} onClick={() => playTrackList(bengaliHits, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
+                  <div className="relative mb-1.5 md:mb-2">
+                    <img src={track.cover} alt="" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
+                        <Play size={14} className="text-primary-foreground ml-0.5" />
+                      </div>
+                    </div>
+                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-green-700/80 px-1.5 py-0.5 rounded">
+                      BANGLA
+                    </span>
+                  </div>
+                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
+                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Thriller & Dark Vibes */}
+        {thrillerVibes.length > 0 && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🎭</span>
+                <h3 className="text-base md:text-lg font-bold text-foreground">Dark & Thriller</h3>
+              </div>
+            </div>
+            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {thrillerVibes.map((track, i) => (
+                <div key={track.src + i} onClick={() => playTrackList(thrillerVibes, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
+                  <div className="relative mb-1.5 md:mb-2">
+                    <img src={track.cover} alt="" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
+                        <Play size={14} className="text-primary-foreground ml-0.5" />
+                      </div>
+                    </div>
+                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-red-900/80 px-1.5 py-0.5 rounded">
+                      THRILLER
+                    </span>
+                  </div>
+                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
+                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* For You — Personalized */}
+        {forYouTracks.length > 0 && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-primary" />
+                <h3 className="text-base md:text-lg font-bold text-foreground">For You</h3>
+              </div>
+            </div>
+            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {forYouTracks.map((track, i) => (
+                <div key={track.src + i} onClick={() => playTrackList(forYouTracks, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
+                  <div className="relative mb-1.5 md:mb-2">
+                    <img src={track.cover} alt="" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
+                        <Play size={14} className="text-primary-foreground ml-0.5" />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
+                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Time Machine */}
         <section className="mb-6 md:mb-8 animate-fade-in">
