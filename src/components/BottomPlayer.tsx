@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Play,
   Pause,
@@ -30,6 +30,8 @@ import { useLocalData } from "@/hooks/useLocalData";
 import { usePlaylists } from "@/hooks/usePlaylists";
 import { FullScreenPlayer } from "@/components/FullScreenPlayer";
 import { Equalizer } from "@/components/Equalizer";
+import { SyncedLyrics } from "@/components/SyncedLyrics";
+import { parseLyrics } from "@/lib/lyricsParser";
 
 const formatTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -358,7 +360,15 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Lyrics Panel */}
       {showLyrics && currentTrack?.songId && (
-        <LyricsPanel songId={currentTrack.songId} title={currentTrack.title} onClose={() => setShowLyrics(false)} />
+        <LyricsPanel
+          songId={currentTrack.songId}
+          title={currentTrack.title}
+          currentTime={progress}
+          duration={duration}
+          onSeek={seek}
+          isPlaying={isPlaying}
+          onClose={() => setShowLyrics(false)}
+        />
       )}
 
       <div className="fixed bottom-0 left-0 right-0 z-50 glass-heavy border-t border-border">
@@ -653,8 +663,24 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 };
 
 // Lyrics Panel Component
-const LyricsPanel = ({ songId, title, onClose }: { songId: string; title: string; onClose: () => void }) => {
-  const [lyrics, setLyrics] = useState<string | null>(null);
+const LyricsPanel = ({
+  songId,
+  title,
+  currentTime,
+  duration,
+  onSeek,
+  isPlaying,
+  onClose,
+}: {
+  songId: string;
+  title: string;
+  currentTime: number;
+  duration: number;
+  onSeek: (time: number) => void;
+  isPlaying: boolean;
+  onClose: () => void;
+}) => {
+  const [rawLyrics, setRawLyrics] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -663,14 +689,14 @@ const LyricsPanel = ({ songId, title, onClose }: { songId: string; title: string
   useEffect(() => {
     setLoading(true);
     setError(false);
-    setLyrics(null);
+    setRawLyrics(null);
     fetch(`${API_BASE}/api/songs/${songId}/lyrics`)
       .then((res) => res.json())
       .then((data) => {
         if (data.lyrics) {
-          setLyrics(data.lyrics);
+          setRawLyrics(data.lyrics);
         } else if (data.data?.lyrics) {
-          setLyrics(data.data.lyrics);
+          setRawLyrics(data.data.lyrics);
         } else {
           setError(true);
         }
@@ -679,21 +705,30 @@ const LyricsPanel = ({ songId, title, onClose }: { songId: string; title: string
       .finally(() => setLoading(false));
   }, [songId]);
 
+  const lyricLines = useMemo(
+    () => (rawLyrics && duration > 0 ? parseLyrics(rawLyrics, duration) : []),
+    [rawLyrics, duration]
+  );
+
   return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)] max-w-[400px] max-h-[60vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
-      <div className="flex items-center justify-between p-3 border-b border-border">
+    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)] max-w-[400px] h-[60vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between p-3 border-b border-border flex-shrink-0">
         <h3 className="text-sm font-semibold text-foreground truncate">{title} — Lyrics</h3>
         <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
           <X size={14} />
         </button>
       </div>
-      <div className="overflow-y-auto max-h-[50vh] p-4">
+      <div className="flex-1 min-h-0">
         {loading && <p className="text-xs text-muted-foreground text-center py-6">Loading lyrics...</p>}
         {error && <p className="text-xs text-muted-foreground text-center py-6">Lyrics not available</p>}
-        {lyrics && (
-          <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-            {lyrics}
-          </div>
+        {lyricLines.length > 0 && (
+          <SyncedLyrics
+            lines={lyricLines}
+            currentTime={currentTime}
+            isPlaying={isPlaying}
+            onSeek={onSeek}
+            className="h-full"
+          />
         )}
       </div>
     </div>

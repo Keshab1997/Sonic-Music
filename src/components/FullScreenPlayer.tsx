@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Play,
   Pause,
@@ -23,6 +23,8 @@ import { usePlayer } from "@/context/PlayerContext";
 import { useLocalData } from "@/hooks/useLocalData";
 import { useTheme } from "@/hooks/useTheme";
 import { Track } from "@/data/playlist";
+import { SyncedLyrics } from "@/components/SyncedLyrics";
+import { parseLyrics } from "@/lib/lyricsParser";
 
 const formatTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -61,26 +63,31 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics, onShow
   const { isFavorite, toggleFavorite } = useLocalData();
   const { theme, toggleTheme } = useTheme();
   const [showLyrics, setShowLyrics] = useState(false);
-  const [lyrics, setLyrics] = useState<string | null>(null);
+  const [rawLyrics, setRawLyrics] = useState<string | null>(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
-
-  if (!currentTrack) return null;
-
-  const liked = isFavorite(currentTrack.src);
 
   // Fetch lyrics
   useEffect(() => {
     if (!showLyrics || !currentTrack?.songId) return;
     setLyricsLoading(true);
-    setLyrics(null);
+    setRawLyrics(null);
     fetch(`https://jiosaavn-api-privatecvc2.vercel.app/api/songs/${currentTrack.songId}/lyrics`)
       .then((res) => res.json())
       .then((data) => {
-        setLyrics(data.lyrics || data.data?.lyrics || null);
+        setRawLyrics(data.lyrics || data.data?.lyrics || null);
       })
-      .catch(() => setLyrics(null))
+      .catch(() => setRawLyrics(null))
       .finally(() => setLyricsLoading(false));
   }, [showLyrics, currentTrack?.songId]);
+
+  const lyricLines = useMemo(
+    () => (rawLyrics && duration > 0 ? parseLyrics(rawLyrics, duration) : []),
+    [rawLyrics, duration]
+  );
+
+  if (!currentTrack) return null;
+
+  const liked = isFavorite(currentTrack.src);
 
   const progressPercent = duration ? (progress / duration) * 100 : 0;
 
@@ -313,15 +320,22 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics, onShow
 
         {/* Lyrics overlay */}
         {showLyrics && (
-          <div className="absolute bottom-24 left-0 right-0 max-h-[30vh] overflow-y-auto px-5 md:px-8 py-4 bg-black/60 backdrop-blur-md">
+          <div className="absolute bottom-24 left-0 right-0 h-[35vh] bg-black/60 backdrop-blur-md overflow-hidden">
             {lyricsLoading && (
               <p className="text-xs text-white/50 text-center py-4">Loading lyrics...</p>
             )}
-            {!lyricsLoading && !lyrics && (
+            {!lyricsLoading && lyricLines.length === 0 && (
               <p className="text-xs text-white/50 text-center py-4">Lyrics not available</p>
             )}
-            {lyrics && (
-              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{lyrics}</p>
+            {lyricLines.length > 0 && (
+              <SyncedLyrics
+                lines={lyricLines}
+                currentTime={progress}
+                isPlaying={isPlaying}
+                onSeek={seek}
+                className="h-full"
+                variant="dark"
+              />
             )}
           </div>
         )}
