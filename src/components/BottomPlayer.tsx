@@ -291,7 +291,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Queue Panel */}
       {showQueue && (
-        <div className="fixed bottom-[84px] md:bottom-20 right-2 md:right-4 z-50 w-[calc(100vw-1rem)] max-w-80 max-h-96 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-[60px] md:bottom-20 right-2 md:right-4 z-50 w-[calc(100vw-1rem)] max-w-80 max-h-96 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between p-3 border-b border-border">
             <h3 className="text-sm font-semibold text-foreground">Queue ({queue.length})</h3>
             <div className="flex items-center gap-1">
@@ -345,7 +345,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Sleep Timer Menu */}
       {showSleepMenu && (
-        <div className="fixed bottom-[84px] md:bottom-20 right-2 md:right-20 z-50 w-48 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-[60px] md:bottom-20 right-2 md:right-20 z-50 w-48 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="p-2 border-b border-border">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-foreground">Sleep Timer</span>
@@ -376,7 +376,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Quality Menu */}
       {showQualityMenu && (
-        <div className="fixed bottom-[84px] md:bottom-20 right-2 md:right-36 z-50 w-40 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-[60px] md:bottom-20 right-2 md:right-36 z-50 w-40 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="p-2 border-b border-border">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-foreground">Audio Quality</span>
@@ -403,7 +403,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Playback Speed Menu */}
       {showSpeedMenu && (
-        <div className="fixed bottom-[84px] md:bottom-20 right-2 md:right-48 z-50 w-36 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-[60px] md:bottom-20 right-2 md:right-48 z-50 w-36 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="p-2 border-b border-border">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-foreground">Speed</span>
@@ -444,7 +444,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
       )}
 
       <div className="fixed bottom-0 left-0 right-0 z-50 glass-heavy border-t border-border safe-bottom">
-        <div className="max-w-full mx-auto px-3 md:px-4 py-2.5 md:py-2 flex items-center gap-2 md:gap-4">
+        <div className="max-w-full mx-auto px-3 md:px-4 py-2 md:py-2.5 flex items-center gap-2 md:gap-4">
           {/* Track info — clickable to open full screen player */}
           <div
             onClick={() => setShowFullScreen(true)}
@@ -454,13 +454,13 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
               <img
                 src={currentTrack.cover}
                 alt={currentTrack.title}
-                className="w-12 h-12 md:w-14 md:h-14 rounded-lg md:rounded-md object-cover shadow-md"
+                className="w-10 h-10 md:w-14 md:h-14 rounded-lg md:rounded-md object-cover shadow-md"
               />
               <div className="absolute inset-0 rounded-lg md:rounded-md bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                <ChevronUp size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                <ChevronUp size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-xs md:text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">{currentTrack.title}</p>
               <p className="text-[10px] md:text-xs text-muted-foreground truncate">{currentTrack.artist}</p>
               <p className="text-[8px] md:text-[9px] text-muted-foreground/50 mt-0.5 hidden md:block">
@@ -470,11 +470,11 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
           </div>
 
           {/* Controls center */}
-          <div className="flex-1 flex flex-col items-center gap-1 max-w-xl mx-auto">
-            <div className="flex items-center gap-3 md:gap-4">
+          <div className="flex flex-col items-center gap-0.5 max-w-xl mx-auto">
+            <div className="flex items-center gap-2 md:gap-4">
               <button
                 onClick={toggleShuffle}
-                className={`p-2 rounded-full transition-colors hidden sm:block ${
+                className={`p-1.5 rounded-full transition-colors hidden sm:block ${
                   shuffle ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -482,29 +482,29 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
               </button>
               <button
                 onClick={prev}
-                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <SkipBack size={20} fill="currentColor" />
               </button>
               <button
                 onClick={togglePlay}
-                className="w-10 h-10 rounded-full bg-foreground flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+                className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-foreground flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
               >
                 {isPlaying ? (
-                  <Pause size={20} className="text-background" />
+                  <Pause size={18} className="text-background" />
                 ) : (
-                  <Play size={20} className="text-background ml-0.5" />
+                  <Play size={18} className="text-background ml-0.5" />
                 )}
               </button>
               <button
                 onClick={next}
-                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <SkipForward size={20} fill="currentColor" />
               </button>
               <button
                 onClick={toggleRepeat}
-                className={`p-2 rounded-full transition-colors hidden sm:block ${
+                className={`p-1.5 rounded-full transition-colors hidden sm:block ${
                   repeat !== "off" ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -512,8 +512,8 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
               </button>
             </div>
 
-            {/* Seek bar */}
-            <div className="flex items-center gap-2 w-full">
+            {/* Seek bar - desktop only */}
+            <div className="hidden md:flex items-center gap-2 w-full">
                 <span className="text-[10px] text-muted-foreground w-10 text-right tabular-nums">
                   {formatTime(progress)}
                 </span>
@@ -672,7 +672,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
       {showMobileMenu && (
         <>
           <div className="fixed inset-0 z-40 md:hidden" onClick={() => setShowMobileMenu(false)} />
-          <div className="fixed bottom-[84px] right-2 z-50 md:hidden w-56 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-up">
+          <div className="fixed bottom-[60px] right-2 z-50 md:hidden w-56 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-up">
             <div className="p-2">
               <button
                 onClick={() => { setShowLyrics(true); setShowMobileMenu(false); }}
@@ -816,7 +816,7 @@ const LyricsPanel = ({
   }, [rawLyrics, isSynced, duration]);
 
   return (
-    <div className="fixed bottom-[84px] md:bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)] max-w-[400px] h-[50vh] md:h-[60vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed bottom-[60px] md:bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)] max-w-[400px] h-[50vh] md:h-[60vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col">
       <div className="flex items-center justify-between p-3 border-b border-border flex-shrink-0">
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-foreground truncate">{title} — Lyrics</h3>
