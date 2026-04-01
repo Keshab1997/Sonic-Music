@@ -479,8 +479,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const nextTrack = trackList[nextIdx];
     if (nextTrack?.type === "youtube") {
       setDuration(0);
-      setTimeout(() => setIsPlaying(true), 100);
+      setIsPlaying(false);
+      setTimeout(() => setIsPlaying(true), 300);
     } else {
+      setIsPlaying(false);
       setupAudioContext();
       if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
       setTimeout(() => {
@@ -501,8 +503,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const prevTrack = trackList[prevIdx];
     if (prevTrack?.type === "youtube") {
       setDuration(0);
-      setTimeout(() => setIsPlaying(true), 100);
+      setIsPlaying(false);
+      setTimeout(() => setIsPlaying(true), 300);
     } else {
+      setIsPlaying(false);
       setTimeout(() => {
         audioRef.current?.play().catch(() => {});
         setIsPlaying(true);
@@ -725,8 +729,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             onDuration={(d) => setDuration(d)}
             onEnded={() => {
               if (repeat === "one") {
-                ytPlayerRef.current?.seekTo(0);
-                setIsPlaying(true);
+                ytPlayerRef.current?.seekTo(0, "seconds");
+                setIsPlaying(false);
+                setTimeout(() => setIsPlaying(true), 200);
               } else {
                 next();
               }
