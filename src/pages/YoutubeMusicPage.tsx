@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, X, Play, Pause, TrendingUp, RefreshCw, Plus, Loader2, Music2, Mic2, Film, Radio } from "lucide-react";
+import { Search, X, Play, Pause, Plus, Loader2, Music2 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { Track } from "@/data/playlist";
 
 const YT_API = "/api/youtube-search";
 const DEBOUNCE_MS = 450;
+
+// Suffix variants to get different results for same query
+const PAGE_SUFFIXES = [
+  "", " 2025", " new", " best", " hits", " top", " latest", " popular",
+  " official", " full", " hd", " audio", " live", " remix", " unplugged",
+];
 
 interface YTVideo {
   videoId: string;
@@ -14,8 +20,8 @@ interface YTVideo {
   thumbnail: string;
 }
 
-const toTrack = (v: YTVideo, i: number): Track => ({
-  id: 70000 + i,
+const toTrack = (v: YTVideo, offset: number, i: number): Track => ({
+  id: 70000 + offset + i,
   title: v.title,
   artist: v.author || "YouTube",
   album: "",
@@ -30,70 +36,127 @@ const CATEGORIES = [
   { label: "Trending", emoji: "🔥", query: "trending music india 2025" },
   { label: "Bangla Hits", emoji: "🎵", query: "viral bangla song 2025" },
   { label: "Bollywood", emoji: "🎬", query: "bollywood hits 2025" },
-  { label: "Arijit Singh", emoji: "🎤", query: "arijit singh best songs 2024 2025" },
+  { label: "Arijit Singh", emoji: "🎤", query: "arijit singh best songs" },
   { label: "Lofi", emoji: "🌙", query: "hindi lofi chill music" },
   { label: "Unplugged", emoji: "🎸", query: "bollywood unplugged acoustic" },
   { label: "Indie Bengali", emoji: "🌿", query: "indie bengali songs fossils chandrabindoo" },
   { label: "Romantic", emoji: "💕", query: "hindi romantic songs 2025" },
   { label: "Party", emoji: "🎉", query: "bollywood party songs 2025" },
-  { label: "Sad Songs", emoji: "😢", query: "hindi sad songs emotional 2024" },
+  { label: "Sad Songs", emoji: "😢", query: "hindi sad songs emotional" },
   { label: "Old Gold", emoji: "🏅", query: "old hindi classic songs 90s" },
   { label: "Devotional", emoji: "🙏", query: "bengali devotional songs kirtan" },
 ];
 
+const QUICK_PICKS = [
+  { label: "Arijit Live", emoji: "🎤", query: "arijit singh live concert" },
+  { label: "Bangla Viral", emoji: "🔥", query: "viral bangla song 2024 2025" },
+  { label: "Coke Studio", emoji: "🎙️", query: "coke studio india 2024" },
+  { label: "MTV Unplugged", emoji: "🎸", query: "mtv unplugged india hindi" },
+  { label: "Bengali Indie", emoji: "🌿", query: "fossils chandrabindoo bhoomi bengali band" },
+  { label: "Rabindra Sangeet", emoji: "📜", query: "rabindra sangeet best collection" },
+];
+
 export default function YoutubeMusicPage() {
-  const { playTrackList, playTrack, currentTrack, isPlaying, addToQueue } = usePlayer();
+  const { playTrackList, currentTrack, isPlaying, addToQueue } = usePlayer();
 
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Track[]>([]);
+  const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
-  const [featuredTracks, setFeaturedTracks] = useState<Track[]>([]);
-  const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
-  const [categoryLoading, setCategoryLoading] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [currentQuery, setCurrentQuery] = useState(CATEGORIES[0].query);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  const fetchYT = useCallback(async (q: string): Promise<Track[]> => {
-    const res = await fetch(`${YT_API}?q=${encodeURIComponent(q)}`);
-    if (!res.ok) return [];
-    const videos: YTVideo[] = await res.json();
-    return videos.map(toTrack);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const seenIds = useRef<Set<string>>(new Set());
+
+  const fetchYT = useCallback(async (q: string, pageNum: number): Promise<Track[]> => {
+    const suffix = PAGE_SUFFIXES[pageNum % PAGE_SUFFIXES.length];
+    const finalQuery = pageNum === 0 ? q : `${q}${suffix}`;
+    try {
+      const res = await fetch(`${YT_API}?q=${encodeURIComponent(finalQuery)}`);
+      if (!res.ok) return [];
+      const videos: YTVideo[] = await res.json();
+      // Deduplicate by videoId
+      const fresh = videos.filter((v) => !seenIds.current.has(v.videoId));
+      fresh.forEach((v) => seenIds.current.add(v.videoId));
+      return fresh.map((v, i) => toTrack(v, pageNum * 20, i));
+    } catch { return []; }
   }, []);
 
-  // Load default trending on mount
-  useEffect(() => {
-    setFeaturedLoading(true);
-    fetchYT(CATEGORIES[0].query)
-      .then(setFeaturedTracks)
-      .finally(() => setFeaturedLoading(false));
+  const loadInitial = useCallback(async (q: string) => {
+    seenIds.current = new Set();
+    setLoading(true);
+    setTracks([]);
+    setPage(0);
+    setHasMore(true);
+    const result = await fetchYT(q, 0);
+    setTracks(result);
+    setPage(1);
+    setHasMore(result.length > 0);
+    setLoading(false);
   }, [fetchYT]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const result = await fetchYT(currentQuery, page);
+    if (result.length === 0) {
+      setHasMore(false);
+    } else {
+      setTracks((prev) => [...prev, ...result]);
+      setPage((p) => p + 1);
+    }
+    setLoadingMore(false);
+  }, [loadingMore, hasMore, fetchYT, currentQuery, page]);
+
+  // Load default on mount
+  useEffect(() => {
+    setCurrentQuery(CATEGORIES[0].query);
+    loadInitial(CATEGORIES[0].query);
+  }, []);
 
   // Debounced search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!query.trim()) { setResults([]); return; }
-    debounceRef.current = setTimeout(async () => {
-      setLoading(true);
-      const tracks = await fetchYT(query);
-      setResults(tracks);
-      setLoading(false);
+    if (!query.trim()) return;
+    debounceRef.current = setTimeout(() => {
+      setCurrentQuery(query.trim());
+      loadInitial(query.trim());
     }, DEBOUNCE_MS);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, fetchYT]);
+  }, [query]);
 
-  const handleCategoryClick = async (cat: typeof CATEGORIES[0]) => {
+  // Clear search → restore category
+  useEffect(() => {
+    if (query === "") {
+      setCurrentQuery(activeCategory.query);
+      loadInitial(activeCategory.query);
+    }
+  }, [query]);
+
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    if (observerRef.current) observerRef.current.disconnect();
+    observerRef.current = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { threshold: 0.1 }
+    );
+    if (bottomRef.current) observerRef.current.observe(bottomRef.current);
+    return () => observerRef.current?.disconnect();
+  }, [loadMore]);
+
+  const handleCategoryClick = (cat: typeof CATEGORIES[0]) => {
     setActiveCategory(cat);
     setQuery("");
-    setResults([]);
-    setCategoryLoading(true);
-    const tracks = await fetchYT(cat.query);
-    setFeaturedTracks(tracks);
-    setCategoryLoading(false);
+    setCurrentQuery(cat.query);
+    loadInitial(cat.query);
   };
 
   const isSearchMode = query.trim().length > 0;
-  const displayTracks = isSearchMode ? results : featuredTracks;
   const isTrackPlaying = (t: Track) => currentTrack?.src === t.src && isPlaying;
 
   return (
@@ -109,12 +172,10 @@ export default function YoutubeMusicPage() {
             <p className="text-[10px] text-muted-foreground">Stream from YouTube</p>
           </div>
         </div>
-
         {/* Search Bar */}
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
-            ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search songs, artists, albums..."
@@ -149,13 +210,13 @@ export default function YoutubeMusicPage() {
           </div>
         )}
 
-        {/* Section Title */}
+        {/* Section Title + Play All */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             {isSearchMode ? (
               <>
                 <Search size={15} className="text-red-400" />
-                <h2 className="text-sm font-bold text-foreground">Results for "{query}"</h2>
+                <h2 className="text-sm font-bold text-foreground">"{query}"</h2>
               </>
             ) : (
               <>
@@ -165,9 +226,9 @@ export default function YoutubeMusicPage() {
               </>
             )}
           </div>
-          {!isSearchMode && displayTracks.length > 0 && (
+          {tracks.length > 0 && (
             <button
-              onClick={() => playTrackList(displayTracks, 0)}
+              onClick={() => playTrackList(tracks, 0)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors"
             >
               <Play size={11} fill="currentColor" /> Play All
@@ -175,8 +236,8 @@ export default function YoutubeMusicPage() {
           )}
         </div>
 
-        {/* Loading */}
-        {(loading || categoryLoading || featuredLoading) && (
+        {/* Initial Loading */}
+        {loading && (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <div className="w-10 h-10 rounded-full bg-red-600/20 flex items-center justify-center">
               <Loader2 size={20} className="text-red-400 animate-spin" />
@@ -186,38 +247,30 @@ export default function YoutubeMusicPage() {
         )}
 
         {/* No results */}
-        {isSearchMode && !loading && results.length === 0 && query.trim() && (
+        {!loading && tracks.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
               <Search size={22} className="text-muted-foreground" />
             </div>
-            <p className="text-sm text-muted-foreground">No results for "{query}"</p>
+            <p className="text-sm text-muted-foreground">No results found</p>
           </div>
         )}
 
         {/* Track List */}
-        {!loading && !categoryLoading && !featuredLoading && displayTracks.length > 0 && (
+        {!loading && tracks.length > 0 && (
           <div className="space-y-1">
-            {displayTracks.map((track, i) => (
+            {tracks.map((track, i) => (
               <div
                 key={track.src + i}
-                onClick={() => playTrackList(displayTracks, i)}
+                onClick={() => playTrackList(tracks, i)}
                 className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all group ${
                   isTrackPlaying(track)
                     ? "bg-red-600/10 border border-red-600/20"
                     : "hover:bg-muted/60"
                 }`}
               >
-                {/* Thumbnail */}
                 <div className="relative flex-shrink-0">
-                  <img
-                    src={track.cover}
-                    alt=""
-                    width={56}
-                    height={56}
-                    loading="lazy"
-                    className="w-14 h-14 rounded-lg object-cover shadow-md"
-                  />
+                  <img src={track.cover} alt="" width={56} height={56} loading="lazy" className="w-14 h-14 rounded-lg object-cover shadow-md" />
                   <div className={`absolute inset-0 rounded-lg flex items-center justify-center transition-all ${
                     isTrackPlaying(track) ? "bg-black/40" : "bg-black/0 group-hover:bg-black/40"
                   }`}>
@@ -227,11 +280,8 @@ export default function YoutubeMusicPage() {
                       <Play size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity ml-0.5" />
                     )}
                   </div>
-                  {/* YT badge */}
                   <span className="absolute bottom-0.5 right-0.5 text-[7px] font-bold text-white bg-red-600 px-1 py-0.5 rounded leading-none">YT</span>
                 </div>
-
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-medium truncate ${isTrackPlaying(track) ? "text-red-400" : "text-foreground"}`}>
                     {track.title}
@@ -243,41 +293,45 @@ export default function YoutubeMusicPage() {
                     </p>
                   )}
                 </div>
-
-                {/* Actions */}
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                   <button
                     onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
                     className="w-7 h-7 rounded-full bg-muted hover:bg-red-600/20 flex items-center justify-center transition-colors"
                     title="Add to queue"
                   >
-                    <Plus size={13} className="text-muted-foreground hover:text-red-400" />
+                    <Plus size={13} className="text-muted-foreground" />
                   </button>
                 </div>
               </div>
             ))}
+
+            {/* Infinite scroll trigger */}
+            <div ref={bottomRef} className="py-2 flex justify-center">
+              {loadingMore && (
+                <div className="flex items-center gap-2 text-muted-foreground text-xs py-3">
+                  <Loader2 size={14} className="animate-spin text-red-400" />
+                  <span>Loading more...</span>
+                </div>
+              )}
+              {!loadingMore && !hasMore && tracks.length > 0 && (
+                <p className="text-[11px] text-muted-foreground py-3">No more results</p>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Quick Picks Grid — shown when no search */}
-        {!isSearchMode && !featuredLoading && (
-          <div className="mt-8 mb-4">
+        {/* Quick Picks — shown when no search */}
+        {!isSearchMode && !loading && (
+          <div className="mt-6 mb-4">
             <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
               <Music2 size={15} className="text-red-400" /> Quick Picks
             </h3>
             <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: "Arijit Live", emoji: "🎤", query: "arijit singh live concert 2024" },
-                { label: "Bangla Viral", emoji: "🔥", query: "viral bangla song 2024 2025" },
-                { label: "Coke Studio", emoji: "🎙️", query: "coke studio india 2024" },
-                { label: "MTV Unplugged", emoji: "🎸", query: "mtv unplugged india hindi" },
-                { label: "Bengali Indie", emoji: "🌿", query: "fossils chandrabindoo bhoomi bengali band" },
-                { label: "Rabindra Sangeet", emoji: "📜", query: "rabindra sangeet best collection" },
-              ].map((pick) => (
+              {QUICK_PICKS.map((pick) => (
                 <button
                   key={pick.label}
                   onClick={() => handleCategoryClick({ label: pick.label, emoji: pick.emoji, query: pick.query })}
-                  className="flex items-center gap-2.5 p-3 rounded-xl bg-muted hover:bg-muted/70 border border-border hover:border-red-500/30 transition-all text-left group"
+                  className="flex items-center gap-2.5 p-3 rounded-xl bg-muted hover:bg-muted/70 border border-border hover:border-red-500/30 transition-all text-left"
                 >
                   <span className="text-xl">{pick.emoji}</span>
                   <div className="min-w-0">
