@@ -32,6 +32,7 @@ import { FullScreenPlayer } from "@/components/FullScreenPlayer";
 import { Equalizer } from "@/components/Equalizer";
 import { SyncedLyrics } from "@/components/SyncedLyrics";
 import { parseLyrics } from "@/lib/lyricsParser";
+import { fetchLyrics } from "@/lib/lyricsFetcher";
 
 const formatTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -363,6 +364,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
         <LyricsPanel
           songId={currentTrack.songId}
           title={currentTrack.title}
+          artist={currentTrack.artist}
           currentTime={progress}
           duration={duration}
           onSeek={seek}
@@ -666,6 +668,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 const LyricsPanel = ({
   songId,
   title,
+  artist,
   currentTime,
   duration,
   onSeek,
@@ -674,6 +677,7 @@ const LyricsPanel = ({
 }: {
   songId: string;
   title: string;
+  artist: string;
   currentTime: number;
   duration: number;
   onSeek: (time: number) => void;
@@ -681,37 +685,51 @@ const LyricsPanel = ({
   onClose: () => void;
 }) => {
   const [rawLyrics, setRawLyrics] = useState<string | null>(null);
+  const [isSynced, setIsSynced] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
-
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(false);
     setRawLyrics(null);
-    fetch(`${API_BASE}/lyrics?id=${songId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.data?.lyrics) {
-          setRawLyrics(data.data.lyrics);
-        } else {
-          setError(true);
-        }
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [songId]);
+    setIsSynced(false);
 
-  const lyricLines = useMemo(
-    () => (rawLyrics && duration > 0 ? parseLyrics(rawLyrics, duration) : []),
-    [rawLyrics, duration]
-  );
+    fetchLyrics(songId, title, artist).then((result) => {
+      if (cancelled) return;
+      if (result) {
+        setRawLyrics(result.lyrics);
+        setIsSynced(result.synced);
+      } else {
+        setError(true);
+      }
+    }).catch(() => {
+      if (!cancelled) setError(true);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [songId, title, artist]);
+
+  const lyricLines = useMemo(() => {
+    if (!rawLyrics) return [];
+    if (isSynced) {
+      return parseLyrics(rawLyrics, duration);
+    }
+    return duration > 0 ? parseLyrics(rawLyrics, duration) : [];
+  }, [rawLyrics, isSynced, duration]);
 
   return (
     <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)] max-w-[400px] h-[60vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col">
       <div className="flex items-center justify-between p-3 border-b border-border flex-shrink-0">
-        <h3 className="text-sm font-semibold text-foreground truncate">{title} — Lyrics</h3>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-foreground truncate">{title} — Lyrics</h3>
+          {isSynced && (
+            <span className="text-[10px] text-primary font-medium">Synced</span>
+          )}
+        </div>
         <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
           <X size={14} />
         </button>

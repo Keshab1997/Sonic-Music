@@ -25,6 +25,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Track } from "@/data/playlist";
 import { SyncedLyrics } from "@/components/SyncedLyrics";
 import { parseLyrics } from "@/lib/lyricsParser";
+import { fetchLyrics } from "@/lib/lyricsFetcher";
 
 const formatTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -64,26 +65,41 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics, onShow
   const { theme, toggleTheme } = useTheme();
   const [showLyrics, setShowLyrics] = useState(false);
   const [rawLyrics, setRawLyrics] = useState<string | null>(null);
+  const [lyricsSynced, setLyricsSynced] = useState(false);
   const [lyricsLoading, setLyricsLoading] = useState(false);
 
   // Fetch lyrics
   useEffect(() => {
     if (!showLyrics || !currentTrack?.songId) return;
+    let cancelled = false;
     setLyricsLoading(true);
     setRawLyrics(null);
-    fetch(`https://jiosaavn-api-privatecvc2.vercel.app/lyrics?id=${currentTrack.songId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setRawLyrics(data.data?.lyrics || null);
-      })
-      .catch(() => setRawLyrics(null))
-      .finally(() => setLyricsLoading(false));
-  }, [showLyrics, currentTrack?.songId]);
+    setLyricsSynced(false);
 
-  const lyricLines = useMemo(
-    () => (rawLyrics && duration > 0 ? parseLyrics(rawLyrics, duration) : []),
-    [rawLyrics, duration]
-  );
+    fetchLyrics(
+      currentTrack.songId,
+      currentTrack.title,
+      currentTrack.artist
+    ).then((result) => {
+      if (cancelled) return;
+      if (result) {
+        setRawLyrics(result.lyrics);
+        setLyricsSynced(result.synced);
+      }
+    }).catch(() => {
+      if (!cancelled) setRawLyrics(null);
+    }).finally(() => {
+      if (!cancelled) setLyricsLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [showLyrics, currentTrack?.songId, currentTrack?.title, currentTrack?.artist]);
+
+  const lyricLines = useMemo(() => {
+    if (!rawLyrics) return [];
+    if (lyricsSynced) return parseLyrics(rawLyrics, duration);
+    return duration > 0 ? parseLyrics(rawLyrics, duration) : [];
+  }, [rawLyrics, lyricsSynced, duration]);
 
   if (!currentTrack) return null;
 
