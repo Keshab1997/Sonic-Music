@@ -12,6 +12,7 @@ import {
   Volume1,
   VolumeX,
   ListMusic,
+  ListPlus,
   Moon,
   Music2,
   Settings,
@@ -223,7 +224,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                       <button
                         onClick={(e) => { e.stopPropagation(); setSongMenu(songMenu === i ? null : i); setSongMenuPlSubmenu(false); }}
                         className="p-1.5 rounded-full text-muted-foreground/0 group-hover:text-muted-foreground hover:text-foreground transition-colors"
-                        title="Add to playlist"
+                        title="More options"
                       >
                         <Plus size={14} />
                       </button>
@@ -231,6 +232,21 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                         <>
                           <div className="fixed inset-0 z-50" onClick={(e) => { e.stopPropagation(); setSongMenu(null); setSongMenuPlSubmenu(false); }} />
                           <div className="absolute right-0 top-full mt-1 z-[60] w-44 glass-heavy border border-border rounded-lg shadow-2xl overflow-hidden">
+                            {/* Queue actions */}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); playNext(track); setSongMenu(null); }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] text-foreground hover:bg-accent transition-colors"
+                            >
+                              <ListPlus size={13} /> Play Next
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); addToQueue(track); setSongMenu(null); }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] text-foreground hover:bg-accent transition-colors"
+                            >
+                              <ListMusic size={13} /> Add to Queue
+                            </button>
+                            <div className="border-t border-border" />
+                            {/* Playlist actions */}
                             {playlists.map((pl) => (
                               <button
                                 key={pl.id}
