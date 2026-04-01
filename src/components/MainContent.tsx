@@ -75,6 +75,9 @@ export const MainContent = () => {
   const [bengaliHits, setBengaliHits] = useState<Track[]>([]);
   const [thrillerVibes, setThrillerVibes] = useState<Track[]>([]);
   const [forYouTracks, setForYouTracks] = useState<Track[]>([]);
+  const [bengaliAlbums, setBengaliAlbums] = useState<{ name: string; cover: string; id: string }[]>([]);
+  const [horrorPodcast, setHorrorPodcast] = useState<Track[]>([]);
+  const [topChartTracks, setTopChartTracks] = useState<Track[]>([]);
 
   const DISPLAY_COUNT = 10;
 
@@ -134,6 +137,46 @@ export const MainContent = () => {
     } else {
       fetchSection(["bollywood romantic hits", "hindi love songs", "bollywood sad songs", "hindi acoustic"], setForYouTracks, 9000);
     }
+
+    // Bengali Albums from modules API
+    fetch(`${API}/modules?language=bengali`)
+      .then((r) => r.json())
+      .then((data) => {
+        const mod = data.data || {};
+        const albums = (mod.albums || [])
+          .filter((a: { type: string; id: string; name: string; image: { quality: string; link: string }[] }) => a.type === "album")
+          .map((a: { id: string; name: string; image: { quality: string; link: string }[] }) => ({
+            id: a.id,
+            name: a.name,
+            cover: a.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || a.image?.[a.image.length - 1]?.link || "",
+          }));
+        setBengaliAlbums(albums.slice(0, 12));
+        // Charts
+        const chartItems = (mod.charts || []).slice(0, 3);
+        if (chartItems.length > 0) {
+          fetch(`${API}/playlists?id=${chartItems[0].id}`)
+            .then((r) => r.json())
+            .then((d) => {
+              const songs = d.data?.songs || [];
+              setTopChartTracks(songs.slice(0, 10).map((s: { downloadUrl: { quality: string; link: string }[]; name: string; primaryArtists: string; album?: { name?: string } | string; image: { quality: string; link: string }[]; duration: string | number; id: string }, i: number) => {
+                const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+                const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+                return {
+                  id: 10000 + i, title: s.name?.replace(/&quot;/g, '"') || "Unknown", artist: s.primaryArtists || "Unknown",
+                  album: typeof s.album === "string" ? s.album : s.album?.name || "",
+                  cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "",
+                  src: url160 || url96 || "", duration: parseInt(String(s.duration)) || 0, type: "audio" as const, songId: s.id,
+                } as Track;
+              }));
+            }).catch(() => {});
+        }
+      }).catch(() => {});
+
+    // Horror/Thriller Podcast-style (Bengali)
+    fetchSection(
+      ["bengali horror thriller songs", "bengali dark suspense", "bangla bhooter gaan", "bengali psychological thriller"],
+      setHorrorPodcast, 11000, "bengali"
+    );
   }, []);
 
   function getRandomBatch(allTracks: Track[], count: number): Track[] {
@@ -1055,6 +1098,136 @@ export const MainContent = () => {
                   </div>
                   <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
                   <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Continue Listening — Enhanced Recently Played */}
+        {history.length > 0 && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">▶️</span>
+                <h3 className="text-base md:text-lg font-bold text-foreground">Continue Listening</h3>
+              </div>
+            </div>
+            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {history.slice(0, 8).map((entry, i) => (
+                <div key={`${entry.track.src}-${i}`} onClick={() => playTrack(entry.track)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
+                  <div className="relative mb-1.5 md:mb-2">
+                    <img src={entry.track.cover} alt="" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                        <Play size={14} className="text-primary-foreground ml-0.5" />
+                      </div>
+                    </div>
+                    {/* Progress bar at bottom */}
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 rounded-b-lg overflow-hidden">
+                      <div className="h-full bg-primary rounded-b-lg" style={{ width: `${Math.random() * 60 + 20}%` }} />
+                    </div>
+                  </div>
+                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{entry.track.title}</p>
+                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{entry.track.artist}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Bengali Albums */}
+        {bengaliAlbums.length > 0 && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">💿</span>
+                <h3 className="text-base md:text-lg font-bold text-foreground">Bengali Albums</h3>
+              </div>
+            </div>
+            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {bengaliAlbums.map((album) => (
+                <div
+                  key={album.id}
+                  onClick={() => handleSearchAndPlay(album.name)}
+                  className="flex-shrink-0 w-28 md:w-36 group cursor-pointer"
+                >
+                  <div className="relative mb-1.5 md:mb-2">
+                    <img src={album.cover} alt="" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
+                        <Play size={14} className="text-primary-foreground ml-0.5" />
+                      </div>
+                    </div>
+                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-purple-600/80 px-1.5 py-0.5 rounded">
+                      ALBUM
+                    </span>
+                  </div>
+                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{album.name}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Sunday Suspense / Horror Thriller */}
+        {horrorPodcast.length > 0 && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🎙️</span>
+                <h3 className="text-base md:text-lg font-bold text-foreground">Sunday Suspense Vibes</h3>
+              </div>
+            </div>
+            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {horrorPodcast.map((track, i) => (
+                <div key={track.src + i} onClick={() => playTrackList(horrorPodcast, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
+                  <div className="relative mb-1.5 md:mb-2">
+                    <img src={track.cover} alt="" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
+                        <Play size={14} className="text-primary-foreground ml-0.5" />
+                      </div>
+                    </div>
+                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-red-800/80 px-1.5 py-0.5 rounded">
+                      HORROR
+                    </span>
+                  </div>
+                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
+                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Top Charts */}
+        {topChartTracks.length > 0 && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🏆</span>
+                <h3 className="text-base md:text-lg font-bold text-foreground">Top Charts</h3>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              {topChartTracks.map((track, i) => (
+                <div
+                  key={track.src + i}
+                  onClick={() => playTrackList(topChartTracks, i)}
+                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors group"
+                >
+                  <span className={`text-sm font-bold w-6 text-center ${i < 3 ? "text-primary" : "text-muted-foreground"}`}>
+                    {i + 1}
+                  </span>
+                  <img src={track.cover} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{track.title}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
+                  </div>
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Play size={16} className="text-primary" />
+                  </div>
                 </div>
               ))}
             </div>
