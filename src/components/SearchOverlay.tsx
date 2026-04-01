@@ -9,6 +9,8 @@ import { Track } from "@/data/playlist";
 
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 const DEBOUNCE_MS = 400;
+const YT_API = "/api/youtube-search";
+const YT_STREAM_API = "/api/yt-stream";
 
 interface SearchResult {
   id: string;
@@ -82,10 +84,12 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   const [showAllAlbums, setShowAllAlbums] = useState(false);
   const [albumSongs, setAlbumSongs] = useState<{ name: string; query: string; songs: Track[] } | null>(null);
   const [albumLoading, setAlbumLoading] = useState(false);
-  const [searchType, setSearchType] = useState<"songs" | "playlists">("songs");
+  const [searchType, setSearchType] = useState<"songs" | "playlists" | "ytmusic">("songs");
   const [playlistResults, setPlaylistResults] = useState<{ id: string; name: string; image: string; songCount: string }[]>([]);
   const [playlistLoading, setPlaylistLoading] = useState(false);
   const [langFilter, setLangFilter] = useState<string>("all");
+  const [ytResults, setYtResults] = useState<Track[]>([]);
+  const [ytLoading, setYtLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -215,6 +219,32 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
       })));
     } catch { setPlaylistResults([]); }
     setPlaylistLoading(false);
+  }, []);
+
+  const doYtSearch = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setYtResults([]);
+      return;
+    }
+    setYtLoading(true);
+    try {
+      const res = await fetch(`${YT_API}?q=${encodeURIComponent(q)}`);
+      if (!res.ok) return;
+      const videos = await res.json();
+      const tracks: Track[] = videos.map((v: { videoId: string; title: string; author: string; duration: number; thumbnail: string }, i: number) => ({
+        id: 50000 + i,
+        title: v.title,
+        artist: v.author || "Unknown",
+        album: "",
+        cover: v.thumbnail || "",
+        src: `${YT_STREAM_API}?id=${v.videoId}`,
+        duration: v.duration || 0,
+        type: "youtube" as const,
+        songId: v.videoId,
+      }));
+      setYtResults(tracks);
+    } catch { setYtResults([]); }
+    setYtLoading(false);
   }, []);
 
   const handlePlaylistClick = async (playlistId: string, playlistName: string) => {
@@ -369,6 +399,8 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     debounceRef.current = setTimeout(() => {
       if (searchType === "playlists") {
         doPlaylistSearch(val);
+      } else if (searchType === "ytmusic") {
+        doYtSearch(val);
       } else {
         doSearch(val);
       }
@@ -383,16 +415,19 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     }
   };
 
-  const handleSearchTypeChange = (type: "songs" | "playlists") => {
+  const handleSearchTypeChange = (type: "songs" | "playlists" | "ytmusic") => {
     setSearchType(type);
     setPlaylistResults([]);
     setData(null);
     setSongResults([]);
+    setYtResults([]);
     setAlbumResults([]);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (query.trim()) {
       if (type === "playlists") {
         doPlaylistSearch(query);
+      } else if (type === "ytmusic") {
+        doYtSearch(query);
       } else {
         doSearch(query);
       }
@@ -465,6 +500,16 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           >
             Podcasts & Playlists
           </button>
+          <button
+            onClick={() => handleSearchTypeChange("ytmusic")}
+            className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
+              searchType === "ytmusic"
+                ? "bg-red-600 text-white"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            YTMusic
+          </button>
 
           {/* Language chips — only show in songs mode */}
           {searchType === "songs" && (
@@ -496,7 +541,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         </div>
 
         {/* Loading — skeleton placeholders */}
-        {(loading || playlistLoading) && (
+        {(loading || playlistLoading || ytLoading) && (
           <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 animate-pulse">
@@ -962,6 +1007,137 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                       </div>
                     </button>
                   ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* YTMusic Results */}
+          {isSearchMode && searchType === "ytmusic" && !ytLoading && (
+            <>
+              {ytResults.length === 0 ? (
+                <div className="text-center py-12">
+                  <Search size={32} className="mx-auto text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">No YouTube results for "{query}"</p>
+                </div>
+              ) : (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm text-muted-foreground">{ytResults.length} results from YouTube</p>
+                    <button
+                      onClick={() => playTrackList(ytResults, 0)}
+                      className="text-xs px-3 py-1.5 rounded-full bg-red-600/10 text-red-500 hover:bg-red-600/20 transition-colors"
+                    >
+                      Play All
+                    </button>
+                  </div>
+                  <div className="space-y-0.5">
+                    {ytResults.map((track) => {
+                      const isActive = currentTrack?.src === track.src;
+                      const liked = isFavorite(track.src);
+                      return (
+                        <div
+                          key={track.src}
+                          onClick={() => handleSongClick(track, ytResults)}
+                          className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${
+                            isActive ? "bg-red-600/10" : "hover:bg-accent"
+                          }`}
+                        >
+                          <div className="relative flex-shrink-0">
+                            <img src={track.cover} alt="" width={40} height={40} className={`w-10 h-10 rounded object-cover ${isActive ? "ring-1 ring-red-500" : ""}`} />
+                            <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                              {isActive && isPlaying ? (
+                                <div className="flex items-end gap-0.5">
+                                  <span className="w-0.5 h-2 bg-red-500 rounded-full animate-pulse-glow" />
+                                  <span className="w-0.5 h-3 bg-red-500 rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
+                                  <span className="w-0.5 h-2 bg-red-500 rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
+                                </div>
+                              ) : (
+                                <Play size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-medium truncate ${isActive ? "text-red-500" : "text-foreground"}`}>{track.title}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
+                          </div>
+                          <span className="text-[9px] text-red-500/60 font-medium flex-shrink-0">YT</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
+                            className={`p-1.5 rounded-full transition-colors ${liked ? "text-red-500" : "text-muted-foreground/0 group-hover:text-muted-foreground"}`}
+                          >
+                            <Heart size={13} fill={liked ? "currentColor" : "none"} />
+                          </button>
+                          <div className="relative">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setSongMenu(songMenu === track.src ? null : track.src); setSongMenuPlSubmenu(false); }}
+                              className="p-1.5 text-muted-foreground/0 group-hover:text-muted-foreground hover:text-foreground rounded-full transition-colors"
+                            >
+                              <MoreHorizontal size={13} />
+                            </button>
+                            {songMenu === track.src && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setSongMenu(null); setSongMenuPlSubmenu(false); }} />
+                                <div className="absolute right-0 top-full mt-1 z-50 w-44 glass-heavy border border-border rounded-lg shadow-2xl overflow-hidden">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); playNext(track); setSongMenu(null); }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-foreground hover:bg-accent"
+                                  >
+                                    <PlaySquare size={13} /> Play Next
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); addToQueue(track); setSongMenu(null); }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-foreground hover:bg-accent"
+                                  >
+                                    <ListPlus size={13} /> Add to Queue
+                                  </button>
+                                  <div className="border-t border-border" />
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setSongMenuPlSubmenu(!songMenuPlSubmenu); }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-foreground hover:bg-accent"
+                                  >
+                                    <Plus size={13} /> Add to Playlist
+                                  </button>
+                                  {songMenuPlSubmenu && (
+                                    <div className="border-t border-border max-h-32 overflow-y-auto">
+                                      {playlists.map((pl) => (
+                                        <button
+                                          key={pl.id}
+                                          onClick={(e) => { e.stopPropagation(); addToPlaylist(pl.id, track); setSongMenu(null); setSongMenuPlSubmenu(false); }}
+                                          className="w-full text-left px-5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent truncate"
+                                        >
+                                          {pl.name}
+                                        </button>
+                                      ))}
+                                      {playlists.length === 0 && <p className="px-5 py-1.5 text-[10px] text-muted-foreground/50">No playlists</p>}
+                                      <div className="flex items-center gap-1 px-3 py-1.5 border-t border-border">
+                                        <input
+                                          type="text"
+                                          value={newPlName}
+                                          onChange={(e) => setNewPlName(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter" && newPlName.trim()) {
+                                              const pl = createPlaylist(newPlName.trim());
+                                              addToPlaylist(pl.id, track);
+                                              setNewPlName("");
+                                              setSongMenu(null);
+                                              setSongMenuPlSubmenu(false);
+                                            }
+                                          }}
+                                          placeholder="New..."
+                                          className="flex-1 text-[10px] px-2 py-1 rounded bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </>

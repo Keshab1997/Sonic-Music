@@ -134,7 +134,7 @@ export const MainContent = () => {
     );
 
     // For You: use top artist from listening history or fallback
-    const topArtist = stats.topArtists?.[0]?.artist;
+    const topArtist = Object.entries(stats.topArtists).sort((a, b) => b[1] - a[1])[0]?.[0];
     if (topArtist) {
       fetchSection([`${topArtist} best songs`, `${topArtist} hits`, `${topArtist} popular`], setForYouTracks, 9000);
     } else {

@@ -571,8 +571,36 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [currentTrack, isPlaying]);
 
   // Get audio src based on quality preference
+  const [ytAudioUrl, setYtAudioUrl] = useState<string | null>(null);
+
+  // Fetch YouTube audio URL when track changes
+  useEffect(() => {
+    if (currentTrack?.type === "youtube" && currentTrack.src) {
+      setYtAudioUrl(null);
+      // Fetch the actual audio stream URL from the API
+      fetch(currentTrack.src)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to get audio");
+          return res.json();
+        })
+        .then((data) => {
+          if (data.audioUrl) {
+            setYtAudioUrl(data.audioUrl);
+          }
+        })
+        .catch(() => setYtAudioUrl(null));
+    } else {
+      setYtAudioUrl(null);
+    }
+  }, [currentTrack?.src, currentTrack?.type]);
+
   const getAudioSrc = (): string | undefined => {
     if (!currentTrack) return undefined;
+
+    // YouTube tracks: use the fetched audio URL
+    if (currentTrack.type === "youtube") {
+      return ytAudioUrl || undefined;
+    }
 
     // If track has quality variants, use the selected quality
     if (currentTrack.audioUrls) {
