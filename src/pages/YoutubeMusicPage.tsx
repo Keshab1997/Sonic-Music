@@ -80,8 +80,8 @@ export default function YoutubeMusicPage() {
       const res = await fetch(`${YT_API}?q=${encodeURIComponent(finalQuery)}`);
       if (!res.ok) return [];
       const videos: YTVideo[] = await res.json();
-      // Deduplicate by videoId
-      const fresh = videos.filter((v) => !seenIds.current.has(v.videoId));
+      // Deduplicate by videoId, skip shorts (< 60s)
+      const fresh = videos.filter((v) => !seenIds.current.has(v.videoId) && v.duration >= 60);
       fresh.forEach((v) => seenIds.current.add(v.videoId));
       return fresh.map((v, i) => toTrack(v, pageNum * 20, i));
     } catch { return []; }
