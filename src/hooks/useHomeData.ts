@@ -102,15 +102,14 @@ export const useHomeData = () => {
         const data = await res.json();
         const mod = data.data || {};
 
-        // Trending songs - get IDs then batch fetch details
+        // Trending songs - get ALL IDs then batch fetch details
         const trendingRaw: SaavnModuleSong[] = mod.trending?.songs || [];
-        const trendingIds = trendingRaw.slice(0, 10).map((s) => s.id).filter(Boolean);
+        const trendingIds = trendingRaw.map((s) => s.id).filter(Boolean);
 
-        // New releases (songs from albums list)
+        // New releases (songs from albums list) - get ALL
         const albumsRaw: SaavnModuleSong[] = mod.albums || [];
         const newReleaseIds = albumsRaw
           .filter((a) => a.type === "song")
-          .slice(0, 10)
           .map((s) => s.id)
           .filter(Boolean);
 
@@ -161,11 +160,10 @@ export const useHomeData = () => {
       const mod = data.data || {};
 
       const trendingRaw: SaavnModuleSong[] = mod.trending?.songs || [];
-      const trendingIds = trendingRaw.slice(0, 10).map((s) => s.id).filter(Boolean);
+      const trendingIds = trendingRaw.map((s) => s.id).filter(Boolean);
       const albumsRaw: SaavnModuleSong[] = mod.albums || [];
       const newReleaseIds = albumsRaw
         .filter((a) => a.type === "song")
-        .slice(0, 10)
         .map((s) => s.id)
         .filter(Boolean);
 

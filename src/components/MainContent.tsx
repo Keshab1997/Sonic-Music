@@ -59,8 +59,53 @@ export const MainContent = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [loadingLabel, setLoadingLabel] = useState<string | null>(null);
+  const [displayedTrending, setDisplayedTrending] = useState<Track[]>([]);
+  const [displayedNewReleases, setDisplayedNewReleases] = useState<Track[]>([]);
+  const [shufflingTrending, setShufflingTrending] = useState(false);
+  const [shufflingNewReleases, setShufflingNewReleases] = useState(false);
   const carouselTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { favorites: artistFavorites } = useArtistFavorites();
+
+  const DISPLAY_COUNT = 10;
+
+  const getRandomBatch = useCallback((allTracks: Track[], count: number): Track[] => {
+    if (allTracks.length <= count) return [...allTracks];
+    const shuffled = [...allTracks];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled.slice(0, count);
+  }, []);
+
+  // Initialize displayed batches when master data loads
+  useEffect(() => {
+    if (trendingSongs.length > 0 && displayedTrending.length === 0) {
+      setDisplayedTrending(getRandomBatch(trendingSongs, DISPLAY_COUNT));
+    }
+  }, [trendingSongs]);
+
+  useEffect(() => {
+    if (newReleases.length > 0 && displayedNewReleases.length === 0) {
+      setDisplayedNewReleases(getRandomBatch(newReleases, DISPLAY_COUNT));
+    }
+  }, [newReleases]);
+
+  const refreshTrending = useCallback(() => {
+    setShufflingTrending(true);
+    setTimeout(() => {
+      setDisplayedTrending(getRandomBatch(trendingSongs, DISPLAY_COUNT));
+      setShufflingTrending(false);
+    }, 500);
+  }, [trendingSongs, getRandomBatch]);
+
+  const refreshNewReleases = useCallback(() => {
+    setShufflingNewReleases(true);
+    setTimeout(() => {
+      setDisplayedNewReleases(getRandomBatch(newReleases, DISPLAY_COUNT));
+      setShufflingNewReleases(false);
+    }, 500);
+  }, [newReleases, getRandomBatch]);
 
   const timeOfDay = getTimeOfDay();
   const timeData = timeSuggestions[timeOfDay];
@@ -477,12 +522,20 @@ export const MainContent = () => {
         </div>
 
         {/* Trending Now */}
-        {trendingSongs.length > 0 && (
+        {displayedTrending.length > 0 && (
           <section className="mb-6 md:mb-8 animate-fade-in">
             <div className="flex items-center justify-between mb-2 md:mb-3">
               <div className="flex items-center gap-2">
                 <TrendingUp size={16} className="text-primary" />
                 <h3 className="text-base md:text-lg font-bold text-foreground">Trending Now</h3>
+                <button
+                  onClick={refreshTrending}
+                  disabled={shufflingTrending}
+                  className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all disabled:opacity-50"
+                  title="Shuffle"
+                >
+                  <RefreshCw size={14} className={shufflingTrending ? "animate-spin" : ""} />
+                </button>
               </div>
               <button
                 onClick={() => setShowFullTrending(true)}
@@ -492,10 +545,10 @@ export const MainContent = () => {
               </button>
             </div>
             <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {trendingSongs.map((track, i) => (
+              {displayedTrending.map((track, i) => (
                 <div
-                  key={track.src}
-                  onClick={() => playTrackList(trendingSongs, i)}
+                  key={track.src + i}
+                  onClick={() => playTrackList(displayedTrending, i)}
                   className="flex-shrink-0 w-28 md:w-36 group cursor-pointer"
                 >
                   <div className="relative mb-1.5 md:mb-2">
@@ -524,12 +577,20 @@ export const MainContent = () => {
         )}
 
         {/* New Releases */}
-        {newReleases.length > 0 && (
+        {displayedNewReleases.length > 0 && (
           <section className="mb-6 md:mb-8 animate-fade-in">
             <div className="flex items-center justify-between mb-2 md:mb-3">
               <div className="flex items-center gap-2">
                 <Music2 size={16} className="text-primary" />
                 <h3 className="text-base md:text-lg font-bold text-foreground">New Releases</h3>
+                <button
+                  onClick={refreshNewReleases}
+                  disabled={shufflingNewReleases}
+                  className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all disabled:opacity-50"
+                  title="Shuffle"
+                >
+                  <RefreshCw size={14} className={shufflingNewReleases ? "animate-spin" : ""} />
+                </button>
               </div>
               <button
                 onClick={() => setShowFullNewReleases(true)}
@@ -539,10 +600,10 @@ export const MainContent = () => {
               </button>
             </div>
             <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {newReleases.map((track, i) => (
+              {displayedNewReleases.map((track, i) => (
                 <div
-                  key={track.src}
-                  onClick={() => playTrackList(newReleases, i)}
+                  key={track.src + i}
+                  onClick={() => playTrackList(displayedNewReleases, i)}
                   className="flex-shrink-0 w-28 md:w-36 group cursor-pointer"
                 >
                   <div className="relative mb-1.5 md:mb-2">
