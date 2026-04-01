@@ -22,12 +22,21 @@ interface PlayerContextType {
   setEqBass: (v: number) => void;
   setEqMid: (v: number) => void;
   setEqTreble: (v: number) => void;
+  applyEqPreset: (preset: string) => void;
+  // Playback speed
+  playbackSpeed: number;
+  setPlaybackSpeed: (v: number) => void;
+  // Crossfade
+  crossfade: number; // seconds, 0 = off
+  setCrossfade: (v: number) => void;
   // Queue
   queue: Track[];
   addToQueue: (track: Track) => void;
   playNext: (track: Track) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
+  moveQueueItem: (from: number, to: number) => void;
+  shuffleQueue: () => void;
   // Quality
   quality: AudioQuality;
   setQuality: (q: AudioQuality) => void;
@@ -103,7 +112,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const parsed = JSON.parse(stored);
         if (typeof parsed.bass === "number") return parsed.bass;
       }
-    } catch { /* ignore */ }
+    } catch { /* */ }
     return 0;
   });
   const [eqMid, setEqMidState] = useState(() => {
@@ -113,7 +122,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const parsed = JSON.parse(stored);
         if (typeof parsed.mid === "number") return parsed.mid;
       }
-    } catch { /* ignore */ }
+    } catch { /* */ }
     return 0;
   });
   const [eqTreble, setEqTrebleState] = useState(() => {
@@ -123,9 +132,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const parsed = JSON.parse(stored);
         if (typeof parsed.treble === "number") return parsed.treble;
       }
-    } catch { /* ignore */ }
+    } catch { /* */ }
     return 0;
   });
+
+  // Playback speed (0.5 - 2.0)
+  const [playbackSpeed, setPlaybackSpeedState] = useState(1.0);
+  // Crossfade duration in seconds (0 = off)
+  const [crossfade, setCrossfadeState] = useState(0);
+  const crossfadeRef = useRef(0);
 
   const currentTrack = trackList[currentIndex] || null;
 
@@ -199,6 +214,61 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const clearQueue = useCallback(() => {
     setQueue([]);
+  }, []);
+
+  // Move queue item from one position to another
+  const moveQueueItem = useCallback((from: number, to: number) => {
+    setQueue((prev) => {
+      const updated = [...prev];
+      const [item] = updated.splice(from, 1);
+      updated.splice(to, 0, item);
+      return updated;
+    });
+  }, []);
+
+  // Shuffle the queue
+  const shuffleQueue = useCallback(() => {
+    setQueue((prev) => {
+      const shuffled = [...prev];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    });
+  }, []);
+
+  // Playback speed
+  const setPlaybackSpeed = useCallback((speed: number) => {
+    setPlaybackSpeedState(speed);
+    if (audioRef.current) audioRef.current.playbackRate = speed;
+  }, []);
+
+  // Crossfade
+  const setCrossfade = useCallback((seconds: number) => {
+    setCrossfadeState(seconds);
+    crossfadeRef.current = seconds;
+  }, []);
+
+  // EQ Presets
+  const applyEqPreset = useCallback((preset: string) => {
+    const presets: Record<string, [number, number, number]> = {
+      flat: [0, 0, 0],
+      rock: [4, -1, 3],
+      pop: [-1, 3, 1],
+      bass: [6, 0, -2],
+      vocal: [-2, 4, 2],
+      treble: [-3, 0, 5],
+      electronic: [3, -1, 4],
+    };
+    const [b, m, t] = presets[preset] || presets.flat;
+    setEqBassState(b);
+    setEqMidState(m);
+    setEqTrebleState(t);
+    if (bassFilterRef.current) bassFilterRef.current.gain.value = b;
+    if (midFilterRef.current) midFilterRef.current.gain.value = m;
+    if (trebleFilterRef.current) trebleFilterRef.current.gain.value = t;
+    localStorage.setItem(EQ_KEY, JSON.stringify({ bass: b, mid: m, treble: t }));
   }, []);
 
   // Quality
@@ -372,17 +442,39 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    // Debounce timeupdate to reduce re-renders (every 500ms instead of ~250ms)
+    // Debounce timeupdate to reduce re-renders
     let lastUpdate = 0;
+    let crossfading = false;
     const onTime = () => {
       const now = Date.now();
       if (now - lastUpdate > 400) {
         lastUpdate = now;
         setProgress(audio.currentTime);
       }
+      // Crossfade: fade out volume in last N seconds, then auto-advance
+      const cf = crossfadeRef.current;
+      if (cf > 0 && audio.duration && !crossfading) {
+        const remaining = audio.duration - audio.currentTime;
+        if (remaining <= cf && remaining > 0.5) {
+          crossfading = true;
+          const originalVolume = audio.volume;
+          const fadeStep = originalVolume / (cf * 4); // fade over cf seconds
+          const fadeInterval = setInterval(() => {
+            if (audio.volume > fadeStep) {
+              audio.volume -= fadeStep;
+            } else {
+              clearInterval(fadeInterval);
+              audio.volume = originalVolume; // restore for next track
+              crossfading = false;
+              next();
+            }
+          }, 250);
+        }
+      }
     };
     const onMeta = () => setDuration(audio.duration);
     const onEnd = () => {
+      crossfading = false;
       if (repeat === "one") {
         audio.currentTime = 0;
         audio.play();
@@ -486,11 +578,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setEqBass,
         setEqMid,
         setEqTreble,
+        applyEqPreset,
+        playbackSpeed,
+        setPlaybackSpeed,
+        crossfade,
+        setCrossfade,
         queue,
         addToQueue,
         playNext,
         removeFromQueue,
         clearQueue,
+        moveQueueItem,
+        shuffleQueue,
         quality,
         setQuality,
         sleepMinutes,
