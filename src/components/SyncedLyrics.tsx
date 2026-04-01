@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState, useMemo } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo, memo } from "react";
 import { Languages } from "lucide-react";
 import type { LyricLine } from "@/lib/lyricsParser";
 import { transliterate, hasDevanagari } from "@/lib/transliterate";
@@ -24,7 +24,7 @@ function findActiveLine(lines: LyricLine[], time: number): number {
   return result;
 }
 
-export function SyncedLyrics({
+function SyncedLyricsCore({
   lines, currentTime, isPlaying, onSeek, className = "", variant = "light", synced = false,
 }: SyncedLyricsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -139,3 +139,5 @@ export function SyncedLyrics({
     </div>
   );
 }
+
+export const SyncedLyrics = memo(SyncedLyricsCore);

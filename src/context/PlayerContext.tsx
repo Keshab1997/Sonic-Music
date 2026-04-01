@@ -372,7 +372,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const onTime = () => setProgress(audio.currentTime);
+    // Debounce timeupdate to reduce re-renders (every 500ms instead of ~250ms)
+    let lastUpdate = 0;
+    const onTime = () => {
+      const now = Date.now();
+      if (now - lastUpdate > 400) {
+        lastUpdate = now;
+        setProgress(audio.currentTime);
+      }
+    };
     const onMeta = () => setDuration(audio.duration);
     const onEnd = () => {
       if (repeat === "one") {
@@ -403,6 +411,22 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setDuration(currentTrack.duration || 0);
     }
   }, [currentIndex, currentTrack]);
+
+  // Preload next track audio for gapless-like playback
+  useEffect(() => {
+    if (!audioRef.current || !currentTrack) return;
+    const nextIdx = (currentIndex + 1) % tracks.length;
+    const nextTrack = tracks[nextIdx];
+    if (nextTrack?.src) {
+      // Use link preload for the next audio
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "audio";
+      link.href = nextTrack.src;
+      document.head.appendChild(link);
+      return () => { try { document.head.removeChild(link); } catch { /* */ } };
+    }
+  }, [currentIndex, currentTrack, tracks]);
 
   // Dynamic browser tab title and favicon
   useEffect(() => {

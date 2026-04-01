@@ -94,14 +94,14 @@ export const useHomeData = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchData = async () => {
       try {
-        // Fetch from multiple languages to build a large song pool
         const languages = ["hindi", "english", "tamil", "telugu", "punjabi"];
         const fetchModule = (lang: string) =>
-          fetch(`${API_BASE}/modules?language=${lang}`)
+          fetch(`${API_BASE}/modules?language=${lang}`, { signal: controller.signal })
             .then((r) => (r.ok ? r.json() : null))
-            .catch(() => null);
+            .catch((e) => { if (e.name !== "AbortError") return null; });
 
         const results = await Promise.all(languages.map(fetchModule));
 
@@ -172,13 +172,14 @@ export const useHomeData = () => {
 
         setTrendingSongs(trendingSongsData.map((s, i) => saavnToTrack(s, 5000 + i)));
         setNewReleases(newReleaseSongsData.map((s, i) => saavnToTrack(s, 6000 + i)));
-      } catch {
-        // ignore
+      } catch (e: unknown) {
+        if ((e as Error).name !== "AbortError") { /* ignore */ }
       }
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     };
 
     fetchData();
+    return () => controller.abort();
   }, []);
 
   const refresh = useCallback(async () => {

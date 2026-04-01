@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -7,11 +8,19 @@ import { PlayerProvider } from "@/context/PlayerContext";
 import { DJMixerProvider } from "@/context/DJMixerContext";
 import { AppShell } from "@/components/AppShell";
 import { MainContent } from "@/components/MainContent";
-import { DJMixerPage } from "@/components/DJMixerPage";
-import { SearchPage } from "@/pages/SearchPage";
-import NotFound from "./pages/NotFound.tsx";
+
+// Lazy load heavy routes — only download when navigated to
+const DJMixerPage = lazy(() => import("@/components/DJMixerPage").then(m => ({ default: m.DJMixerPage })));
+const SearchPage = lazy(() => import("@/pages/SearchPage"));
+const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 const queryClient = new QueryClient();
+
+const PageLoader = () => (
+  <div className="flex-1 flex items-center justify-center">
+    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -29,15 +38,23 @@ const App = () => (
               } />
               <Route path="/search" element={
                 <AppShell>
-                  <SearchPage />
+                  <Suspense fallback={<PageLoader />}>
+                    <SearchPage />
+                  </Suspense>
                 </AppShell>
               } />
               <Route path="/dj" element={
                 <AppShell>
-                  <DJMixerPage />
+                  <Suspense fallback={<PageLoader />}>
+                    <DJMixerPage />
+                  </Suspense>
                 </AppShell>
               } />
-              <Route path="*" element={<NotFound />} />
+              <Route path="*" element={
+                <Suspense fallback={<PageLoader />}>
+                  <NotFound />
+                </Suspense>
+              } />
             </Routes>
           </DJMixerProvider>
         </PlayerProvider>
