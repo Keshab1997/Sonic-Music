@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, X, Play, Pause, Plus, Loader2, Music2 } from "lucide-react";
+import { Search, X, Play, Pause, Plus, Loader2, Music2, MoreVertical, ListPlus, PlaySquare } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { Track } from "@/data/playlist";
 
@@ -57,7 +57,7 @@ const QUICK_PICKS = [
 ];
 
 export default function YoutubeMusicPage() {
-  const { playTrackList, currentTrack, isPlaying, addToQueue } = usePlayer();
+  const { playTrackList, currentTrack, isPlaying, addToQueue, playNext } = usePlayer();
 
   const [query, setQuery] = useState("");
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -67,6 +67,7 @@ export default function YoutubeMusicPage() {
   const [currentQuery, setCurrentQuery] = useState(CATEGORIES[0].query);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [menuTrack, setMenuTrack] = useState<Track | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -293,13 +294,21 @@ export default function YoutubeMusicPage() {
                     </p>
                   )}
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {/* Desktop: hover visible, Mobile: always visible */}
                   <button
                     onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
-                    className="w-7 h-7 rounded-full bg-muted hover:bg-red-600/20 flex items-center justify-center transition-colors"
+                    className="w-8 h-8 rounded-full bg-muted hover:bg-red-600/20 flex items-center justify-center transition-colors md:opacity-0 md:group-hover:opacity-100"
                     title="Add to queue"
                   >
-                    <Plus size={13} className="text-muted-foreground" />
+                    <Plus size={14} className="text-muted-foreground" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setMenuTrack(track); }}
+                    className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center transition-colors"
+                    title="More options"
+                  >
+                    <MoreVertical size={15} className="text-muted-foreground" />
                   </button>
                 </div>
               </div>
@@ -344,6 +353,57 @@ export default function YoutubeMusicPage() {
           </div>
         )}
       </div>
+
+      {/* Bottom Sheet Menu */}
+      {menuTrack && (
+        <div className="fixed inset-0 z-50 flex items-end" onClick={() => setMenuTrack(null)}>
+          <div className="absolute inset-0 bg-black/50" />
+          <div
+            className="relative w-full bg-card rounded-t-2xl border-t border-border p-4 pb-8 animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Track info */}
+            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border">
+              <img src={menuTrack.cover} alt="" width={48} height={48} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">{menuTrack.title}</p>
+                <p className="text-xs text-muted-foreground truncate">{menuTrack.artist}</p>
+                <span className="text-[9px] font-bold text-red-400 bg-red-600/10 px-1.5 py-0.5 rounded">YouTube</span>
+              </div>
+            </div>
+            {/* Actions */}
+            <div className="space-y-1">
+              <button
+                onClick={() => { playTrackList(tracks, tracks.findIndex(t => t.src === menuTrack.src)); setMenuTrack(null); }}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-full bg-red-600/20 flex items-center justify-center">
+                  <Play size={15} className="text-red-400 ml-0.5" />
+                </div>
+                <span className="text-sm font-medium text-foreground">Play Now</span>
+              </button>
+              <button
+                onClick={() => { addToQueue(menuTrack); setMenuTrack(null); }}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                  <ListPlus size={15} className="text-primary" />
+                </div>
+                <span className="text-sm font-medium text-foreground">Add to Queue</span>
+              </button>
+              <button
+                onClick={() => { playNext(menuTrack); setMenuTrack(null); }}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-full bg-green-600/20 flex items-center justify-center">
+                  <PlaySquare size={15} className="text-green-400" />
+                </div>
+                <span className="text-sm font-medium text-foreground">Play Next</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
