@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Track, playlist } from "@/data/playlist";
+import ReactPlayer from "react-player";
 
 export type AudioQuality = "96kbps" | "160kbps" | "320kbps";
 
@@ -109,6 +110,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const sleepEndTimeRef = useRef<number | null>(null);
 
   const audioRef = useRef<HTMLAudioElement>(null!);
+  const ytPlayerRef = useRef<ReactPlayer>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -206,10 +208,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       audioCtxRef.current.resume();
     }
     setTimeout(() => {
-      audioRef.current?.play().catch(() => {});
-      setIsPlaying(true);
+      if (currentTrack?.type === "youtube") {
+        // YouTube tracks are handled by ReactPlayer
+        setIsPlaying(true);
+      } else {
+        audioRef.current?.play().catch(() => {});
+        setIsPlaying(true);
+      }
     }, 50);
-  }, [setupAudioContext]);
+  }, [setupAudioContext, currentTrack?.type]);
 
   // Queue operations
   const addToQueue = useCallback((track: Track) => {
@@ -354,36 +361,67 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [playAudio]);
 
   const playTrack = useCallback((track: Track) => {
-    setTrackList((prev) => {
-      const idx = prev.findIndex((t) => t.src === track.src);
-      if (idx !== -1) {
-        setCurrentIndex(idx);
-        return prev;
+    if (track.type === "youtube") {
+      // For YouTube tracks, set directly and play via ReactPlayer
+      const existingIdx = trackList.findIndex((t) => t.src === track.src);
+      if (existingIdx !== -1) {
+        setCurrentIndex(existingIdx);
+      } else {
+        setTrackList((prev) => [track, ...prev]);
+        setCurrentIndex(0);
       }
-      const newList = [track, ...prev];
-      setCurrentIndex(0);
-      return newList;
-    });
-    setProgress(0);
-    setTimeout(() => playAudio(), 100);
-  }, [playAudio]);
+      setProgress(0);
+      setDuration(0);
+      setTimeout(() => setIsPlaying(true), 100);
+    } else {
+      setTrackList((prev) => {
+        const idx = prev.findIndex((t) => t.src === track.src);
+        if (idx !== -1) {
+          setCurrentIndex(idx);
+          return prev;
+        }
+        const newList = [track, ...prev];
+        setCurrentIndex(0);
+        return newList;
+      });
+      setProgress(0);
+      setTimeout(() => playAudio(), 100);
+    }
+  }, [playAudio, trackList]);
 
   const playTrackList = useCallback((tracks: Track[], index?: number) => {
     setTrackList(tracks);
     setCurrentIndex(index ?? 0);
     setProgress(0);
-    setTimeout(() => playAudio(), 100);
+    setDuration(0);
+    const track = tracks[index ?? 0];
+    if (track?.type === "youtube") {
+      setTimeout(() => setIsPlaying(true), 100);
+    } else {
+      setTimeout(() => playAudio(), 100);
+    }
   }, [playAudio]);
 
   const pause = useCallback(() => {
-    audioRef.current?.pause();
-    setIsPlaying(false);
-  }, []);
+    if (currentTrack?.type === "youtube") {
+      // ReactPlayer handles pause via playing prop
+      setIsPlaying(false);
+    } else {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+    }
+  }, [currentTrack?.type]);
 
   const togglePlay = useCallback(() => {
-    if (isPlaying) pause();
-    else play();
-  }, [isPlaying, play, pause]);
+    if (currentTrack?.type === "youtube") {
+      // ReactPlayer handles via playing prop
+      setIsPlaying((prev) => !prev);
+    } else if (isPlaying) {
+      pause();
+    } else {
+      play();
+    }
+  }, [isPlaying, play, pause, currentTrack?.type]);
 
   // Track played indices for shuffle (avoid repeats)
   const playedIndicesRef = useRef<Set<number>>(new Set());
@@ -438,36 +476,53 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     setCurrentIndex(nextIdx);
     setProgress(0);
-    setupAudioContext();
-    if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
-    setTimeout(() => {
-      audioRef.current?.play().catch(() => {});
-      setIsPlaying(true);
-    }, 100);
+    const nextTrack = trackList[nextIdx];
+    if (nextTrack?.type === "youtube") {
+      setDuration(0);
+      setTimeout(() => setIsPlaying(true), 100);
+    } else {
+      setupAudioContext();
+      if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
+      setTimeout(() => {
+        audioRef.current?.play().catch(() => {});
+        setIsPlaying(true);
+      }, 100);
+    }
   }, [currentIndex, shuffle, trackList, setupAudioContext, queue, playAudio]);
 
   const prev = useCallback(() => {
-    if (audioRef.current && audioRef.current.currentTime > 3) {
+    if (currentTrack?.type !== "youtube" && audioRef.current && audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
       return;
     }
     const prevIdx = (currentIndex - 1 + trackList.length) % trackList.length;
     setCurrentIndex(prevIdx);
     setProgress(0);
-    setTimeout(() => {
-      audioRef.current?.play().catch(() => {});
-      setIsPlaying(true);
-    }, 100);
-  }, [currentIndex, trackList]);
+    const prevTrack = trackList[prevIdx];
+    if (prevTrack?.type === "youtube") {
+      setDuration(0);
+      setTimeout(() => setIsPlaying(true), 100);
+    } else {
+      setTimeout(() => {
+        audioRef.current?.play().catch(() => {});
+        setIsPlaying(true);
+      }, 100);
+    }
+  }, [currentIndex, trackList, currentTrack?.type]);
 
   const seek = useCallback((time: number) => {
-    if (audioRef.current) audioRef.current.currentTime = time;
+    if (currentTrack?.type === "youtube" && ytPlayerRef.current) {
+      ytPlayerRef.current.seekTo(time, "seconds");
+    } else {
+      audioRef.current.currentTime = time;
+    }
     setProgress(time);
-  }, []);
+  }, [currentTrack?.type]);
 
   const setVolume = useCallback((v: number) => {
     setVolumeState(v);
-    if (audioRef.current) audioRef.current.volume = v;
+    audioRef.current.volume = v;
+    // ReactPlayer uses volume prop, no need to set manually
   }, []);
 
   const toggleShuffle = useCallback(() => setShuffle((s) => !s), []);
@@ -571,35 +626,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [currentTrack, isPlaying]);
 
   // Get audio src based on quality preference
-  const [ytAudioUrl, setYtAudioUrl] = useState<string | null>(null);
-
-  // Fetch YouTube audio URL when track changes
-  useEffect(() => {
-    if (currentTrack?.type === "youtube" && currentTrack.src) {
-      setYtAudioUrl(null);
-      // Fetch the actual audio stream URL from the API
-      fetch(currentTrack.src)
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed to get audio");
-          return res.json();
-        })
-        .then((data) => {
-          if (data.audioUrl) {
-            setYtAudioUrl(data.audioUrl);
-          }
-        })
-        .catch(() => setYtAudioUrl(null));
-    } else {
-      setYtAudioUrl(null);
-    }
-  }, [currentTrack?.src, currentTrack?.type]);
-
   const getAudioSrc = (): string | undefined => {
     if (!currentTrack) return undefined;
 
-    // YouTube tracks: use the fetched audio URL
+    // YouTube tracks: return undefined — handled by ReactPlayer separately
     if (currentTrack.type === "youtube") {
-      return ytAudioUrl || undefined;
+      return undefined;
     }
 
     // If track has quality variants, use the selected quality
@@ -678,6 +710,31 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   return (
     <PlayerContext.Provider value={contextValue}>
       <audio ref={audioRef} src={getAudioSrc()} crossOrigin="anonymous" preload="auto" />
+      {currentTrack?.type === "youtube" && (
+        <div style={{ position: "fixed", top: -9999, left: -9999, width: 1, height: 1 }}>
+          <ReactPlayer
+            ref={ytPlayerRef}
+            url={currentTrack.src}
+            playing={isPlaying}
+            volume={volume}
+            width="1"
+            height="1"
+            onProgress={({ playedSeconds }) => setProgress(playedSeconds)}
+            onDuration={(d) => setDuration(d)}
+            onEnded={() => {
+              if (repeat === "one") {
+                ytPlayerRef.current?.seekTo(0);
+                setIsPlaying(true);
+              } else {
+                next();
+              }
+            }}
+            onError={() => {
+              next();
+            }}
+          />
+        </div>
+      )}
       {children}
     </PlayerContext.Provider>
   );

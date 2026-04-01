@@ -210,7 +210,7 @@ export const SearchPage = () => {
         artist: v.author || "Unknown",
         album: "",
         cover: v.thumbnail || "",
-        src: `/api/yt-stream?id=${v.videoId}`,
+        src: `https://www.youtube.com/watch?v=${v.videoId}`,
         duration: v.duration || 0,
         type: "youtube" as const,
         songId: v.videoId,

@@ -10,7 +10,6 @@ import { Track } from "@/data/playlist";
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 const DEBOUNCE_MS = 400;
 const YT_API = "/api/youtube-search";
-const YT_STREAM_API = "/api/yt-stream";
 
 interface SearchResult {
   id: string;
@@ -237,7 +236,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         artist: v.author || "Unknown",
         album: "",
         cover: v.thumbnail || "",
-        src: `${YT_STREAM_API}?id=${v.videoId}`,
+        src: `https://www.youtube.com/watch?v=${v.videoId}`,
         duration: v.duration || 0,
         type: "youtube" as const,
         songId: v.videoId,
