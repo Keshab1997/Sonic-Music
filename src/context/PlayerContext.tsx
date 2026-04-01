@@ -511,9 +511,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [currentIndex, trackList, currentTrack?.type]);
 
   const seek = useCallback((time: number) => {
-    if (currentTrack?.type === "youtube" && ytPlayerRef.current) {
-      ytPlayerRef.current.seekTo(time, "seconds");
-    } else {
+    if (currentTrack?.type === "youtube") {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
+        ytPlayerRef.current.seekTo(time, "seconds");
+      }
+    } else if (audioRef.current) {
       audioRef.current.currentTime = time;
     }
     setProgress(time);
@@ -521,7 +523,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const setVolume = useCallback((v: number) => {
     setVolumeState(v);
-    audioRef.current.volume = v;
+    if (audioRef.current) audioRef.current.volume = v;
     // ReactPlayer uses volume prop, no need to set manually
   }, []);
 
