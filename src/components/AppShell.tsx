@@ -1,22 +1,44 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { WifiOff } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileNav } from "@/components/MobileNav";
 import { BottomPlayer } from "@/components/BottomPlayer";
 import { MiniPlayer } from "@/components/MiniPlayer";
+import { ShortcutsPanel } from "@/components/ShortcutsPanel";
 import { usePlayer } from "@/context/PlayerContext";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useCoverGradient } from "@/hooks/useCoverGradient";
+import { useOffline } from "@/hooks/useOffline";
+import { useMediaSession } from "@/hooks/useMediaSession";
 
 interface AppShellProps {
   children: React.ReactNode;
 }
 
 export const AppShell = ({ children }: AppShellProps) => {
-  useKeyboardShortcuts();
-
-  const { currentTrack } = usePlayer();
+  const { currentTrack, isPlaying, togglePlay, next, prev, seek } = usePlayer();
   const { gradient } = useCoverGradient(currentTrack?.cover);
   const [showMiniPlayer, setShowMiniPlayer] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const isOffline = useOffline();
+
+  // MediaSession for lock screen / bluetooth controls
+  useMediaSession({
+    currentTrack,
+    isPlaying,
+    onPlay: togglePlay,
+    onPause: togglePlay,
+    onNext: next,
+    onPrev: prev,
+    onSeek: seek,
+  });
+
+  // Keyboard shortcuts with callbacks
+  useKeyboardShortcuts({
+    onShowShortcuts: () => setShowShortcuts((s) => !s),
+  });
+
+  const handleCloseShortcuts = useCallback(() => setShowShortcuts(false), []);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background relative overflow-x-hidden">
@@ -28,8 +50,16 @@ export const AppShell = ({ children }: AppShellProps) => {
         />
       )}
 
+      {/* Offline banner */}
+      {isOffline && (
+        <div className="fixed top-0 left-0 right-0 z-[80] bg-destructive text-destructive-foreground text-center py-1.5 text-xs font-medium flex items-center justify-center gap-2">
+          <WifiOff size={13} />
+          No internet connection — some features may not work
+        </div>
+      )}
+
       <AppSidebar />
-      <div className="relative flex-1 min-w-0 flex flex-col overflow-x-hidden z-10">
+      <div className={`relative flex-1 min-w-0 flex flex-col overflow-x-hidden z-10 ${isOffline ? "pt-8" : ""}`}>
         {children}
       </div>
       <MobileNav />
@@ -45,6 +75,9 @@ export const AppShell = ({ children }: AppShellProps) => {
           onClose={() => setShowMiniPlayer(false)}
         />
       )}
+
+      {/* Keyboard shortcuts help */}
+      {showShortcuts && <ShortcutsPanel onClose={handleCloseShortcuts} />}
     </div>
   );
 };

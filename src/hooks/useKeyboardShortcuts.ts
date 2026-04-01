@@ -1,12 +1,30 @@
 import { useEffect } from "react";
 import { usePlayer } from "@/context/PlayerContext";
 
-export const useKeyboardShortcuts = () => {
-  const { togglePlay, next, prev, setVolume, volume } = usePlayer();
+export const KEYBOARD_SHORTCUTS = [
+  { key: "Space", description: "Play / Pause" },
+  { key: "→", description: "Next track" },
+  { key: "←", description: "Previous track" },
+  { key: "↑", description: "Volume up" },
+  { key: "↓", description: "Volume down" },
+  { key: "M", description: "Mute / Unmute" },
+  { key: "S", description: "Toggle shuffle" },
+  { key: "R", description: "Cycle repeat" },
+  { key: "L", description: "Like / Unlike" },
+  { key: "N", description: "Toggle lyrics" },
+  { key: "/", description: "Focus search" },
+  { key: "?", description: "Show shortcuts" },
+] as const;
+
+export const useKeyboardShortcuts = (callbacks?: {
+  onLyrics?: () => void;
+  onLike?: () => void;
+  onShowShortcuts?: () => void;
+}) => {
+  const { togglePlay, next, prev, setVolume, volume, toggleShuffle, toggleRepeat, seek, progress } = usePlayer();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Don't trigger when typing in inputs
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
 
@@ -16,12 +34,12 @@ export const useKeyboardShortcuts = () => {
           togglePlay();
           break;
         case "ArrowRight":
-          e.preventDefault();
-          next();
+          if (e.shiftKey) { seek(Math.min(progress + 10, 9999)); }
+          else { e.preventDefault(); next(); }
           break;
         case "ArrowLeft":
-          e.preventDefault();
-          prev();
+          if (e.shiftKey) { seek(Math.max(progress - 10, 0)); }
+          else { e.preventDefault(); prev(); }
           break;
         case "ArrowUp":
           e.preventDefault();
@@ -31,10 +49,32 @@ export const useKeyboardShortcuts = () => {
           e.preventDefault();
           setVolume(Math.max(0, volume - 0.05));
           break;
+        case "m": case "M":
+          setVolume(volume === 0 ? 0.7 : 0);
+          break;
+        case "s": case "S":
+          toggleShuffle();
+          break;
+        case "r": case "R":
+          toggleRepeat();
+          break;
+        case "l": case "L":
+          callbacks?.onLike?.();
+          break;
+        case "n": case "N":
+          callbacks?.onLyrics?.();
+          break;
+        case "/":
+          e.preventDefault();
+          document.querySelector<HTMLInputElement>('input[type="search"], input[placeholder*="Search"]')?.focus();
+          break;
+        case "?":
+          callbacks?.onShowShortcuts?.();
+          break;
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [togglePlay, next, prev, setVolume, volume]);
+  }, [togglePlay, next, prev, setVolume, volume, toggleShuffle, toggleRepeat, seek, progress, callbacks]);
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Repeat1,
@@ -62,13 +62,45 @@ export const FullScreenPlayer = ({
     return duration > 0 ? parseLyrics(rawLyrics, duration) : [];
   }, [rawLyrics, lyricsSynced, duration]);
 
+  // Swipe-to-dismiss gesture
+  const touchStart = useRef<{ y: number; x: number } | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStart.current = { y: e.touches[0].clientY, x: e.touches[0].clientX };
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStart.current) return;
+    const dy = e.touches[0].clientY - touchStart.current.y;
+    const dx = e.touches[0].clientX - touchStart.current.x;
+    if (dy > 10 && Math.abs(dy) > Math.abs(dx)) {
+      setSwipeOffset(dy);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (swipeOffset > 100) {
+      onClose();
+    } else {
+      setSwipeOffset(0);
+    }
+    touchStart.current = null;
+  }, [swipeOffset, onClose]);
+
   if (!currentTrack) return null;
 
   const liked = isFavorite(currentTrack.src);
   const progressPercent = duration ? (progress / duration) * 100 : 0;
 
   return (
-    <div className="fixed inset-0 z-[60] animate-slide-up">
+    <div
+      className="fixed inset-0 z-[60] animate-slide-up"
+      style={swipeOffset > 0 ? { transform: `translateY(${swipeOffset}px)` } : undefined}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* Blurred background */}
       <div className="absolute inset-0">
         <img src={currentTrack.cover} alt="" className="w-full h-full object-cover scale-110 blur-3xl brightness-[0.3]" />

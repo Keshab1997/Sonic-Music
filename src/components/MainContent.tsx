@@ -12,6 +12,7 @@ import { TimeMachinePlaylist } from "@/components/TimeMachinePlaylist";
 import { MoodPlaylist } from "@/components/MoodPlaylist";
 import { FullPlaylist } from "@/components/FullPlaylist";
 import { SearchOverlay } from "@/components/SearchOverlay";
+import { SectionSkeleton, HeroSkeleton, ArtistGridSkeleton } from "@/components/Skeletons";
 import { Track } from "@/data/playlist";
 import {
   topArtists,
@@ -596,8 +597,15 @@ export const MainContent = () => {
         )}
 
         {homeLoading && (
-          <div className="flex items-center justify-center py-6 md:py-8">
-            <RefreshCw size={24} className="animate-spin text-primary" />
+          <div className="mb-6 md:mb-8">
+            <div className="flex items-center gap-2 mb-2 md:mb-3">
+              <div className="w-16 h-4 bg-muted rounded animate-pulse" />
+            </div>
+            <SectionSkeleton count={6} />
+            <div className="flex items-center gap-2 mb-2 md:mb-3 mt-4">
+              <div className="w-24 h-4 bg-muted rounded animate-pulse" />
+            </div>
+            <SectionSkeleton count={6} />
           </div>
         )}
 
