@@ -71,12 +71,12 @@ export function SyncedLyrics({
 
   // Transliterated lines
   const displayLines = useMemo(() => {
-    if (!showRoman) return lines;
+    if (!showRoman || !hasDevanagariLyrics) return lines;
     return lines.map((l) => ({
       ...l,
       text: hasDevanagari(l.text) ? transliterate(l.text) : l.text,
     }));
-  }, [lines, showRoman]);
+  }, [lines, showRoman, hasDevanagariLyrics]);
 
   // Auto-scroll to active line
   useEffect(() => {
@@ -113,50 +113,75 @@ export function SyncedLyrics({
 
   if (lines.length === 0) return null;
 
-  const toggleBtnBase =
-    variant === "dark"
-      ? "text-white/50 hover:text-white bg-white/10 hover:bg-white/20"
-      : "text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted";
+  const isActiveToggle = showRoman && hasDevanagariLyrics;
+
+  const toggleBtnBase = variant === "dark"
+    ? `border transition-all ${
+        isActiveToggle
+          ? "text-white bg-white/30 border-white/40 shadow-md"
+          : "text-white/60 hover:text-white bg-white/10 hover:bg-white/20 border-white/15"
+      }`
+    : `border transition-all ${
+        isActiveToggle
+          ? "text-foreground bg-primary/15 border-primary/30 shadow-md"
+          : "text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border-border/50"
+      }`;
 
   return (
-    <div className="relative h-full">
-      {/* Transliteration toggle */}
-      {hasDevanagariLyrics && (
-        <button
-          onClick={() => setShowRoman(!showRoman)}
-          className={`absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${toggleBtnBase} ${showRoman ? "ring-1 ring-primary/50" : ""}`}
-          title={showRoman ? "Show original script" : "Show Roman script"}
-        >
-          <Languages size={12} />
-          {showRoman ? "हिन्दी" : "ABC"}
-        </button>
-      )}
-
+    <div
+      ref={containerRef}
+      className={`overflow-y-auto scrollbar-hide ${className}`}
+    >
+      {/* Transliteration toggle — sticky at top of lyrics */}
       <div
-        ref={containerRef}
-        className={`overflow-y-auto scrollbar-hide ${className}`}
+        className="sticky top-0 z-10 flex justify-end px-3 pt-2 pb-1 pointer-events-none"
+        style={
+          variant === "dark"
+            ? { background: "linear-gradient(to bottom, rgba(0,0,0,0.7) 60%, transparent)" }
+            : { background: "linear-gradient(to bottom, hsl(var(--background) / 0.9) 60%, transparent)" }
+        }
       >
-        <div className="py-[40%]">
-          {displayLines.map((line, i) => {
-            const isActive = i === activeIdx;
-            const isPast = i < activeIdx;
-            return (
-              <button
-                key={`${line.time}-${i}`}
-                ref={isActive ? activeRef : undefined}
-                onClick={() => onSeek?.(line.time)}
-                disabled={!onSeek}
-                className={`block w-full text-left px-4 py-2.5 transition-all duration-500 ease-out
-                  ${isActive ? styles.active : isPast ? styles.past : styles.upcoming}
-                  ${isActive ? "text-lg scale-[1.02] opacity-100" : "text-base opacity-70"}
-                  ${onSeek ? `cursor-pointer ${styles.hover}` : "cursor-default"}
-                `}
-              >
-                {line.text}
-              </button>
-            );
-          })}
-        </div>
+        <button
+          onClick={() => hasDevanagariLyrics && setShowRoman(!showRoman)}
+          disabled={!hasDevanagariLyrics}
+          className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold shadow-sm ${toggleBtnBase} ${!hasDevanagariLyrics ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+          title={
+            hasDevanagariLyrics
+              ? showRoman
+                ? "Show original Hindi script"
+                : "Show Roman transliteration"
+              : "No Devanagari text to transliterate"
+          }
+        >
+          <Languages size={13} />
+          {hasDevanagariLyrics
+            ? showRoman
+              ? "हिन्दी"
+              : "ABC"
+            : "ABC"}
+        </button>
+      </div>
+
+      <div className="py-[35%]">
+        {displayLines.map((line, i) => {
+          const isActive = i === activeIdx;
+          const isPast = i < activeIdx;
+          return (
+            <button
+              key={`${line.time}-${i}`}
+              ref={isActive ? activeRef : undefined}
+              onClick={() => onSeek?.(line.time)}
+              disabled={!onSeek}
+              className={`block w-full text-left px-4 py-2.5 transition-all duration-500 ease-out
+                ${isActive ? styles.active : isPast ? styles.past : styles.upcoming}
+                ${isActive ? "text-lg scale-[1.02] opacity-100" : "text-base opacity-70"}
+                ${onSeek ? `cursor-pointer ${styles.hover}` : "cursor-default"}
+              `}
+            >
+              {line.text}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
