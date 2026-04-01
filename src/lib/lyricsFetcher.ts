@@ -1,3 +1,4 @@
+
 const LRCLIB_BASE = "https://lrclib.net/api";
 const JIOSAAVN_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 
@@ -94,3 +95,4 @@ function cleanArtistName(name: string): string {
     .replace(/\s*feat\.?\s*.+$/i, "")
     .trim();
 }
+

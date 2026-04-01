@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from "react";
 
 const STATS_KEY = "sonic_listening_stats";
@@ -85,3 +86,4 @@ export const useListeningStats = () => {
 
   return { stats, recordPlay, getTopArtist };
 };
+

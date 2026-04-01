@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Sliders, X } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
@@ -222,3 +223,4 @@ export const Equalizer = ({ onClose }: EqualizerProps) => {
     </div>
   );
 };
+

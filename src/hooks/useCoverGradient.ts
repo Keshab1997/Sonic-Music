@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 
 const getContrastColor = (r: number, g: number, b: number): string => {
@@ -66,3 +67,4 @@ export const useCoverGradient = (coverUrl: string | undefined) => {
 
   return { gradient, dominantColor };
 };
+

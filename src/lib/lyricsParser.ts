@@ -1,3 +1,4 @@
+
 export interface LyricLine {
   time: number; // seconds
   text: string;
@@ -158,3 +159,4 @@ export function parseLyrics(
   }
   return estimateTimings(text, duration);
 }
+

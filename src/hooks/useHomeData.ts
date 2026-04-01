@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Track } from "@/data/playlist";
 
@@ -230,3 +231,4 @@ export const useHomeData = () => {
 
   return { trendingSongs, newReleases, charts, loading, refresh };
 };
+

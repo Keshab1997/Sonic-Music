@@ -1,3 +1,4 @@
+
 import { Share2, Copy, Check } from "lucide-react";
 import { useState, useCallback } from "react";
 import type { Track } from "@/data/playlist";
@@ -55,3 +56,4 @@ export function ShareButton({ track, className = "", iconSize = 16 }: ShareButto
     </button>
   );
 }
+

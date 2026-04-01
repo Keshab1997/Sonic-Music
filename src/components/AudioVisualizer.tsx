@@ -1,3 +1,4 @@
+
 import { useEffect, useRef } from "react";
 import { usePlayer } from "@/context/PlayerContext";
 
@@ -94,3 +95,4 @@ export const AudioVisualizer = () => {
     </div>
   );
 };
+

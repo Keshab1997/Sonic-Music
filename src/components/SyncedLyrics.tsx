@@ -1,3 +1,4 @@
+
 import { useRef, useEffect, useCallback, useState, useMemo, memo } from "react";
 import { Languages } from "lucide-react";
 import type { LyricLine } from "@/lib/lyricsParser";
@@ -141,3 +142,4 @@ function SyncedLyricsCore({
 }
 
 export const SyncedLyrics = memo(SyncedLyricsCore);
+

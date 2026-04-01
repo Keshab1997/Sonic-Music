@@ -1,3 +1,4 @@
+
 import { Suspense, lazy } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -64,3 +65,4 @@ const App = () => (
 );
 
 export default App;
+

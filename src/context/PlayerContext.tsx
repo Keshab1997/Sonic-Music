@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
 import { Track, playlist } from "@/data/playlist";
 
@@ -79,8 +80,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<"off" | "all" | "one">("off");
 
-  // Queue state
-  const [queue, setQueue] = useState<Track[]>([]);
+  // Queue state — persisted in localStorage
+  const [queue, setQueue] = useState<Track[]>(() => {
+    try {
+      const stored = localStorage.getItem("sonic_queue");
+      if (stored) return JSON.parse(stored);
+    } catch { /* */ }
+    return [];
+  });
+
+  // Save queue to localStorage on change
+  useEffect(() => {
+    try { localStorage.setItem("sonic_queue", JSON.stringify(queue)); } catch { /* */ }
+  }, [queue]);
 
   // Quality state
   const [quality, setQualityState] = useState<AudioQuality>(() => {
@@ -613,3 +625,4 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     </PlayerContext.Provider>
   );
 };
+

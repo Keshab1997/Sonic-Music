@@ -1,3 +1,4 @@
+
 import { X, Keyboard } from "lucide-react";
 import { KEYBOARD_SHORTCUTS } from "@/hooks/useKeyboardShortcuts";
 
@@ -40,3 +41,4 @@ export function ShortcutsPanel({ onClose }: ShortcutsPanelProps) {
     </div>
   );
 }
+

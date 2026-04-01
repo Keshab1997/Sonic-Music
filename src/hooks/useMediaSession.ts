@@ -1,3 +1,4 @@
+
 import { useEffect } from "react";
 import type { Track } from "@/data/playlist";
 
@@ -50,3 +51,4 @@ export function useMediaSession({
     navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
   }, [currentTrack, isPlaying, onPlay, onPause, onNext, onPrev, onSeek]);
 }
+

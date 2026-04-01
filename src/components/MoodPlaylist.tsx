@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Play, Loader2, Shuffle, Music2 } from "lucide-react";
 import { Track } from "@/data/playlist";
@@ -260,3 +261,4 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
     </div>
   );
 };
+

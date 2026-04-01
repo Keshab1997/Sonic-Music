@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Home, Search, Sun, Moon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -51,3 +52,4 @@ export const MobileNav = () => {
     </>
   );
 };
+

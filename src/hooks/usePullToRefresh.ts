@@ -1,3 +1,4 @@
+
 import { useRef, useState, useCallback, useEffect } from "react";
 
 interface UsePullToRefreshOptions {
@@ -76,3 +77,4 @@ export function usePullToRefresh({
 
   return { containerRef, pullDistance, isRefreshing };
 }
+

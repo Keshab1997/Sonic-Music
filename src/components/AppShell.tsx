@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from "react";
 import { WifiOff } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -81,3 +82,4 @@ export const AppShell = ({ children }: AppShellProps) => {
     </div>
   );
 };
+

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Search, X, Play, TrendingUp, Music2, Disc3, User, Loader2, Heart, Clock, MoreHorizontal, ListPlus, PlaySquare, Plus, Check, RefreshCw } from "lucide-react";
@@ -971,3 +972,4 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     document.body
   );
 };
+

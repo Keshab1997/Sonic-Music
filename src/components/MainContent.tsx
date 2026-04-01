@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Play, ChevronRight, Music2, Sparkles, TrendingUp, BarChart3, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2, Search, Loader2 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
@@ -43,7 +44,7 @@ const getSongOfDayIndex = (max: number) => {
 };
 
 export const MainContent = () => {
-  const { currentTrack, isPlaying, playTrackList, playTrack, togglePlay } = usePlayer();
+  const { currentTrack, isPlaying, playTrackList, playTrack, togglePlay, addToQueue } = usePlayer();
   const { trendingSongs, newReleases, charts, loading: homeLoading } = useHomeData();
   const { history, addToHistory, clearHistory } = useRecentlyPlayed();
   const { stats, recordPlay } = useListeningStats();
@@ -745,6 +746,14 @@ export const MainContent = () => {
                         <Play size={14} className="text-primary-foreground ml-0.5" />
                       </div>
                     </div>
+                    {/* Add to Queue button */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                      title="Add to queue"
+                    >
+                      <Plus size={12} className="text-white" />
+                    </button>
                     <span className="absolute top-1.5 left-1.5 text-[9px] md:text-[10px] font-bold text-white bg-black/50 px-1.5 py-0.5 rounded">
                       #{i + 1}
                     </span>
@@ -807,6 +816,13 @@ export const MainContent = () => {
                         <Play size={14} className="text-primary-foreground ml-0.5" />
                       </div>
                     </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                      title="Add to queue"
+                    >
+                      <Plus size={12} className="text-white" />
+                    </button>
                     <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-green-600/80 px-1.5 py-0.5 rounded">
                       NEW
                     </span>
@@ -1060,7 +1076,13 @@ export const MainContent = () => {
                 <div key={track.src + i} onClick={() => playTrackList(bengaliHits, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
                   <div className="relative mb-1.5 md:mb-2">
                     <img src={track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                      title="Add to queue"
+                    >
+                      <Plus size={12} className="text-white" />
+                    </button>                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
                         <Play size={14} className="text-primary-foreground ml-0.5" />
                       </div>
@@ -1367,3 +1389,4 @@ export const MainContent = () => {
     </main>
   );
 };
+

@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from "react";
 import { Track } from "@/data/playlist";
 
@@ -88,3 +89,4 @@ export const useLocalData = () => {
     toggleFavorite,
   };
 };
+

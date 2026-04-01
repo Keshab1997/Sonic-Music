@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { X, Play, Loader2, Shuffle, RefreshCw } from "lucide-react";
 import { Track } from "@/data/playlist";
@@ -176,3 +177,4 @@ export const ArtistDetail = ({ artistName, searchQuery, onClose }: ArtistDetailP
     </div>
   );
 };
+

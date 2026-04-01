@@ -1,3 +1,4 @@
+
 export interface Artist {
   name: string;
   image: string;
@@ -133,3 +134,4 @@ export const musicLabels: MusicLabel[] = [
   { name: "YRF Music", searchQuery: "YRF Music", gradient: "from-red-600 to-red-900", textColor: "text-white" },
   { name: "Tips", searchQuery: "Tips Official", gradient: "from-emerald-600 to-emerald-900", textColor: "text-white" },
 ];
+

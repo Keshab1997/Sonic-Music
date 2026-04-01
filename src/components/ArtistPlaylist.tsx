@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { X, Play, Loader2, RefreshCw, Save, Check, Music2 } from "lucide-react";
 import { Track } from "@/data/playlist";
@@ -256,3 +257,4 @@ export const ArtistPlaylist = ({ artistName, searchQuery, artistId, onClose }: A
     </div>
   );
 };
+

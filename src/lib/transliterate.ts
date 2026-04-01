@@ -1,3 +1,4 @@
+
 /**
  * Devanagari to Roman transliteration.
  * Converts Hindi/Marathi/Nepali Devanagari text to readable Roman script.
@@ -144,3 +145,4 @@ export function hasDevanagari(text: string): boolean {
   }
   return false;
 }
+

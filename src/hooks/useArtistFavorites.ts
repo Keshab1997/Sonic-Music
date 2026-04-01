@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from "react";
 
 export interface FavoriteArtist {
@@ -58,3 +59,4 @@ export const useArtistFavorites = () => {
 
   return { favorites, addFavorite, removeFavorite, isFavorite, toggleFavorite };
 };
+

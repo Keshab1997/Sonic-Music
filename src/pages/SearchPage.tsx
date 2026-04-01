@@ -1,3 +1,4 @@
+
 import { useState, FormEvent } from "react";
 import { Search, Play, Clock, Loader2, AlertCircle, Pause, Heart, X, Trash2, History, MoreHorizontal, ListPlus, PlaySquare, Plus } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
@@ -392,3 +393,4 @@ export const SearchPage = () => {
     </main>
   );
 };
+

@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 
 export function useOffline() {
@@ -17,3 +18,4 @@ export function useOffline() {
 
   return isOffline;
 }
+

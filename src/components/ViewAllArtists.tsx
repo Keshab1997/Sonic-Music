@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Play, Search, Heart } from "lucide-react";
 import { Artist } from "@/data/homeData";
@@ -186,3 +187,4 @@ export const ViewAllArtists = ({ onSelectArtist, onClose }: ViewAllArtistsProps)
     </div>
   );
 };
+

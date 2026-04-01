@@ -1,3 +1,4 @@
+
 export function SectionSkeleton({ count = 5 }: { count?: number }) {
   return (
     <div className="flex gap-2.5 md:gap-3 overflow-hidden pb-2">
@@ -46,3 +47,4 @@ export function SongRowSkeleton({ count = 5 }: { count?: number }) {
     </div>
   );
 }
+

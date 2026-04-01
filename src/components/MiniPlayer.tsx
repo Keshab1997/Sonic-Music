@@ -1,3 +1,4 @@
+
 import { Play, Pause, SkipForward, X, Maximize2 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 
@@ -81,3 +82,4 @@ export const MiniPlayer = ({ onExpand, onClose }: MiniPlayerProps) => {
     </div>
   );
 };
+

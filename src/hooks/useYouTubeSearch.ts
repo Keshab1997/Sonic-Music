@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from "react";
 import { Track } from "@/data/playlist";
 
@@ -81,3 +82,4 @@ export const useMusicSearch = () => {
 
 // Backward compatibility
 export const useYouTubeSearch = useMusicSearch;
+

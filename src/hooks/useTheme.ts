@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from "react";
 
 const THEME_KEY = "sonic_theme";
@@ -28,3 +29,4 @@ export const useTheme = () => {
 
   return { theme, setTheme, toggleTheme };
 };
+

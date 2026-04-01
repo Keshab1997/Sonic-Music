@@ -1,3 +1,4 @@
+
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
@@ -70,3 +71,4 @@ const TableCaption = React.forwardRef<HTMLTableCaptionElement, React.HTMLAttribu
 TableCaption.displayName = "TableCaption";
 
 export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption };
+

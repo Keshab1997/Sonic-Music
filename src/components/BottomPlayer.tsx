@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from "react";
 import {
   Play,
@@ -825,3 +826,4 @@ const LyricsPanel = ({
     </div>
   );
 };
+

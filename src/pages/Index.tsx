@@ -1,3 +1,4 @@
+
 import { PlayerProvider } from "@/context/PlayerContext";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MainContent } from "@/components/MainContent";
@@ -18,3 +19,4 @@ const Index = () => {
 };
 
 export default Index;
+

@@ -1,3 +1,4 @@
+
 import { Play, Pause } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { Track } from "@/data/playlist";
@@ -54,3 +55,4 @@ export const AlbumCard = ({ track, index }: AlbumCardProps) => {
     </div>
   );
 };
+

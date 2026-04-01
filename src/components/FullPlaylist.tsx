@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { X, Play, Loader2, Music2, TrendingUp, Clock } from "lucide-react";
 import { Track } from "@/data/playlist";
@@ -150,5 +151,6 @@ export const FullPlaylist = ({ title, icon, initialSongs, loadMore, onClose }: F
     </div>
   );
 };
+
 
 

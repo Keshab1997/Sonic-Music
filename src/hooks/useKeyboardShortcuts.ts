@@ -1,3 +1,4 @@
+
 import { useEffect } from "react";
 import { usePlayer } from "@/context/PlayerContext";
 
@@ -78,3 +79,4 @@ export const useKeyboardShortcuts = (callbacks?: {
     return () => window.removeEventListener("keydown", handler);
   }, [togglePlay, next, prev, setVolume, volume, toggleShuffle, toggleRepeat, seek, progress, callbacks]);
 };
+
