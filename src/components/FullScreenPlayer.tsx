@@ -136,10 +136,10 @@ export const FullScreenPlayer = ({
                 )}
               </div>
             ) : (
-              <div className="h-full flex items-center justify-center">
+              <div className="h-full flex items-center justify-center px-4">
                 <img
                   src={currentTrack.cover} alt={currentTrack.title}
-                  className={`w-[75%] max-w-[320px] aspect-square object-cover rounded-2xl shadow-2xl transition-transform duration-700 ${isPlaying ? "scale-100" : "scale-[0.97]"}`}
+                  className={`w-full max-w-[300px] aspect-square object-cover rounded-2xl shadow-2xl transition-transform duration-700 ${isPlaying ? "scale-100" : "scale-[0.97]"}`}
                 />
               </div>
             )}
@@ -202,96 +202,86 @@ export const FullScreenPlayer = ({
         </main>
 
         {/* ===== 3. PLAYER CONTROLS ===== */}
-        <footer className="flex-shrink-0 w-full px-5 md:px-8 pt-3 pb-6 md:pb-4 safe-bottom">
+        <footer className="flex-shrink-0 w-full px-6 md:px-8 pt-3 pb-8 md:pb-5 safe-bottom">
 
-          {/* Song info + heart — together on left */}
-          <div className="flex items-center gap-3 mb-3">
+          {/* Song info + heart */}
+          <div className="flex items-center gap-3 mb-4">
             <div className="flex-1 min-w-0">
-              <h2 className="text-base md:text-base font-bold text-white truncate leading-tight">{currentTrack.title}</h2>
-              <p className="text-xs md:text-xs text-white/50 truncate">{currentTrack.artist}</p>
+              <h2 className="text-base md:text-lg font-bold text-white truncate leading-tight">{currentTrack.title}</h2>
+              <p className="text-xs text-white/50 truncate">{currentTrack.artist}</p>
             </div>
             <button
               onClick={() => currentTrack && toggleFavorite(currentTrack)}
-              className="p-2 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
+              className="p-2.5 rounded-full hover:bg-white/10 active:scale-90 transition-all flex-shrink-0"
             >
-              <Heart size={20} className={liked ? "text-red-500" : "text-white/40"} fill={liked ? "currentColor" : "none"} />
+              <Heart size={22} className={liked ? "text-red-500" : "text-white/40"} fill={liked ? "currentColor" : "none"} />
             </button>
-            <ShareButton track={currentTrack} className="text-white/40 hover:text-white flex-shrink-0" iconSize={18} />
+            <ShareButton track={currentTrack} className="text-white/40 hover:text-white flex-shrink-0" iconSize={20} />
           </div>
 
           {/* Progress bar */}
-          <div className="mb-3">
+          <div className="mb-4">
             <input
               type="range" min={0} max={duration || 0} value={progress}
               onChange={(e) => seek(Number(e.target.value))}
-              className="w-full h-1 cursor-pointer appearance-none
-                [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:shadow-lg
+              className="w-full h-1.5 cursor-pointer appearance-none
+                [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:shadow-lg
                 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-white/20"
               style={{ background: `linear-gradient(to right, white ${progressPercent}%, rgba(255,255,255,0.2) ${progressPercent}%)` }}
             />
-            <div className="flex justify-between mt-1">
-              <span className="text-[10px] text-white/40 tabular-nums">{formatTime(progress)}</span>
-              <span className="text-[10px] text-white/40 tabular-nums">{formatTime(duration)}</span>
+            <div className="flex justify-between mt-1.5">
+              <span className="text-[11px] text-white/40 tabular-nums">{formatTime(progress)}</span>
+              <span className="text-[11px] text-white/40 tabular-nums">{formatTime(duration)}</span>
             </div>
           </div>
 
-          {/* 3-column controls: left=shuffle/repeat | center=prev/play/next | right=tools */}
-          <div className="grid grid-cols-3 items-center">
-            {/* Left: Shuffle + Repeat */}
+          {/* Controls: shuffle | prev/play/next | repeat */}
+          <div className="flex items-center justify-center gap-6 mb-4">
+            <button onClick={toggleShuffle} className={`p-2 transition-colors active:scale-90 ${shuffle ? "text-primary" : "text-white/35 hover:text-white"}`}>
+              <Shuffle size={20} />
+            </button>
+            <button onClick={prev} className="text-white/70 hover:text-white transition-colors active:scale-90 p-2">
+              <SkipBack size={30} fill="currentColor" />
+            </button>
+            <button onClick={togglePlay} className="w-16 h-16 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-xl">
+              {isPlaying ? <Pause size={28} className="text-black" /> : <Play size={28} className="text-black ml-0.5" />}
+            </button>
+            <button onClick={next} className="text-white/70 hover:text-white transition-colors active:scale-90 p-2">
+              <SkipForward size={30} fill="currentColor" />
+            </button>
+            <button onClick={toggleRepeat} className={`p-2 transition-colors active:scale-90 ${repeat !== "off" ? "text-primary" : "text-white/35 hover:text-white"}`}>
+              {repeat === "one" ? <Repeat1 size={20} /> : <Repeat size={20} />}
+            </button>
+          </div>
+
+          {/* Bottom row: tools + volume */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button onClick={() => onShowEqualizer?.()} className="text-white/35 hover:text-white transition-colors p-2 active:scale-90" title="Equalizer">
+                <Sliders size={18} />
+              </button>
+              <button onClick={() => setShowLyrics(!showLyrics)} className={`transition-colors p-2 active:scale-90 ${showLyrics ? "text-primary" : "text-white/35 hover:text-white"}`} title="Lyrics">
+                <Music2 size={18} />
+              </button>
+              <button onClick={toggleTheme} className="text-white/25 hover:text-white transition-colors p-2 active:scale-90" title={theme === "dark" ? "Light mode" : "Dark mode"}>
+                {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+            </div>
             <div className="flex items-center gap-3">
-              <button onClick={toggleShuffle} className={`transition-colors ${shuffle ? "text-primary" : "text-white/35 hover:text-white"}`}>
-                <Shuffle size={16} />
-              </button>
-              <button onClick={toggleRepeat} className={`transition-colors ${repeat !== "off" ? "text-primary" : "text-white/35 hover:text-white"}`}>
-                {repeat === "one" ? <Repeat1 size={16} /> : <Repeat size={16} />}
-              </button>
-            </div>
-
-            {/* Center: Prev / Play / Next */}
-            <div className="flex items-center justify-center gap-5">
-              <button onClick={prev} className="text-white/70 hover:text-white transition-colors active:scale-90 p-1">
-                <SkipBack size={28} fill="currentColor" />
-              </button>
-              <button onClick={togglePlay} className="w-14 h-14 md:w-14 md:h-14 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-xl">
-                {isPlaying ? <Pause size={24} className="text-black" /> : <Play size={24} className="text-black ml-0.5" />}
-              </button>
-              <button onClick={next} className="text-white/70 hover:text-white transition-colors active:scale-90 p-1">
-                <SkipForward size={28} fill="currentColor" />
-              </button>
-            </div>
-
-            {/* Right: Tools */}
-            <div className="flex items-center justify-end gap-3 md:gap-3">
-              <button onClick={() => onShowEqualizer?.()} className="text-white/35 hover:text-white transition-colors p-1" title="Equalizer">
-                <Sliders size={16} />
-              </button>
-              <button onClick={() => setShowLyrics(!showLyrics)} className={`transition-colors p-1 ${showLyrics ? "text-primary" : "text-white/35 hover:text-white"}`} title="Lyrics">
-                <Music2 size={16} />
-              </button>
-              <button onClick={() => setVolume(volume === 0 ? 0.7 : 0)} className="text-white/35 hover:text-white transition-colors p-1">
-                {volume === 0 ? <VolumeX size={16} /> : volume < 0.5 ? <Volume1 size={16} /> : <Volume2 size={16} />}
+              <button onClick={() => setVolume(volume === 0 ? 0.7 : 0)} className="text-white/35 hover:text-white transition-colors active:scale-90">
+                {volume === 0 ? <VolumeX size={18} /> : volume < 0.5 ? <Volume1 size={18} /> : <Volume2 size={18} />}
               </button>
               <input type="range" min={0} max={1} step={0.01} value={volume}
                 onChange={(e) => setVolume(Number(e.target.value))}
-                className="w-12 md:w-14 h-1 cursor-pointer appearance-none
-                  [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none
+                className="w-20 h-1.5 cursor-pointer appearance-none
+                  [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none
                   [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-white/15"
                 style={{ background: `linear-gradient(to right, white ${volume * 100}%, rgba(255,255,255,0.15) ${volume * 100}%)` }}
               />
+              <div className="flex items-center gap-0.5 text-white/25">
+                <Settings size={12} /><span className="text-[9px] font-bold">{quality.replace("kbps", "")}</span>
+              </div>
             </div>
-          </div>
-
-          {/* Theme + Quality + Queue — small row */}
-          <div className="flex items-center justify-center gap-5 mt-3">
-            <button onClick={toggleTheme} className="text-white/25 hover:text-white transition-colors p-1" title={theme === "dark" ? "Light mode" : "Dark mode"}>
-              {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-            </button>
-            <button className="text-white/25 hover:text-white transition-colors flex items-center gap-0.5 p-1" title="Audio Quality">
-              <Settings size={12} /><span className="text-[9px] font-bold">{quality.replace("kbps", "")}</span>
-            </button>
-            <button onClick={onShowPlaylist} className="text-white/25 hover:text-white transition-colors p-1" title="Queue">
-              <ListMusic size={14} />
-            </button>
           </div>
         </footer>
       </div>
