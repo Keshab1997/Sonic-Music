@@ -517,17 +517,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [currentIndex, currentTrack]);
 
   // Preload next track audio for gapless-like playback
+  // Preload next track using fetch (browser cache)
   useEffect(() => {
-    if (!audioRef.current || !currentTrack) return;
+    if (!currentTrack) return;
     const nextIdx = (currentIndex + 1) % trackList.length;
     const nextTrack = trackList[nextIdx];
     if (nextTrack?.src) {
-      const link = document.createElement("link");
-      link.rel = "preload";
-      link.as = "audio";
-      link.href = nextTrack.src;
-      document.head.appendChild(link);
-      return () => { try { document.head.removeChild(link); } catch { /* */ } };
+      fetch(nextTrack.src, { mode: "no-cors" }).catch(() => {});
     }
   }, [currentIndex, currentTrack, trackList]);
 
