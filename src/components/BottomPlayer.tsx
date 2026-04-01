@@ -690,12 +690,10 @@ const LyricsPanel = ({
     setLoading(true);
     setError(false);
     setRawLyrics(null);
-    fetch(`${API_BASE}/api/songs/${songId}/lyrics`)
+    fetch(`${API_BASE}/lyrics?id=${songId}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.lyrics) {
-          setRawLyrics(data.lyrics);
-        } else if (data.data?.lyrics) {
+        if (data.data?.lyrics) {
           setRawLyrics(data.data.lyrics);
         } else {
           setError(true);

@@ -71,10 +71,10 @@ export const FullScreenPlayer = ({ onClose, onShowPlaylist, onShowLyrics, onShow
     if (!showLyrics || !currentTrack?.songId) return;
     setLyricsLoading(true);
     setRawLyrics(null);
-    fetch(`https://jiosaavn-api-privatecvc2.vercel.app/api/songs/${currentTrack.songId}/lyrics`)
+    fetch(`https://jiosaavn-api-privatecvc2.vercel.app/lyrics?id=${currentTrack.songId}`)
       .then((res) => res.json())
       .then((data) => {
-        setRawLyrics(data.lyrics || data.data?.lyrics || null);
+        setRawLyrics(data.data?.lyrics || null);
       })
       .catch(() => setRawLyrics(null))
       .finally(() => setLyricsLoading(false));
