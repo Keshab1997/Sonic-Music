@@ -1113,6 +1113,13 @@ export const MainContent = () => {
                 <div key={track.src + i} onClick={() => playTrackList(thrillerVibes, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
                   <div className="relative mb-1.5 md:mb-2">
                     <img src={track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                      title="Add to queue"
+                    >
+                      <Plus size={12} className="text-white" />
+                    </button>
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
                         <Play size={14} className="text-primary-foreground ml-0.5" />
@@ -1144,6 +1151,7 @@ export const MainContent = () => {
                 <div key={track.src + i} onClick={() => playTrackList(forYouTracks, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
                   <div className="relative mb-1.5 md:mb-2">
                     <img src={track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <button onClick={(e) => { e.stopPropagation(); addToQueue(track); }} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all" title="Add to queue"><Plus size={12} className="text-white" /></button>
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
                         <Play size={14} className="text-primary-foreground ml-0.5" />
@@ -1206,6 +1214,7 @@ export const MainContent = () => {
                 <div key={track.src + i} onClick={() => playTrackList(horrorPodcast, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
                   <div className="relative mb-1.5 md:mb-2">
                     <img src={track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <button onClick={(e) => { e.stopPropagation(); addToQueue(track); }} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all" title="Add to queue"><Plus size={12} className="text-white" /></button>
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
                         <Play size={14} className="text-primary-foreground ml-0.5" />

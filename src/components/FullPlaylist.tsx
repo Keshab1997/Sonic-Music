@@ -72,12 +72,21 @@ export const FullPlaylist = ({ title, icon, initialSongs, loadMore, onClose }: F
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {songs.length > 0 && (
-              <button
-                onClick={() => playTrackList(songs, 0)}
-                className="px-3 py-1.5 text-[10px] md:text-xs rounded-full bg-primary text-primary-foreground font-medium hover:brightness-110 transition-all"
-              >
-                Play All
-              </button>
+              <>
+                <button
+                  onClick={() => songs.forEach((s) => addToQueue(s))}
+                  className="px-3 py-1.5 text-[10px] md:text-xs rounded-full bg-muted text-foreground font-medium hover:bg-accent transition-all flex items-center gap-1"
+                  title="Add all to queue"
+                >
+                  <ListMusic size={12} /> Queue All
+                </button>
+                <button
+                  onClick={() => playTrackList(songs, 0)}
+                  className="px-3 py-1.5 text-[10px] md:text-xs rounded-full bg-primary text-primary-foreground font-medium hover:brightness-110 transition-all"
+                >
+                  Play All
+                </button>
+              </>
             )}
             <button onClick={onClose} className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground">
               <X size={18} />

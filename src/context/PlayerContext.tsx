@@ -385,6 +385,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     else play();
   }, [isPlaying, play, pause]);
 
+  // Track played indices for shuffle (avoid repeats)
+  const playedIndicesRef = useRef<Set<number>>(new Set());
+
+  // Reset played tracking when shuffle toggles or trackList changes
+  useEffect(() => {
+    playedIndicesRef.current = new Set([currentIndex]);
+  }, [shuffle, trackList.length]);
+
   const next = useCallback(() => {
     // Check queue first
     if (queue.length > 0) {
@@ -407,7 +415,24 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     let nextIdx: number;
     if (shuffle) {
-      nextIdx = Math.floor(Math.random() * trackList.length);
+      // Shuffle without repeat: pick from unplayed songs
+      const played = playedIndicesRef.current;
+      const unplayed: number[] = [];
+      for (let i = 0; i < trackList.length; i++) {
+        if (!played.has(i)) unplayed.push(i);
+      }
+      if (unplayed.length === 0) {
+        // All songs played — reset and start fresh
+        playedIndicesRef.current = new Set([currentIndex]);
+        const fresh: number[] = [];
+        for (let i = 0; i < trackList.length; i++) {
+          if (i !== currentIndex) fresh.push(i);
+        }
+        nextIdx = fresh.length > 0 ? fresh[Math.floor(Math.random() * fresh.length)] : currentIndex;
+      } else {
+        nextIdx = unplayed[Math.floor(Math.random() * unplayed.length)];
+      }
+      playedIndicesRef.current.add(nextIdx);
     } else {
       nextIdx = (currentIndex + 1) % trackList.length;
     }
