@@ -53,7 +53,7 @@ export const AppShell = ({ children }: AppShellProps) => {
 
       {/* Offline banner */}
       {isOffline && (
-        <div className="fixed top-0 left-0 right-0 z-[80] bg-destructive text-destructive-foreground text-center py-1.5 text-xs font-medium flex items-center justify-center gap-2">
+        <div className="fixed top-0 left-0 right-0 z-[80] bg-destructive text-destructive-foreground text-center py-1.5 text-xs font-medium flex items-center justify-center gap-2 safe-top">
           <WifiOff size={13} />
           No internet connection — some features may not work
         </div>

@@ -526,19 +526,19 @@ export const MainContent = () => {
         </div>
       )}
       {/* Mobile Search Bar */}
-      <div className="md:hidden sticky top-0 z-10 px-4 pt-4 pb-2 bg-background/80 backdrop-blur-md">
+      <div className="md:hidden sticky top-0 z-10 px-4 pt-3 pb-2 bg-background/80 backdrop-blur-md">
         <button
           onClick={() => setShowSearch(true)}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl bg-card border border-border text-muted-foreground"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border text-muted-foreground active:bg-accent transition-colors"
         >
-          <Search size={16} />
+          <Search size={18} />
           <span className="text-sm">Search songs, artists, albums...</span>
         </button>
       </div>
 
       {/* Hero Carousel */}
       {carouselSongs.length > 0 && (
-        <div className="relative h-52 sm:h-64 md:h-80 overflow-hidden mb-4 md:mb-6">
+        <div className="relative h-48 sm:h-56 md:h-80 overflow-hidden mb-4 md:mb-6">
           {carouselSongs.map((song, i) => (
             <div
               key={song.src}
@@ -550,16 +550,16 @@ export const MainContent = () => {
               </div>
               <div className="relative h-full flex items-end px-4 md:px-6 pb-4 md:pb-6">
                 <div className="flex items-center gap-3 md:gap-4">
-                  <img src={song.cover} alt="" className="w-14 h-14 md:w-20 md:h-20 rounded-xl shadow-2xl object-cover" />
-                  <div className="min-w-0">
-                    <p className="text-[10px] md:text-xs text-primary font-medium uppercase tracking-wider mb-1">
+                  <img src={song.cover} alt="" className="w-12 h-12 md:w-20 md:h-20 rounded-xl shadow-2xl object-cover flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] md:text-xs text-primary font-medium uppercase tracking-wider mb-0.5">
                       {i === 0 ? "Featured" : `#${i + 1} Trending`}
                     </p>
-                    <h2 className="text-sm sm:text-base md:text-2xl font-bold text-foreground line-clamp-1">{song.title}</h2>
-                    <p className="text-[11px] md:text-sm text-muted-foreground truncate">{song.artist}</p>
+                    <h2 className="text-sm sm:text-base md:text-2xl font-bold text-foreground line-clamp-2">{song.title}</h2>
+                    <p className="text-[10px] md:text-sm text-muted-foreground truncate">{song.artist}</p>
                     <button
                       onClick={() => playTrackList(carouselSongs, i)}
-                      className="mt-1.5 md:mt-2 px-3 md:px-4 py-1 md:py-1.5 bg-primary text-primary-foreground text-[10px] md:text-xs font-medium rounded-full hover:brightness-110 transition-all flex items-center gap-1.5"
+                      className="mt-1.5 md:mt-2 px-3 md:px-4 py-1 md:py-1.5 bg-primary text-primary-foreground text-[10px] md:text-xs font-medium rounded-full hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5"
                     >
                       <Play size={10} fill="currentColor" /> Play
                     </button>
@@ -597,10 +597,10 @@ export const MainContent = () => {
         {!activeCarouselSong && (
           <div className="mb-4 md:mb-6 animate-fade-in">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-3xl md:text-4xl">{timeData.emoji}</span>
-              <h2 className="text-2xl md:text-3xl font-bold text-foreground">{timeData.title}</h2>
+              <span className="text-2xl md:text-4xl">{timeData.emoji}</span>
+              <h2 className="text-xl md:text-3xl font-bold text-foreground">{timeData.title}</h2>
             </div>
-            <p className="text-muted-foreground text-xs md:text-sm ml-10 md:ml-12">{timeData.subtitle}</p>
+            <p className="text-muted-foreground text-xs md:text-sm ml-8 md:ml-12">{timeData.subtitle}</p>
           </div>
         )}
 
@@ -923,12 +923,12 @@ export const MainContent = () => {
             <Music2 size={16} className="text-primary" />
             <h3 className="text-base md:text-lg font-bold text-foreground">Browse by Mood</h3>
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 md:gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 md:gap-2.5">
             {moodCategories.map((mood) => (
               <button
                 key={mood.name}
                 onClick={() => setMoodPlaylist(mood)}
-                className={`relative p-3 md:p-3.5 rounded-xl bg-gradient-to-br ${mood.gradient} cursor-pointer hover:scale-[1.03] active:scale-[0.97] transition-transform group overflow-hidden`}
+                className={`relative p-3.5 md:p-3.5 rounded-xl bg-gradient-to-br ${mood.gradient} cursor-pointer hover:scale-[1.03] active:scale-[0.97] transition-transform group overflow-hidden`}
               >
                 <div className="absolute inset-0 bg-black/10 group-hover:bg-black/5 transition-colors" />
                 <div className="relative text-center">
@@ -951,7 +951,7 @@ export const MainContent = () => {
               <div
                 key={label.name}
                 onClick={() => loadingLabel !== label.name && playLabelSongs(label)}
-                className={`relative p-3 md:p-3.5 rounded-xl bg-gradient-to-br ${label.gradient} cursor-pointer hover:scale-[1.03] active:scale-[0.97] transition-transform group overflow-hidden`}
+                className={`relative p-4 md:p-3.5 rounded-xl bg-gradient-to-br ${label.gradient} cursor-pointer hover:scale-[1.03] active:scale-[0.97] transition-transform group overflow-hidden`}
               >
                 <div className="absolute inset-0 bg-black/10 group-hover:bg-black/5 transition-colors" />
                 <div className="relative text-center">
@@ -1274,12 +1274,12 @@ export const MainContent = () => {
             </div>
             <p className="text-[9px] md:text-[10px] text-muted-foreground">Decades</p>
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 md:gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 md:gap-2.5">
             {eraCategories.map((era) => (
               <button
                 key={era.name}
                 onClick={() => setTimeMachineEra(era)}
-                className={`relative p-3 md:p-3 rounded-xl bg-gradient-to-br ${era.gradient} cursor-pointer hover:scale-[1.03] active:scale-[0.97] transition-transform group overflow-hidden`}
+                className={`relative p-3.5 md:p-3 rounded-xl bg-gradient-to-br ${era.gradient} cursor-pointer hover:scale-[1.03] active:scale-[0.97] transition-transform group overflow-hidden`}
               >
                 <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
                 <div className="relative text-center">
@@ -1294,7 +1294,7 @@ export const MainContent = () => {
         {/* Quick Picks */}
         <section className="mb-6 md:mb-8 animate-fade-in">
           <h3 className="text-base md:text-lg font-bold text-foreground mb-2 md:mb-3">Quick Picks</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 md:gap-2.5">
             {[
               { title: "Arijit Singh Top 20", desc: "Most popular tracks", query: "Arijit Singh top hits", color: "from-rose-600/20 to-pink-600/10" },
               { title: "Bengali Modern Songs", desc: "Contemporary bengali hits", query: "modern bengali songs", color: "from-green-600/20 to-teal-600/10" },

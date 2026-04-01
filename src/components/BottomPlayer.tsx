@@ -291,7 +291,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Queue Panel */}
       {showQueue && (
-        <div className="fixed bottom-20 md:bottom-20 right-2 md:right-4 z-50 w-[calc(100vw-1rem)] max-w-80 max-h-96 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-[84px] md:bottom-20 right-2 md:right-4 z-50 w-[calc(100vw-1rem)] max-w-80 max-h-96 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between p-3 border-b border-border">
             <h3 className="text-sm font-semibold text-foreground">Queue ({queue.length})</h3>
             <div className="flex items-center gap-1">
@@ -345,7 +345,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Sleep Timer Menu */}
       {showSleepMenu && (
-        <div className="fixed bottom-20 md:bottom-20 right-2 md:right-20 z-50 w-48 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-[84px] md:bottom-20 right-2 md:right-20 z-50 w-48 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="p-2 border-b border-border">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-foreground">Sleep Timer</span>
@@ -376,7 +376,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Quality Menu */}
       {showQualityMenu && (
-        <div className="fixed bottom-20 md:bottom-20 right-2 md:right-36 z-50 w-40 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-[84px] md:bottom-20 right-2 md:right-36 z-50 w-40 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="p-2 border-b border-border">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-foreground">Audio Quality</span>
@@ -403,7 +403,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
       {/* Playback Speed Menu */}
       {showSpeedMenu && (
-        <div className="fixed bottom-20 md:bottom-20 right-2 md:right-48 z-50 w-36 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-[84px] md:bottom-20 right-2 md:right-48 z-50 w-36 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
           <div className="p-2 border-b border-border">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-foreground">Speed</span>
@@ -443,8 +443,8 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
         />
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 z-50 glass-heavy border-t border-border">
-        <div className="max-w-full mx-auto px-3 md:px-4 py-2 flex items-center gap-2 md:gap-4">
+      <div className="fixed bottom-0 left-0 right-0 z-50 glass-heavy border-t border-border safe-bottom">
+        <div className="max-w-full mx-auto px-3 md:px-4 py-2.5 md:py-2 flex items-center gap-2 md:gap-4">
           {/* Track info — clickable to open full screen player */}
           <div
             onClick={() => setShowFullScreen(true)}
@@ -454,10 +454,10 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
               <img
                 src={currentTrack.cover}
                 alt={currentTrack.title}
-                className="w-11 h-11 md:w-14 md:h-14 rounded-md object-cover shadow-md"
+                className="w-12 h-12 md:w-14 md:h-14 rounded-lg md:rounded-md object-cover shadow-md"
               />
-              <div className="absolute inset-0 rounded-md bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                <ChevronUp size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="absolute inset-0 rounded-lg md:rounded-md bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                <ChevronUp size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </div>
             <div className="min-w-0">
@@ -471,10 +471,10 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
 
           {/* Controls center */}
           <div className="flex-1 flex flex-col items-center gap-1 max-w-xl mx-auto">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 md:gap-4">
               <button
                 onClick={toggleShuffle}
-                className={`p-1.5 rounded-full transition-colors ${
+                className={`p-2 rounded-full transition-colors hidden sm:block ${
                   shuffle ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -482,29 +482,29 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
               </button>
               <button
                 onClick={prev}
-                className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <SkipBack size={20} fill="currentColor" />
               </button>
               <button
                 onClick={togglePlay}
-                className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center hover:scale-105 transition-transform"
+                className="w-10 h-10 rounded-full bg-foreground flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
               >
                 {isPlaying ? (
-                  <Pause size={18} className="text-background" />
+                  <Pause size={20} className="text-background" />
                 ) : (
-                  <Play size={18} className="text-background ml-0.5" />
+                  <Play size={20} className="text-background ml-0.5" />
                 )}
               </button>
               <button
                 onClick={next}
-                className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <SkipForward size={20} fill="currentColor" />
               </button>
               <button
                 onClick={toggleRepeat}
-                className={`p-1.5 rounded-full transition-colors ${
+                className={`p-2 rounded-full transition-colors hidden sm:block ${
                   repeat !== "off" ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -540,15 +540,15 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
           <div className="flex md:hidden">
             <button
               onClick={() => setShowMobileMenu(!showMobileMenu)}
-              className="p-2 rounded-full text-muted-foreground hover:text-foreground active:bg-accent transition-colors"
+              className="p-2.5 rounded-full text-muted-foreground hover:text-foreground active:bg-accent transition-colors"
               title="More options"
             >
-              <MoreVertical size={20} />
+              <MoreVertical size={22} />
             </button>
           </div>
 
           {/* Right section: volume + action buttons */}
-          <div className="hidden md:flex items-center gap-2 w-1/4 justify-end">
+          <div className="hidden md:flex items-center gap-1.5 lg:gap-2 w-1/4 justify-end">
             {/* Lyrics */}
             <button
               onClick={() => setShowLyrics(!showLyrics)}
@@ -561,7 +561,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
             </button>
 
             {/* Sleep Timer */}
-            <div className="relative">
+            <div className="relative hidden lg:block">
               <button
                 onClick={() => { setShowSleepMenu(!showSleepMenu); setShowQueue(false); setShowQualityMenu(false); }}
                 className={`p-1.5 rounded-full transition-colors ${
@@ -592,7 +592,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
             </div>
 
             {/* Quality */}
-            <div className="relative">
+            <div className="relative hidden lg:block">
               <button
                 onClick={() => { setShowQualityMenu(!showQualityMenu); setShowQueue(false); setShowSleepMenu(false); }}
                 className="p-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
@@ -604,7 +604,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
             </div>
 
             {/* Playback Speed */}
-            <div className="relative">
+            <div className="relative hidden lg:block">
               <button
                 onClick={() => { setShowSpeedMenu(!showSpeedMenu); setShowQualityMenu(false); setShowQueue(false); setShowSleepMenu(false); }}
                 className={`p-1.5 rounded-full transition-colors flex items-center gap-0.5 ${
@@ -619,7 +619,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
             {/* Crossfade */}
             <button
               onClick={() => setCrossfade(crossfade === 0 ? 3 : crossfade === 3 ? 5 : crossfade === 5 ? 0 : 0)}
-              className={`p-1.5 rounded-full transition-colors ${
+              className={`p-1.5 rounded-full transition-colors hidden lg:block ${
                 crossfade > 0 ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
               title={crossfade > 0 ? `Crossfade: ${crossfade}s` : "Crossfade: Off"}
@@ -639,7 +639,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
             {/* Mini Player */}
             <button
               onClick={() => onShowMiniPlayer?.()}
-              className="p-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors hidden lg:block"
+              className="p-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors hidden xl:block"
               title="Mini Player"
             >
               <Minimize2 size={16} />
@@ -659,7 +659,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
               step={0.01}
               value={volume}
               onChange={(e) => setVolume(Number(e.target.value))}
-              className="w-20 h-1 accent-primary cursor-pointer appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted"
+              className="w-16 lg:w-20 h-1 accent-primary cursor-pointer appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted"
               style={{
                 background: `linear-gradient(to right, hsl(var(--foreground)) ${volume * 100}%, hsl(var(--muted)) ${volume * 100}%)`,
               }}
@@ -672,50 +672,50 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
       {showMobileMenu && (
         <>
           <div className="fixed inset-0 z-40 md:hidden" onClick={() => setShowMobileMenu(false)} />
-          <div className="fixed bottom-[88px] right-2 z-50 md:hidden w-52 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-up">
+          <div className="fixed bottom-[84px] right-2 z-50 md:hidden w-56 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-up">
             <div className="p-2">
               <button
                 onClick={() => { setShowLyrics(true); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
               >
-                <Music2 size={16} /> Lyrics
+                <Music2 size={18} /> Lyrics
               </button>
               <button
                 onClick={() => { setShowPlaylist(true); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
               >
-                <ListMusic size={16} /> Playlist
+                <ListMusic size={18} /> Playlist
               </button>
               <button
                 onClick={() => { setShowQueue(!showQueue); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
               >
-                <ListMusic size={16} /> Queue
-                {queue.length > 0 && <span className="ml-auto text-[10px] text-primary">{queue.length}</span>}
+                <ListMusic size={18} /> Queue
+                {queue.length > 0 && <span className="ml-auto text-xs text-primary font-medium">{queue.length}</span>}
               </button>
               <button
                 onClick={() => { setShowSleepMenu(true); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
               >
-                <Moon size={16} /> Sleep Timer
-                {sleepMinutes !== null && <span className="ml-auto text-[10px] text-primary">{sleepMinutes}m</span>}
+                <Moon size={18} /> Sleep Timer
+                {sleepMinutes !== null && <span className="ml-auto text-xs text-primary">{sleepMinutes}m</span>}
               </button>
               <button
                 onClick={() => { setShowQualityMenu(true); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
               >
-                <Settings size={16} /> Quality
-                <span className="ml-auto text-[10px] text-primary">{quality.replace("kbps", "")}</span>
+                <Settings size={18} /> Quality
+                <span className="ml-auto text-xs text-primary font-medium">{quality.replace("kbps", "")}</span>
               </button>
               <button
                 onClick={() => { setShowEqualizer(true); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
               >
-                <Sliders size={16} /> Equalizer
+                <Sliders size={18} /> Equalizer
               </button>
               <div className="border-t border-border my-1" />
-              <div className="flex items-center gap-3 px-3 py-2">
-                {volume === 0 ? <VolumeX size={16} className="text-muted-foreground" /> : <Volume2 size={16} className="text-muted-foreground" />}
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                {volume === 0 ? <VolumeX size={18} className="text-muted-foreground" /> : <Volume2 size={18} className="text-muted-foreground" />}
                 <input
                   type="range"
                   min={0}
@@ -723,7 +723,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                   step={0.01}
                   value={volume}
                   onChange={(e) => setVolume(Number(e.target.value))}
-                  className="flex-1 h-1 accent-primary cursor-pointer appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted"
+                  className="flex-1 h-1 accent-primary cursor-pointer appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted"
                   style={{
                     background: `linear-gradient(to right, hsl(var(--foreground)) ${volume * 100}%, hsl(var(--muted)) ${volume * 100}%)`,
                   }}
@@ -816,7 +816,7 @@ const LyricsPanel = ({
   }, [rawLyrics, isSynced, duration]);
 
   return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)] max-w-[400px] h-[60vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed bottom-[84px] md:bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)] max-w-[400px] h-[50vh] md:h-[60vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col">
       <div className="flex items-center justify-between p-3 border-b border-border flex-shrink-0">
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-foreground truncate">{title} — Lyrics</h3>

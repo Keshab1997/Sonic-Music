@@ -45,7 +45,7 @@ export const AppSidebar = () => {
   };
 
   return (
-    <aside className="hidden md:flex flex-col w-64 lg:w-72 bg-sidebar border-r border-sidebar-border h-full overflow-hidden flex-shrink-0 z-10 relative">
+    <aside className="hidden md:flex flex-col w-60 lg:w-72 bg-sidebar border-r border-sidebar-border h-full overflow-hidden flex-shrink-0 z-10 relative">
       {/* Logo */}
       <div className="p-5 pb-3 flex items-center justify-between flex-shrink-0">
         <Link to="/">

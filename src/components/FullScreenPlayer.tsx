@@ -112,12 +112,12 @@ export const FullScreenPlayer = ({
       <div className="relative z-10 flex flex-col h-full w-full">
 
         {/* ===== 1. HEADER ===== */}
-        <header className="flex-shrink-0 flex items-center justify-between px-5 py-3">
-          <button onClick={onClose} className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
-            <ChevronDown size={22} />
+        <header className="flex-shrink-0 flex items-center justify-between px-5 pt-4 pb-2 safe-top">
+          <button onClick={onClose} className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
+            <ChevronDown size={24} />
           </button>
           <p className="text-[10px] text-white/50 uppercase tracking-[0.2em] font-medium">Now Playing</p>
-          <button onClick={onShowPlaylist} className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
+          <button onClick={onShowPlaylist} className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
             <ListMusic size={20} />
           </button>
         </header>
@@ -126,7 +126,7 @@ export const FullScreenPlayer = ({
         <main className="flex-1 min-h-0 overflow-hidden">
 
           {/* --- Mobile (< md) --- */}
-          <div className="md:hidden h-full px-4">
+          <div className="md:hidden h-full px-6">
             {showLyrics ? (
               <div className="h-full">
                 {lyricsLoading && <p className="text-sm text-white/40 text-center pt-12 animate-pulse">Loading lyrics...</p>}
@@ -139,7 +139,7 @@ export const FullScreenPlayer = ({
               <div className="h-full flex items-center justify-center">
                 <img
                   src={currentTrack.cover} alt={currentTrack.title}
-                  className={`w-[70%] max-w-[300px] aspect-square object-contain rounded-3xl shadow-2xl transition-transform duration-700 ${isPlaying ? "scale-100" : "scale-95"}`}
+                  className={`w-[75%] max-w-[320px] aspect-square object-cover rounded-2xl shadow-2xl transition-transform duration-700 ${isPlaying ? "scale-100" : "scale-[0.97]"}`}
                 />
               </div>
             )}
@@ -202,21 +202,21 @@ export const FullScreenPlayer = ({
         </main>
 
         {/* ===== 3. PLAYER CONTROLS ===== */}
-        <footer className="flex-shrink-0 w-full px-5 md:px-8 pt-3 pb-5 md:pb-4">
+        <footer className="flex-shrink-0 w-full px-5 md:px-8 pt-3 pb-6 md:pb-4 safe-bottom">
 
           {/* Song info + heart — together on left */}
           <div className="flex items-center gap-3 mb-3">
             <div className="flex-1 min-w-0">
-              <h2 className="text-sm md:text-base font-bold text-white truncate leading-tight">{currentTrack.title}</h2>
-              <p className="text-[11px] md:text-xs text-white/50 truncate">{currentTrack.artist}</p>
+              <h2 className="text-base md:text-base font-bold text-white truncate leading-tight">{currentTrack.title}</h2>
+              <p className="text-xs md:text-xs text-white/50 truncate">{currentTrack.artist}</p>
             </div>
             <button
               onClick={() => currentTrack && toggleFavorite(currentTrack)}
-              className="p-1.5 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
+              className="p-2 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
             >
-              <Heart size={18} className={liked ? "text-red-500" : "text-white/40"} fill={liked ? "currentColor" : "none"} />
+              <Heart size={20} className={liked ? "text-red-500" : "text-white/40"} fill={liked ? "currentColor" : "none"} />
             </button>
-            <ShareButton track={currentTrack} className="text-white/40 hover:text-white flex-shrink-0" iconSize={16} />
+            <ShareButton track={currentTrack} className="text-white/40 hover:text-white flex-shrink-0" iconSize={18} />
           </div>
 
           {/* Progress bar */}
@@ -248,33 +248,33 @@ export const FullScreenPlayer = ({
             </div>
 
             {/* Center: Prev / Play / Next */}
-            <div className="flex items-center justify-center gap-4">
-              <button onClick={prev} className="text-white/70 hover:text-white transition-colors active:scale-90">
-                <SkipBack size={26} fill="currentColor" />
+            <div className="flex items-center justify-center gap-5">
+              <button onClick={prev} className="text-white/70 hover:text-white transition-colors active:scale-90 p-1">
+                <SkipBack size={28} fill="currentColor" />
               </button>
-              <button onClick={togglePlay} className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-xl">
-                {isPlaying ? <Pause size={22} className="text-black" /> : <Play size={22} className="text-black ml-0.5" />}
+              <button onClick={togglePlay} className="w-14 h-14 md:w-14 md:h-14 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-xl">
+                {isPlaying ? <Pause size={24} className="text-black" /> : <Play size={24} className="text-black ml-0.5" />}
               </button>
-              <button onClick={next} className="text-white/70 hover:text-white transition-colors active:scale-90">
-                <SkipForward size={26} fill="currentColor" />
+              <button onClick={next} className="text-white/70 hover:text-white transition-colors active:scale-90 p-1">
+                <SkipForward size={28} fill="currentColor" />
               </button>
             </div>
 
             {/* Right: Tools */}
-            <div className="flex items-center justify-end gap-2 md:gap-3">
-              <button onClick={() => onShowEqualizer?.()} className="text-white/35 hover:text-white transition-colors" title="Equalizer">
-                <Sliders size={14} />
+            <div className="flex items-center justify-end gap-3 md:gap-3">
+              <button onClick={() => onShowEqualizer?.()} className="text-white/35 hover:text-white transition-colors p-1" title="Equalizer">
+                <Sliders size={16} />
               </button>
-              <button onClick={() => setShowLyrics(!showLyrics)} className={`transition-colors ${showLyrics ? "text-primary" : "text-white/35 hover:text-white"}`} title="Lyrics">
-                <Music2 size={14} />
+              <button onClick={() => setShowLyrics(!showLyrics)} className={`transition-colors p-1 ${showLyrics ? "text-primary" : "text-white/35 hover:text-white"}`} title="Lyrics">
+                <Music2 size={16} />
               </button>
-              <button onClick={() => setVolume(volume === 0 ? 0.7 : 0)} className="text-white/35 hover:text-white transition-colors">
-                {volume === 0 ? <VolumeX size={14} /> : volume < 0.5 ? <Volume1 size={14} /> : <Volume2 size={14} />}
+              <button onClick={() => setVolume(volume === 0 ? 0.7 : 0)} className="text-white/35 hover:text-white transition-colors p-1">
+                {volume === 0 ? <VolumeX size={16} /> : volume < 0.5 ? <Volume1 size={16} /> : <Volume2 size={16} />}
               </button>
               <input type="range" min={0} max={1} step={0.01} value={volume}
                 onChange={(e) => setVolume(Number(e.target.value))}
-                className="w-10 md:w-14 h-0.5 cursor-pointer appearance-none
-                  [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none
+                className="w-12 md:w-14 h-1 cursor-pointer appearance-none
+                  [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none
                   [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-white/15"
                 style={{ background: `linear-gradient(to right, white ${volume * 100}%, rgba(255,255,255,0.15) ${volume * 100}%)` }}
               />
@@ -282,15 +282,15 @@ export const FullScreenPlayer = ({
           </div>
 
           {/* Theme + Quality + Queue — small row */}
-          <div className="flex items-center justify-center gap-4 mt-2">
-            <button onClick={toggleTheme} className="text-white/25 hover:text-white transition-colors" title={theme === "dark" ? "Light mode" : "Dark mode"}>
-              {theme === "dark" ? <Sun size={13} /> : <Moon size={13} />}
+          <div className="flex items-center justify-center gap-5 mt-3">
+            <button onClick={toggleTheme} className="text-white/25 hover:text-white transition-colors p-1" title={theme === "dark" ? "Light mode" : "Dark mode"}>
+              {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
             </button>
-            <button className="text-white/25 hover:text-white transition-colors flex items-center gap-0.5" title="Audio Quality">
-              <Settings size={11} /><span className="text-[8px] font-bold">{quality.replace("kbps", "")}</span>
+            <button className="text-white/25 hover:text-white transition-colors flex items-center gap-0.5 p-1" title="Audio Quality">
+              <Settings size={12} /><span className="text-[9px] font-bold">{quality.replace("kbps", "")}</span>
             </button>
-            <button onClick={onShowPlaylist} className="text-white/25 hover:text-white transition-colors" title="Queue">
-              <ListMusic size={13} />
+            <button onClick={onShowPlaylist} className="text-white/25 hover:text-white transition-colors p-1" title="Queue">
+              <ListMusic size={14} />
             </button>
           </div>
         </footer>
