@@ -10,6 +10,7 @@ interface SyncedLyricsProps {
   onSeek?: (time: number) => void;
   className?: string;
   variant?: "light" | "dark";
+  synced?: boolean;
 }
 
 function findActiveLine(lines: LyricLine[], time: number): number {
@@ -24,7 +25,7 @@ function findActiveLine(lines: LyricLine[], time: number): number {
 }
 
 export function SyncedLyrics({
-  lines, currentTime, isPlaying, onSeek, className = "", variant = "light",
+  lines, currentTime, isPlaying, onSeek, className = "", variant = "light", synced = false,
 }: SyncedLyricsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
@@ -35,7 +36,6 @@ export function SyncedLyrics({
 
   const activeIdx = findActiveLine(lines, currentTime);
   const isDark = variant === "dark";
-
   const hasDevanagariLyrics = useMemo(() => lines.some((l) => hasDevanagari(l.text)), [lines]);
 
   const displayLines = useMemo(() => {
@@ -70,8 +70,11 @@ export function SyncedLyrics({
 
   return (
     <div className={`flex flex-col ${className}`}>
-      {/* Toggle — fixed at top, does not scroll */}
-      <div className="flex justify-end px-1 pb-1.5 flex-shrink-0">
+      {/* Header row: label on left, toggle on right — same line */}
+      <div className="flex items-center justify-between w-full px-1 pb-2 flex-shrink-0">
+        <span className={`text-[10px] uppercase tracking-widest font-medium ${isDark ? "text-white/40" : "text-muted-foreground/60"}`}>
+          {synced ? "Synced Lyrics" : "Lyrics"}
+        </span>
         <button
           onClick={() => hasDevanagariLyrics && setShowRoman(!showRoman)}
           disabled={!hasDevanagariLyrics}
@@ -97,8 +100,8 @@ export function SyncedLyrics({
         </button>
       </div>
 
-      {/* Scrollable lyrics — this is the ONLY thing that scrolls */}
-      <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
+      {/* Scrollable lyrics */}
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-10">
         <div className="h-[30%]" />
         {displayLines.map((line, i) => {
           const isActive = i === activeIdx;
