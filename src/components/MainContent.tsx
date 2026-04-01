@@ -81,12 +81,16 @@ export const MainContent = () => {
   // Fetch personalized playlists on mount
   useEffect(() => {
     const API = "https://jiosaavn-api-privatecvc2.vercel.app";
-    const fetchSection = async (query: string, setter: (t: Track[]) => void, offset: number) => {
+    const fetchSection = async (query: string, setter: (t: Track[]) => void, offset: number, langFilter?: string) => {
       try {
-        const res = await fetch(`${API}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=20`);
+        const res = await fetch(`${API}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=25`);
         if (!res.ok) return;
         const data = await res.json();
-        const songs = data.data?.results || [];
+        let songs = data.data?.results || [];
+        // Filter by language if specified
+        if (langFilter) {
+          songs = songs.filter((s: { language?: string }) => s.language === langFilter);
+        }
         const tracks: Track[] = songs
           .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
           .map((s: { downloadUrl: { quality: string; link: string }[]; name: string; primaryArtists: string; album?: { name?: string } | string; image: { quality: string; link: string }[]; duration: string | number; id: string }, i: number) => {
@@ -109,8 +113,11 @@ export const MainContent = () => {
       } catch { /* skip */ }
     };
 
-    fetchSection("bangla gaan modern hits", setBengaliHits, 7000);
-    fetchSection("thriller suspense dark moody hindi", setThrillerVibes, 8000);
+    // Bengali hits — filter by bengali language
+    fetchSection("bengali top hits songs", setBengaliHits, 7000, "bengali");
+    fetchSection("bangla gaan arijit anupam", setBengaliHits, 7000, "bengali");
+    // Thriller — Hindi language
+    fetchSection("thriller suspense dark moody hindi songs", setThrillerVibes, 8000, "hindi");
 
     // For You: use top artist from listening history or fallback
     const topArtist = stats.topArtists?.[0]?.artist;
