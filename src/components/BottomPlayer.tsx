@@ -77,6 +77,8 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
     currentIndex,
     playTrackList,
     queue,
+    addToQueue,
+    playNext,
     removeFromQueue,
     clearQueue,
     moveQueueItem,
