@@ -37,37 +37,109 @@ export function isLRCFormat(text: string): boolean {
 }
 
 /**
+ * Split a long lyric section into individual lines at natural break points.
+ * Prioritizes punctuation breaks, then falls back to word-boundary splits.
+ */
+function splitSection(section: string, maxLen: number): string[] {
+  if (section.length <= maxLen) return [section];
+
+  // Split on commas, semicolons, danda (।), question marks, exclamation
+  const parts = section
+    .split(/(?<=[,;?!।])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (parts.length > 1) {
+    // Re-combine short parts, keep within maxLen
+    const result: string[] = [];
+    let buf = "";
+    for (const part of parts) {
+      const candidate = buf ? `${buf} ${part}` : part;
+      if (candidate.length > maxLen && buf) {
+        result.push(buf);
+        buf = part;
+      } else {
+        buf = candidate;
+      }
+    }
+    if (buf) result.push(buf);
+
+    // If still single long line, force split at word boundaries
+    if (result.length === 1) {
+      return forceSplit(result[0], maxLen);
+    }
+    return result;
+  }
+
+  return forceSplit(section, maxLen);
+}
+
+/**
+ * Force split at word boundaries targeting ~40-55 char lines.
+ */
+function forceSplit(text: string, maxLen: number): string[] {
+  if (text.length <= maxLen) return [text];
+  const words = text.split(/\s+/);
+  const result: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (candidate.length > maxLen && line) {
+      result.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) result.push(line);
+  return result;
+}
+
+/**
  * Convert plain text lyrics to estimated timed lines.
  * Distributes lines evenly across the track duration.
- * Handles both newline-separated and double-space-separated lyrics.
- * Skips empty lines and uses a small padding at start/end.
+ *
+ * Handles JioSaavn format where lyrics come as a single string
+ * with double-spaces as verse separators and no newlines.
  */
 export function estimateTimings(
   plainText: string,
   duration: number
 ): LyricLine[] {
-  // Normalize: split on newlines first, then on double-spaces if result is too few lines
-  let rawLines = plainText
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+  if (!plainText || duration <= 0) return [];
 
-  // If only 1-2 "lines" but text has content, try splitting on double spaces
-  if (rawLines.length <= 2 && plainText.includes("  ")) {
-    rawLines = plainText
+  // Normalize whitespace
+  const normalized = plainText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // Try newline split first
+  let sections = normalized
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // If single block, split on double-spaces (JioSaavn format)
+  if (sections.length <= 1 && plainText.includes("  ")) {
+    sections = plainText
       .split(/\s{2,}/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
-  if (rawLines.length === 0) return [];
+  // Split each section into individual lines (max ~55 chars)
+  const lines: string[] = [];
+  for (const section of sections) {
+    const split = splitSection(section, 55);
+    lines.push(...split);
+  }
 
-  const padding = Math.min(2, duration * 0.03); // 3% or 2s padding at start
+  if (lines.length === 0) return [];
+
+  const padding = Math.min(2, duration * 0.03);
   const endPadding = Math.min(1, duration * 0.02);
   const usable = Math.max(0, duration - padding - endPadding);
-  const interval = usable / rawLines.length;
+  const interval = usable / lines.length;
 
-  return rawLines.map((text, i) => ({
+  return lines.map((text, i) => ({
     time: padding + i * interval,
     text,
   }));
