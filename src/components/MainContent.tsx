@@ -1201,41 +1201,6 @@ export const MainContent = () => {
         )}
         </DeferredSection>
 
-        {/* Bengali Albums */}
-        <DeferredSection>
-        {bengaliAlbums.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">💿</span>
-                <h3 className="text-base md:text-lg font-bold text-foreground">Bengali Albums</h3>
-              </div>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {bengaliAlbums.map((album) => (
-                <div
-                  key={album.id}
-                  onClick={() => handleSearchAndPlay(album.name)}
-                  className="flex-shrink-0 w-28 md:w-36 group cursor-pointer"
-                >
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img src={album.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
-                        <Play size={14} className="text-primary-foreground ml-0.5" />
-                      </div>
-                    </div>
-                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-purple-600/80 px-1.5 py-0.5 rounded">
-                      ALBUM
-                    </span>
-                  </div>
-                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{album.name}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-        </DeferredSection>
 
         {/* Sunday Suspense / Horror Thriller */}
         <DeferredSection>
@@ -1264,41 +1229,6 @@ export const MainContent = () => {
                   </div>
                   <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
                   <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-        </DeferredSection>
-
-        {/* Top Charts */}
-        <DeferredSection>
-        {topChartTracks.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🏆</span>
-                <h3 className="text-base md:text-lg font-bold text-foreground">Top Charts</h3>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              {topChartTracks.map((track, i) => (
-                <div
-                  key={track.src + i}
-                  onClick={() => playTrackList(topChartTracks, i)}
-                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors group"
-                >
-                  <span className={`text-sm font-bold w-6 text-center ${i < 3 ? "text-primary" : "text-muted-foreground"}`}>
-                    {i + 1}
-                  </span>
-                  <img src={track.cover} alt="" width={40} height={40} className="w-10 h-10 rounded object-cover flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{track.title}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                  </div>
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Play size={16} className="text-primary" />
-                  </div>
                 </div>
               ))}
             </div>
