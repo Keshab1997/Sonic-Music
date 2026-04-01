@@ -96,51 +96,82 @@ export const useHomeData = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const dailyPage = (getDailySeed() % 3) + 1;
-        const res = await fetch(`${API_BASE}/modules?language=hindi`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const mod = data.data || {};
+        // Fetch from multiple languages to build a large song pool
+        const languages = ["hindi", "english", "tamil", "telugu", "punjabi"];
+        const fetchModule = (lang: string) =>
+          fetch(`${API_BASE}/modules?language=${lang}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null);
 
-        // Trending songs - get ALL IDs then batch fetch details
-        const trendingRaw: SaavnModuleSong[] = mod.trending?.songs || [];
-        const trendingIds = trendingRaw.map((s) => s.id).filter(Boolean);
+        const results = await Promise.all(languages.map(fetchModule));
 
-        // New releases (songs from albums list) - get ALL
-        const albumsRaw: SaavnModuleSong[] = mod.albums || [];
-        const newReleaseIds = albumsRaw
-          .filter((a) => a.type === "song")
-          .map((s) => s.id)
-          .filter(Boolean);
+        // Collect all IDs from all languages
+        const allTrendingIds: string[] = [];
+        const allNewReleaseIds: string[] = [];
+        const seenIds = new Set<string>();
 
-        // Charts
-        const chartsRaw: ChartItem[] = (mod.charts || []).map((c: ChartItem) => ({
-          id: c.id,
-          title: c.title,
-          subtitle: c.subtitle,
-          image: c.image,
-        }));
-        setCharts(chartsRaw);
+        let chartsSet = false;
+        for (const data of results) {
+          if (!data) continue;
+          const mod = data.data || {};
 
-        // Batch fetch song details for trending
-        if (trendingIds.length > 0) {
-          const songRes = await fetch(`${API_BASE}/songs?id=${trendingIds.join(",")}`);
-          if (songRes.ok) {
-            const songData = await songRes.json();
-            const songs: SaavnSong[] = songData.data || [];
-            setTrendingSongs(songs.map((s, i) => saavnToTrack(s, 5000 + i)));
+          // Trending
+          for (const s of (mod.trending?.songs || []) as SaavnModuleSong[]) {
+            if (s.id && !seenIds.has(s.id)) {
+              seenIds.add(s.id);
+              allTrendingIds.push(s.id);
+            }
+          }
+
+          // New releases
+          for (const a of (mod.albums || []) as SaavnModuleSong[]) {
+            if (a.type === "song" && a.id && !seenIds.has(a.id)) {
+              seenIds.add(a.id);
+              allNewReleaseIds.push(a.id);
+            }
+          }
+
+          // Charts — take from first language that has them
+          if (!chartsSet && (mod.charts || []).length > 0) {
+            chartsSet = true;
+            setCharts(
+              (mod.charts || []).map((c: ChartItem) => ({
+                id: c.id,
+                title: c.title,
+                subtitle: c.subtitle,
+                image: c.image,
+              }))
+            );
           }
         }
 
-        // Batch fetch song details for new releases
-        if (newReleaseIds.length > 0) {
-          const songRes = await fetch(`${API_BASE}/songs?id=${newReleaseIds.join(",")}`);
-          if (songRes.ok) {
-            const songData = await songRes.json();
-            const songs: SaavnSong[] = songData.data || [];
-            setNewReleases(dailyShuffle(songs.map((s, i) => saavnToTrack(s, 6000 + i))));
+        // Batch fetch song details (API limits ~50 per request, chunk if needed)
+        const fetchSongs = async (ids: string[]): Promise<SaavnSong[]> => {
+          if (ids.length === 0) return [];
+          const chunks: string[][] = [];
+          for (let i = 0; i < ids.length; i += 40) {
+            chunks.push(ids.slice(i, i + 40));
           }
-        }
+          const allSongs: SaavnSong[] = [];
+          for (const chunk of chunks) {
+            try {
+              const res = await fetch(`${API_BASE}/songs?id=${chunk.join(",")}`);
+              if (res.ok) {
+                const data = await res.json();
+                allSongs.push(...(data.data || []));
+              }
+            } catch { /* skip chunk */ }
+          }
+          return allSongs;
+        };
+
+        const [trendingSongsData, newReleaseSongsData] = await Promise.all([
+          fetchSongs(allTrendingIds),
+          fetchSongs(allNewReleaseIds),
+        ]);
+
+        setTrendingSongs(trendingSongsData.map((s, i) => saavnToTrack(s, 5000 + i)));
+        setNewReleases(newReleaseSongsData.map((s, i) => saavnToTrack(s, 6000 + i)));
       } catch {
         // ignore
       }
@@ -152,35 +183,46 @@ export const useHomeData = () => {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    // Re-fetch logic same as above
     try {
-      const res = await fetch(`${API_BASE}/modules?language=hindi`);
-      if (!res.ok) return;
-      const data = await res.json();
-      const mod = data.data || {};
+      const languages = ["hindi", "english", "tamil", "telugu", "punjabi"];
+      const results = await Promise.all(
+        languages.map((lang) =>
+          fetch(`${API_BASE}/modules?language=${lang}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        )
+      );
 
-      const trendingRaw: SaavnModuleSong[] = mod.trending?.songs || [];
-      const trendingIds = trendingRaw.map((s) => s.id).filter(Boolean);
-      const albumsRaw: SaavnModuleSong[] = mod.albums || [];
-      const newReleaseIds = albumsRaw
-        .filter((a) => a.type === "song")
-        .map((s) => s.id)
-        .filter(Boolean);
+      const allTrendingIds: string[] = [];
+      const allNewReleaseIds: string[] = [];
+      const seenIds = new Set<string>();
 
-      if (trendingIds.length > 0) {
-        const songRes = await fetch(`${API_BASE}/songs?id=${trendingIds.join(",")}`);
-        if (songRes.ok) {
-          const songData = await songRes.json();
-          setTrendingSongs((songData.data || []).map((s: SaavnSong, i: number) => saavnToTrack(s, 5000 + i)));
+      for (const data of results) {
+        if (!data) continue;
+        const mod = data.data || {};
+        for (const s of (mod.trending?.songs || []) as SaavnModuleSong[]) {
+          if (s.id && !seenIds.has(s.id)) { seenIds.add(s.id); allTrendingIds.push(s.id); }
+        }
+        for (const a of (mod.albums || []) as SaavnModuleSong[]) {
+          if (a.type === "song" && a.id && !seenIds.has(a.id)) { seenIds.add(a.id); allNewReleaseIds.push(a.id); }
         }
       }
-      if (newReleaseIds.length > 0) {
-        const songRes = await fetch(`${API_BASE}/songs?id=${newReleaseIds.join(",")}`);
-        if (songRes.ok) {
-          const songData = await songRes.json();
-          setNewReleases(dailyShuffle((songData.data || []).map((s: SaavnSong, i: number) => saavnToTrack(s, 6000 + i))));
+
+      const fetchSongs = async (ids: string[]): Promise<SaavnSong[]> => {
+        if (ids.length === 0) return [];
+        const allSongs: SaavnSong[] = [];
+        for (let i = 0; i < ids.length; i += 40) {
+          try {
+            const res = await fetch(`${API_BASE}/songs?id=${ids.slice(i, i + 40).join(",")}`);
+            if (res.ok) { const d = await res.json(); allSongs.push(...(d.data || [])); }
+          } catch { /* skip */ }
         }
-      }
+        return allSongs;
+      };
+
+      const [t, n] = await Promise.all([fetchSongs(allTrendingIds), fetchSongs(allNewReleaseIds)]);
+      setTrendingSongs(t.map((s: SaavnSong, i: number) => saavnToTrack(s, 5000 + i)));
+      setNewReleases(n.map((s: SaavnSong, i: number) => saavnToTrack(s, 6000 + i)));
     } catch { /* ignore */ }
     setLoading(false);
   }, []);
