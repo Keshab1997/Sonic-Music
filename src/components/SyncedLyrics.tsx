@@ -145,7 +145,6 @@ export function SyncedLyrics({
         {displayLines.map((line, i) => {
           const isActive = i === activeIdx;
           const isPast = i < activeIdx;
-          const isUpcoming = i > activeIdx;
 
           return (
             <button
@@ -154,22 +153,22 @@ export function SyncedLyrics({
               onClick={() => onSeek?.(line.time)}
               disabled={!onSeek}
               className={`
-                block w-full text-left rounded-lg
-                px-5 py-3 my-1.5
+                block w-full text-left rounded-xl
+                px-5 my-1
                 transition-all duration-300 ease-in-out
                 ${onSeek ? "cursor-pointer" : "cursor-default"}
                 ${
                   isActive
                     ? isDark
-                      ? "text-white font-extrabold text-[22px] leading-tight tracking-tight scale-[1.03] py-4 my-2"
-                      : "text-black font-extrabold text-[22px] leading-tight tracking-tight scale-[1.03] py-4 my-2 lyric-active"
+                      ? "text-white font-extrabold text-[22px] leading-snug tracking-tight scale-[1.03] py-4 my-2 bg-white/10 rounded-2xl"
+                      : "text-black font-extrabold text-[22px] leading-snug tracking-tight scale-[1.03] py-4 my-2 bg-black/5 rounded-2xl"
                     : isPast
                     ? isDark
-                      ? "text-white/25 font-normal text-[15px] hover:text-white/40"
-                      : "text-black/25 font-normal text-[15px] hover:text-black/40"
+                      ? "text-white/50 font-normal text-[15px] py-2.5 hover:text-white/65"
+                      : "text-black/40 font-normal text-[15px] py-2.5 hover:text-black/55"
                     : isDark
-                    ? "text-white/45 font-medium text-[16px] hover:text-white/65"
-                    : "text-black/40 font-medium text-[16px] hover:text-black/60"
+                    ? "text-white/65 font-medium text-[16px] py-2.5 hover:text-white/80"
+                    : "text-black/55 font-medium text-[16px] py-2.5 hover:text-black/70"
                 }
               `}
             >
