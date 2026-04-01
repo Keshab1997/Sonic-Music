@@ -84,6 +84,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   const [searchType, setSearchType] = useState<"songs" | "playlists">("songs");
   const [playlistResults, setPlaylistResults] = useState<{ id: string; name: string; image: string; songCount: string }[]>([]);
   const [playlistLoading, setPlaylistLoading] = useState(false);
+  const [langFilter, setLangFilter] = useState<string>("all");
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -121,7 +122,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   }, []);
 
   // Real-time search with debounce
-  const doSearch = useCallback(async (q: string) => {
+  const doSearch = useCallback(async (q: string, lang?: string) => {
     if (!q.trim()) {
       setData(null);
       setSongResults([]);
@@ -129,12 +130,10 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
       return;
     }
     setLoading(true);
+    const activeLang = lang ?? langFilter;
     try {
-      // Fetch categorized results
       const allRes = fetch(`${API_BASE}/search/all?query=${encodeURIComponent(q)}`);
-      // Fetch full song list with download URLs
-      const songRes = fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=20`);
-      // Fetch albums separately
+      const songRes = fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=50`);
       const albumRes = fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(q)}&page=1&limit=20`);
 
       const [allData, songData, albumData] = await Promise.all([allRes, songRes, albumRes]);
@@ -151,7 +150,12 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
       if (songData.ok) {
         const json = await songData.json();
-        const results = json.data?.results || [];
+        let results = json.data?.results || [];
+        // Filter by language
+        if (activeLang !== "all") {
+          results = results.filter((s: { language?: string }) => s.language === activeLang);
+        }
+        results = results.slice(0, 20);
         const tracks: Track[] = results
           .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
           .map((s: {
@@ -367,8 +371,15 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
       } else {
         doSearch(val);
       }
-      if (val.trim()) addToHistory(val.trim());
+      // History is added on Enter key or result click, NOT on every keystroke
     }, DEBOUNCE_MS);
+  };
+
+  // Add to history when user commits a search (Enter key)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && query.trim()) {
+      addToHistory(query.trim());
+    }
   };
 
   const handleSearchTypeChange = (type: "songs" | "playlists") => {
@@ -413,6 +424,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
               type="text"
               value={query}
               onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
               placeholder="Search for songs, artists, albums..."
               className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-card border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             />
@@ -431,7 +443,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         </div>
 
         {/* Search Type Filters */}
-        <div className="flex items-center gap-2 px-3 md:px-4 pb-2">
+        <div className="flex items-center gap-2 px-3 md:px-4 pb-2 flex-wrap">
           <button
             onClick={() => handleSearchTypeChange("songs")}
             className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
@@ -452,12 +464,48 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           >
             Podcasts & Playlists
           </button>
+
+          {/* Language chips — only show in songs mode */}
+          {searchType === "songs" && (
+            <>
+              <span className="text-muted-foreground/30 mx-1">|</span>
+              {[
+                { key: "all", label: "All" },
+                { key: "bengali", label: "Bangla" },
+                { key: "hindi", label: "Hindi" },
+                { key: "english", label: "English" },
+              ].map((lang) => (
+                <button
+                  key={lang.key}
+                  onClick={() => {
+                    setLangFilter(lang.key);
+                    if (query.trim()) doSearch(query, lang.key);
+                  }}
+                  className={`px-2.5 py-1 text-[10px] rounded-full font-medium transition-colors ${
+                    langFilter === lang.key
+                      ? "bg-primary/20 text-primary border border-primary/30"
+                      : "bg-muted/50 text-muted-foreground hover:text-foreground border border-transparent"
+                  }`}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </>
+          )}
         </div>
 
-        {/* Loading */}
+        {/* Loading — skeleton placeholders */}
         {(loading || playlistLoading) && (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 size={24} className="animate-spin text-primary" />
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 animate-pulse">
+                <div className="w-11 h-11 rounded bg-muted flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="h-3 bg-muted rounded w-3/4 mb-1.5" />
+                  <div className="h-2 bg-muted/60 rounded w-1/2" />
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
