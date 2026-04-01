@@ -1,15 +1,30 @@
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePlayer } from "@/context/PlayerContext";
 
 export const AudioVisualizer = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
   const { analyserRef, isPlaying } = usePlayer();
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !isVisible) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -21,14 +36,16 @@ export const AudioVisualizer = () => {
     resize();
     window.addEventListener("resize", resize);
 
+    let running = true;
+
     const draw = () => {
+      if (!running) return;
       const w = canvas.offsetWidth;
       const h = canvas.offsetHeight;
       ctx.clearRect(0, 0, w, h);
 
       const analyser = analyserRef.current;
       if (!analyser || !isPlaying) {
-        // Idle state: draw subtle static bars
         const barCount = 64;
         const barW = w / barCount - 2;
         for (let i = 0; i < barCount; i++) {
@@ -78,10 +95,11 @@ export const AudioVisualizer = () => {
     draw();
 
     return () => {
+      running = false;
       cancelAnimationFrame(animRef.current);
       window.removeEventListener("resize", resize);
     };
-  }, [analyserRef, isPlaying]);
+  }, [analyserRef, isPlaying, isVisible]);
 
   return (
     <div className="relative w-full rounded-xl overflow-hidden bg-card border border-border">
@@ -95,4 +113,3 @@ export const AudioVisualizer = () => {
     </div>
   );
 };
-

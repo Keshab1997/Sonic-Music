@@ -153,7 +153,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
               </div>
               {/* Current song big display */}
               <div className="flex items-center gap-3 mt-3 p-3 rounded-xl bg-primary/10 border border-primary/20">
-                <img src={currentTrack.cover} alt="" className="w-14 h-14 rounded-lg object-cover shadow-md" />
+                <img src={currentTrack.cover} alt="" width={56} height={56} className="w-14 h-14 rounded-lg object-cover shadow-md" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground truncate">{currentTrack.title}</p>
                   <p className="text-xs text-muted-foreground truncate">{currentTrack.artist}</p>
@@ -204,7 +204,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                       )}
                     </div>
                     <div className="relative flex-shrink-0 cursor-pointer" onClick={() => playTrackList(tracks, i)}>
-                      <img src={track.cover} alt="" className={`w-10 h-10 rounded-md object-cover ${isCurrent ? "ring-2 ring-primary" : ""}`} />
+                      <img src={track.cover} alt="" width={40} height={40} className={`w-10 h-10 rounded-md object-cover ${isCurrent ? "ring-2 ring-primary" : ""}`} />
                     </div>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => playTrackList(tracks, i)}>
                       <p className={`text-sm font-medium truncate ${isCurrent ? "text-primary" : "text-foreground"}`}>{track.title}</p>
@@ -316,7 +316,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
             ) : (
               queue.map((track, i) => (
                 <div key={`${track.src}-${i}`} className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent group">
-                  <img src={track.cover} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                  <img src={track.cover} alt="" width={32} height={32} className="w-8 h-8 rounded object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-foreground truncate">{track.title}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
@@ -454,6 +454,8 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
               <img
                 src={currentTrack.cover}
                 alt={currentTrack.title}
+                width={56}
+                height={56}
                 className="w-10 h-10 md:w-14 md:h-14 rounded-lg md:rounded-md object-cover shadow-md"
               />
               <div className="absolute inset-0 rounded-lg md:rounded-md bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">

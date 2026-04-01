@@ -14,6 +14,7 @@ import { MoodPlaylist } from "@/components/MoodPlaylist";
 import { FullPlaylist } from "@/components/FullPlaylist";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { SectionSkeleton, HeroSkeleton, ArtistGridSkeleton } from "@/components/Skeletons";
+import { DeferredSection } from "@/components/DeferredSection";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { Track } from "@/data/playlist";
 import {
@@ -546,12 +547,12 @@ export const MainContent = () => {
               className={`absolute inset-0 transition-opacity duration-1000 ${i === carouselIndex ? "opacity-100" : "opacity-0 pointer-events-none"}`}
             >
               <div className="absolute inset-0">
-                <img src={song.cover} alt="" decoding="async" className="w-full h-full object-cover" />
+                <img src={song.cover} alt="" decoding="async" width={1280} height={320} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
               </div>
               <div className="relative h-full flex items-end px-4 md:px-6 pb-4 md:pb-6">
                 <div className="flex items-center gap-3 md:gap-4">
-                  <img src={song.cover} alt="" decoding="async" className="w-12 h-12 md:w-20 md:h-20 rounded-xl shadow-2xl object-cover flex-shrink-0" />
+                    <img src={song.cover} alt="" decoding="async" width={80} height={80} className="w-12 h-12 md:w-20 md:h-20 rounded-xl shadow-2xl object-cover flex-shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-[9px] md:text-xs text-primary font-medium uppercase tracking-wider mb-0.5">
                       {i === 0 ? "Featured" : `#${i + 1} Trending`}
@@ -677,7 +678,7 @@ export const MainContent = () => {
               className="flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 cursor-pointer hover:border-amber-500/40 transition-all group"
             >
               <div className="relative flex-shrink-0">
-                <img src={songOfDay.cover} alt="" loading="lazy" className="w-14 h-14 md:w-16 md:h-16 rounded-lg object-cover shadow-md" />
+                <img src={songOfDay.cover} alt="" loading="lazy" width={64} height={64} className="w-14 h-14 md:w-16 md:h-16 rounded-lg object-cover shadow-md" />
                 <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                   {currentTrack?.src === songOfDay.src && isPlaying ? (
                     <Pause size={18} className="text-white" />
@@ -701,7 +702,7 @@ export const MainContent = () => {
           <AudioVisualizer />
           {currentTrack && isPlaying && (
             <div className="mt-2 md:mt-3 flex items-center gap-2 md:gap-3">
-              <img src={currentTrack.cover} alt="" className="w-7 h-7 md:w-8 md:h-8 rounded" />
+              <img src={currentTrack.cover} alt="" width={32} height={32} className="w-7 h-7 md:w-8 md:h-8 rounded" />
               <div className="min-w-0">
                 <p className="text-xs md:text-sm font-semibold text-foreground truncate">{currentTrack.title}</p>
                 <p className="text-[10px] md:text-xs text-muted-foreground truncate">{currentTrack.artist}</p>
@@ -741,7 +742,7 @@ export const MainContent = () => {
                   className="flex-shrink-0 w-28 md:w-36 group cursor-pointer"
                 >
                   <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
                         <Play size={14} className="text-primary-foreground ml-0.5" />
@@ -811,7 +812,7 @@ export const MainContent = () => {
                   className="flex-shrink-0 w-28 md:w-36 group cursor-pointer"
                 >
                   <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
                         <Play size={14} className="text-primary-foreground ml-0.5" />
@@ -867,7 +868,7 @@ export const MainContent = () => {
                   className="flex-shrink-0 w-24 md:w-28 group cursor-pointer"
                 >
                   <div className="relative mb-1.5 md:mb-2">
-                    <img src={entry.track.cover} alt="" loading="lazy" className="w-24 h-24 md:w-28 md:h-28 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <img src={entry.track.cover} alt="" loading="lazy" width={112} height={112} className="w-24 h-24 md:w-28 md:h-28 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-7 h-7 md:w-8 md:h-8 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
                         {currentTrack?.src === entry.track.src && isPlaying ? (
@@ -899,7 +900,7 @@ export const MainContent = () => {
               {history.slice(0, 6).map((entry, i) => (
                 <div key={`${entry.track.src}-${i}`} onClick={() => playTrack(entry.track)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
                   <div className="relative mb-1.5 md:mb-2">
-                    <img src={entry.track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <img src={entry.track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
                         <Play size={14} className="text-primary-foreground ml-0.5" />
@@ -919,6 +920,7 @@ export const MainContent = () => {
         )}
 
         {/* Mood Categories */}
+        <DeferredSection>
         <section className="mb-6 md:mb-8 animate-fade-in">
           <div className="flex items-center gap-2 mb-2 md:mb-3">
             <Music2 size={16} className="text-primary" />
@@ -940,8 +942,10 @@ export const MainContent = () => {
             ))}
           </div>
         </section>
+        </DeferredSection>
 
         {/* Top Music Labels */}
+        <DeferredSection>
         <section className="mb-6 md:mb-8 animate-fade-in">
           <div className="flex items-center gap-2 mb-2 md:mb-3">
             <Music2 size={16} className="text-primary" />
@@ -976,8 +980,10 @@ export const MainContent = () => {
             ))}
           </div>
         </section>
+        </DeferredSection>
 
         {/* Saved Artists (Mobile) */}
+        <DeferredSection>
         {artistFavorites.length > 0 && (
           <section className="mb-6 md:mb-8 animate-fade-in">
             <div className="flex items-center justify-between mb-2 md:mb-3">
@@ -991,7 +997,7 @@ export const MainContent = () => {
                   className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 group"
                 >
                   <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-primary transition-all">
-                    <img src={artist.image} alt={artist.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                    <img src={artist.image} alt={artist.name} width={80} height={80} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                       <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
@@ -1002,8 +1008,10 @@ export const MainContent = () => {
             </div>
           </section>
         )}
+        </DeferredSection>
 
         {/* Top Hindi Artists */}
+        <DeferredSection>
         <section className="mb-6 md:mb-8 animate-fade-in">
           <div className="flex items-center justify-between mb-2 md:mb-3">
             <h3 className="text-base md:text-lg font-bold text-foreground">Hindi Artists</h3>
@@ -1022,7 +1030,7 @@ export const MainContent = () => {
                 className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 group"
               >
                 <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-primary transition-all">
-                  <img src={artist.image} alt={artist.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                  <img src={artist.image} alt={artist.name} width={80} height={80} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                     <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
@@ -1032,8 +1040,10 @@ export const MainContent = () => {
             ))}
           </div>
         </section>
+        </DeferredSection>
 
         {/* Top Bengali Artists */}
+        <DeferredSection>
         <section className="mb-6 md:mb-8 animate-fade-in">
           <div className="flex items-center justify-between mb-2 md:mb-3">
             <h3 className="text-base md:text-lg font-bold text-foreground">Bengali Artists</h3>
@@ -1052,7 +1062,7 @@ export const MainContent = () => {
                 className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 group"
               >
                 <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-primary transition-all">
-                  <img src={artist.image} alt={artist.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                  <img src={artist.image} alt={artist.name} width={80} height={80} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                     <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
@@ -1062,8 +1072,10 @@ export const MainContent = () => {
             ))}
           </div>
         </section>
+        </DeferredSection>
 
         {/* Bengali Hits */}
+        <DeferredSection>
         {bengaliHits.length > 0 && (
           <section className="mb-6 md:mb-8 animate-fade-in">
             <div className="flex items-center justify-between mb-2 md:mb-3">
@@ -1076,7 +1088,7 @@ export const MainContent = () => {
               {bengaliHits.map((track, i) => (
                 <div key={track.src + i} onClick={() => playTrackList(bengaliHits, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
                   <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
                     <button
                       onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
                       className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
@@ -1099,8 +1111,10 @@ export const MainContent = () => {
             </div>
           </section>
         )}
+        </DeferredSection>
 
         {/* Thriller & Dark Vibes */}
+        <DeferredSection>
         {thrillerVibes.length > 0 && (
           <section className="mb-6 md:mb-8 animate-fade-in">
             <div className="flex items-center justify-between mb-2 md:mb-3">
@@ -1113,7 +1127,7 @@ export const MainContent = () => {
               {thrillerVibes.map((track, i) => (
                 <div key={track.src + i} onClick={() => playTrackList(thrillerVibes, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
                   <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
                     <button
                       onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
                       className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
@@ -1137,8 +1151,10 @@ export const MainContent = () => {
             </div>
           </section>
         )}
+        </DeferredSection>
 
         {/* For You — Personalized */}
+        <DeferredSection>
         {forYouTracks.length > 0 && (
           <section className="mb-6 md:mb-8 animate-fade-in">
             <div className="flex items-center justify-between mb-2 md:mb-3">
@@ -1151,7 +1167,7 @@ export const MainContent = () => {
               {forYouTracks.map((track, i) => (
                 <div key={track.src + i} onClick={() => playTrackList(forYouTracks, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
                   <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
                     <button onClick={(e) => { e.stopPropagation(); addToQueue(track); }} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all" title="Add to queue"><Plus size={12} className="text-white" /></button>
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
@@ -1166,8 +1182,10 @@ export const MainContent = () => {
             </div>
           </section>
         )}
+        </DeferredSection>
 
         {/* Bengali Albums */}
+        <DeferredSection>
         {bengaliAlbums.length > 0 && (
           <section className="mb-6 md:mb-8 animate-fade-in">
             <div className="flex items-center justify-between mb-2 md:mb-3">
@@ -1184,7 +1202,7 @@ export const MainContent = () => {
                   className="flex-shrink-0 w-28 md:w-36 group cursor-pointer"
                 >
                   <div className="relative mb-1.5 md:mb-2">
-                    <img src={album.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <img src={album.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
                         <Play size={14} className="text-primary-foreground ml-0.5" />
@@ -1200,8 +1218,10 @@ export const MainContent = () => {
             </div>
           </section>
         )}
+        </DeferredSection>
 
         {/* Sunday Suspense / Horror Thriller */}
+        <DeferredSection>
         {horrorPodcast.length > 0 && (
           <section className="mb-6 md:mb-8 animate-fade-in">
             <div className="flex items-center justify-between mb-2 md:mb-3">
@@ -1214,7 +1234,7 @@ export const MainContent = () => {
               {horrorPodcast.map((track, i) => (
                 <div key={track.src + i} onClick={() => playTrackList(horrorPodcast, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
                   <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
                     <button onClick={(e) => { e.stopPropagation(); addToQueue(track); }} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all" title="Add to queue"><Plus size={12} className="text-white" /></button>
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
@@ -1232,8 +1252,10 @@ export const MainContent = () => {
             </div>
           </section>
         )}
+        </DeferredSection>
 
         {/* Top Charts */}
+        <DeferredSection>
         {topChartTracks.length > 0 && (
           <section className="mb-6 md:mb-8 animate-fade-in">
             <div className="flex items-center justify-between mb-2 md:mb-3">
@@ -1252,7 +1274,7 @@ export const MainContent = () => {
                   <span className={`text-sm font-bold w-6 text-center ${i < 3 ? "text-primary" : "text-muted-foreground"}`}>
                     {i + 1}
                   </span>
-                  <img src={track.cover} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                  <img src={track.cover} alt="" width={40} height={40} className="w-10 h-10 rounded object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{track.title}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
@@ -1265,8 +1287,10 @@ export const MainContent = () => {
             </div>
           </section>
         )}
+        </DeferredSection>
 
         {/* Time Machine */}
+        <DeferredSection>
         <section className="mb-6 md:mb-8 animate-fade-in">
           <div className="flex items-center justify-between mb-2 md:mb-3">
             <div className="flex items-center gap-2">
@@ -1291,8 +1315,10 @@ export const MainContent = () => {
             ))}
           </div>
         </section>
+        </DeferredSection>
 
         {/* Quick Picks */}
+        <DeferredSection>
         <section className="mb-6 md:mb-8 animate-fade-in">
           <h3 className="text-base md:text-lg font-bold text-foreground mb-2 md:mb-3">Quick Picks</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 md:gap-2.5">
@@ -1323,6 +1349,7 @@ export const MainContent = () => {
             ))}
           </div>
         </section>
+        </DeferredSection>
       </div>
 
       {/* Modals */}
