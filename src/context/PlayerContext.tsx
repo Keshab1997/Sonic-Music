@@ -362,7 +362,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const playTrack = useCallback((track: Track) => {
     if (track.type === "youtube") {
-      // For YouTube tracks, set directly and play via ReactPlayer
+      audioRef.current?.pause();
       const existingIdx = trackList.findIndex((t) => t.src === track.src);
       if (existingIdx !== -1) {
         setCurrentIndex(existingIdx);
@@ -372,8 +372,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       setProgress(0);
       setDuration(0);
-      setTimeout(() => setIsPlaying(true), 100);
+      setIsPlaying(false);
+      setTimeout(() => setIsPlaying(true), 300);
     } else {
+      // Switching to audio — stop YouTube first
+      setIsPlaying(false);
       setTrackList((prev) => {
         const idx = prev.findIndex((t) => t.src === track.src);
         if (idx !== -1) {
@@ -385,7 +388,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return newList;
       });
       setProgress(0);
-      setTimeout(() => playAudio(), 100);
+      setTimeout(() => playAudio(), 200);
     }
   }, [playAudio, trackList]);
 
@@ -394,11 +397,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentIndex(index ?? 0);
     setProgress(0);
     setDuration(0);
+    setIsPlaying(false);
     const track = tracks[index ?? 0];
     if (track?.type === "youtube") {
-      setTimeout(() => setIsPlaying(true), 100);
+      audioRef.current?.pause();
+      setTimeout(() => setIsPlaying(true), 300);
     } else {
-      setTimeout(() => playAudio(), 100);
+      setTimeout(() => playAudio(), 200);
     }
   }, [playAudio]);
 
@@ -593,6 +598,26 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
+
+  // When switching FROM youtube TO audio — force audio element to play
+  useEffect(() => {
+    if (!currentTrack) return;
+    if (currentTrack.type !== "youtube" && isPlaying) {
+      // Small delay to let audio src update
+      const t = setTimeout(() => {
+        if (audioRef.current && audioRef.current.paused) {
+          setupAudioContext();
+          if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
+          audioRef.current.play().catch(() => {});
+        }
+      }, 150);
+      return () => clearTimeout(t);
+    }
+    // When switching TO youtube — pause audio element
+    if (currentTrack.type === "youtube") {
+      audioRef.current?.pause();
+    }
+  }, [currentTrack?.src, currentTrack?.type]);
 
   // Reset when track changes
   useEffect(() => {
