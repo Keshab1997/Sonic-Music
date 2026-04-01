@@ -80,6 +80,8 @@ export const MainContent = () => {
   const [bengaliAlbums, setBengaliAlbums] = useState<{ name: string; cover: string; id: string }[]>([]);
   const [horrorPodcast, setHorrorPodcast] = useState<Track[]>([]);
   const [topChartTracks, setTopChartTracks] = useState<Track[]>([]);
+  const [ytTrending, setYtTrending] = useState<Track[]>([]);
+  const [ytLoadingQuery, setYtLoadingQuery] = useState<string | null>(null);
 
   const DISPLAY_COUNT = 8;
   const DISPLAY_COUNT_MOBILE = 5;
@@ -180,6 +182,26 @@ export const MainContent = () => {
       ["bengali horror thriller songs", "bengali dark suspense", "bangla bhooter gaan", "bengali psychological thriller"],
       setHorrorPodcast, 11000, "bengali"
     );
+
+    // YouTube Trending
+    const ytQueries = ["trending music india 2025", "top hindi songs youtube 2025", "viral bengali songs 2025", "bollywood hits youtube"];
+    const ytQ = ytQueries[Math.floor(Math.random() * ytQueries.length)];
+    fetch(`/api/youtube-search?q=${encodeURIComponent(ytQ)}`)
+      .then((r) => r.json())
+      .then((videos: { videoId: string; title: string; author: string; duration: number; thumbnail: string }[]) => {
+        const tracks: Track[] = videos.slice(0, 10).map((v, i) => ({
+          id: 60000 + i,
+          title: v.title,
+          artist: v.author || "YouTube",
+          album: "",
+          cover: v.thumbnail || "",
+          src: `https://www.youtube.com/watch?v=${v.videoId}`,
+          duration: v.duration || 0,
+          type: "youtube" as const,
+          songId: v.videoId,
+        }));
+        setYtTrending(tracks);
+      }).catch(() => {});
   }, []);
 
   function getRandomBatch(allTracks: Track[], count: number): Track[] {
@@ -484,6 +506,28 @@ export const MainContent = () => {
       },
     };
   };
+
+  const handleYtQuickPlay = useCallback(async (query: string) => {
+    setYtLoadingQuery(query);
+    try {
+      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(query)}`);
+      if (!res.ok) return;
+      const videos: { videoId: string; title: string; author: string; duration: number; thumbnail: string }[] = await res.json();
+      const tracks: Track[] = videos.slice(0, 15).map((v, i) => ({
+        id: 61000 + i,
+        title: v.title,
+        artist: v.author || "YouTube",
+        album: "",
+        cover: v.thumbnail || "",
+        src: `https://www.youtube.com/watch?v=${v.videoId}`,
+        duration: v.duration || 0,
+        type: "youtube" as const,
+        songId: v.videoId,
+      }));
+      if (tracks.length > 0) playTrackList(tracks, 0);
+    } catch { /* ignore */ }
+    setYtLoadingQuery(null);
+  }, [playTrackList]);
 
   const playLabelSongs = async (label: MusicLabel, isRefresh = false) => {
     setLoadingLabel(label.name);
@@ -1345,6 +1389,83 @@ export const MainContent = () => {
                   <p className="text-[11px] md:text-xs font-semibold text-foreground truncate">{pick.title}</p>
                   <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{pick.desc}</p>
                 </div>
+              </button>
+            ))}
+          </div>
+        </section>
+        </DeferredSection>
+
+        {/* YouTube Trending */}
+        <DeferredSection>
+        {ytTrending.length > 0 && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">▶️</span>
+                <h3 className="text-base md:text-lg font-bold text-foreground">YouTube Trending</h3>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-600/20 text-red-400 font-bold">YT</span>
+              </div>
+            </div>
+            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {ytTrending.map((track, i) => (
+                <div key={track.src + i} onClick={() => playTrackList(ytTrending, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
+                  <div className="relative mb-1.5 md:mb-2">
+                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
+                        <Play size={14} className="text-white ml-0.5" />
+                      </div>
+                    </div>
+                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-red-600/90 px-1.5 py-0.5 rounded">▶ YT</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                      title="Add to queue"
+                    >
+                      <Plus size={12} className="text-white" />
+                    </button>
+                  </div>
+                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
+                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+        </DeferredSection>
+
+        {/* YouTube Quick Picks */}
+        <DeferredSection>
+        <section className="mb-6 md:mb-8 animate-fade-in">
+          <div className="flex items-center gap-2 mb-2 md:mb-3">
+            <span className="text-base">🎬</span>
+            <h3 className="text-base md:text-lg font-bold text-foreground">YouTube Quick Picks</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {[
+              { title: "Arijit Singh Live", desc: "Top YouTube performances", query: "arijit singh live performance 2024", color: "from-rose-600/20 to-pink-600/10" },
+              { title: "Bangla Hits on YT", desc: "Viral Bengali music videos", query: "viral bangla song 2024 2025", color: "from-green-600/20 to-teal-600/10" },
+              { title: "Bollywood Unplugged", desc: "Acoustic & studio sessions", query: "bollywood unplugged acoustic 2024", color: "from-amber-600/20 to-orange-600/10" },
+              { title: "Lofi Bengali", desc: "Chill Bengali lofi beats", query: "bengali lofi chill music", color: "from-indigo-600/20 to-purple-600/10" },
+            ].map((pick) => (
+              <button
+                key={pick.title}
+                onClick={() => handleYtQuickPlay(pick.query)}
+                disabled={ytLoadingQuery === pick.query}
+                className={`flex items-center gap-3 p-3 md:p-3.5 rounded-xl bg-gradient-to-r ${pick.color} border border-border hover:border-red-500/30 transition-all group cursor-pointer`}
+              >
+                <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg bg-red-600/20 flex items-center justify-center flex-shrink-0 group-hover:bg-red-600/30 transition-colors">
+                  {ytLoadingQuery === pick.query ? (
+                    <div className="w-3 h-3 md:w-3.5 md:h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Play size={14} className="text-red-400" />
+                  )}
+                </div>
+                <div className="text-left min-w-0">
+                  <p className="text-[11px] md:text-xs font-semibold text-foreground truncate">{pick.title}</p>
+                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{pick.desc}</p>
+                </div>
+                <span className="text-[8px] font-bold text-red-400 bg-red-600/10 px-1.5 py-0.5 rounded flex-shrink-0">YT</span>
               </button>
             ))}
           </div>
