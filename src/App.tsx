@@ -13,6 +13,7 @@ import { MainContent } from "@/components/MainContent";
 // Lazy load heavy routes — only download when navigated to
 const DJMixerPage = lazy(() => import("@/components/DJMixerPage").then(m => ({ default: m.DJMixerPage })));
 const SearchPage = lazy(() => import("@/pages/SearchPage"));
+const YoutubeMusicPage = lazy(() => import("@/pages/YoutubeMusicPage"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 const queryClient = new QueryClient();
@@ -48,6 +49,13 @@ const App = () => (
                 <AppShell>
                   <Suspense fallback={<PageLoader />}>
                     <DJMixerPage />
+                  </Suspense>
+                </AppShell>
+              } />
+              <Route path="/youtube" element={
+                <AppShell>
+                  <Suspense fallback={<PageLoader />}>
+                    <YoutubeMusicPage />
                   </Suspense>
                 </AppShell>
               } />

@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Home, Search, Library, Sun, Moon } from "lucide-react";
+import { Home, Search, Library, Sun, Moon, Youtube } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/hooks/useTheme";
 import { SearchOverlay } from "@/components/SearchOverlay";
@@ -8,6 +8,7 @@ import { MobileLibrary } from "@/components/MobileLibrary";
 
 const tabs = [
   { icon: Home, label: "Home", path: "/" },
+  { icon: Youtube, label: "YouTube", path: "/youtube" },
 ];
 
 export const MobileNav = () => {
