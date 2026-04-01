@@ -81,13 +81,16 @@ export const MainContent = () => {
   // Fetch personalized playlists on mount
   useEffect(() => {
     const API = "https://jiosaavn-api-privatecvc2.vercel.app";
-    const fetchSection = async (query: string, setter: (t: Track[]) => void, offset: number, langFilter?: string) => {
+    const fetchSection = async (queries: string[], setter: (t: Track[]) => void, offset: number, langFilter?: string) => {
       try {
-        const res = await fetch(`${API}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=25`);
+        // Pick random query from the list
+        const query = queries[Math.floor(Math.random() * queries.length)];
+        // Random page 1-4 for variety
+        const page = Math.floor(Math.random() * 4) + 1;
+        const res = await fetch(`${API}/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=25`);
         if (!res.ok) return;
         const data = await res.json();
         let songs = data.data?.results || [];
-        // Filter by language if specified
         if (langFilter) {
           songs = songs.filter((s: { language?: string }) => s.language === langFilter);
         }
@@ -113,18 +116,23 @@ export const MainContent = () => {
       } catch { /* skip */ }
     };
 
-    // Bengali hits — filter by bengali language
-    fetchSection("bengali top hits songs", setBengaliHits, 7000, "bengali");
-    fetchSection("bangla gaan arijit anupam", setBengaliHits, 7000, "bengali");
-    // Thriller — Hindi language
-    fetchSection("thriller suspense dark moody hindi songs", setThrillerVibes, 8000, "hindi");
+    // Bengali hits — multiple queries, random pick, random page
+    fetchSection(
+      ["bengali top hits", "bangla gaan arijit", "anupam roy bengali", "bengali modern songs", "bangla adhunik gaan", "kumar sanu bengali", "bengali romantic songs"],
+      setBengaliHits, 7000, "bengali"
+    );
+    // Thriller — multiple queries
+    fetchSection(
+      ["thriller suspense hindi", "dark moody bollywood", "horror bollywood songs", "mystery hindi songs", "bhayanak bollywood"],
+      setThrillerVibes, 8000, "hindi"
+    );
 
     // For You: use top artist from listening history or fallback
     const topArtist = stats.topArtists?.[0]?.artist;
     if (topArtist) {
-      fetchSection(`${topArtist} best songs`, setForYouTracks, 9000);
+      fetchSection([`${topArtist} best songs`, `${topArtist} hits`, `${topArtist} popular`], setForYouTracks, 9000);
     } else {
-      fetchSection("bollywood romantic hits", setForYouTracks, 9000);
+      fetchSection(["bollywood romantic hits", "hindi love songs", "bollywood sad songs", "hindi acoustic"], setForYouTracks, 9000);
     }
   }, []);
 
@@ -176,6 +184,29 @@ export const MainContent = () => {
 
   // Auto-refresh both sections every 30 seconds
   useEffect(() => {
+    const API = "https://jiosaavn-api-privatecvc2.vercel.app";
+
+    const refreshFromAPI = async (queries: string[], setter: (t: Track[]) => void, offset: number, langFilter?: string) => {
+      try {
+        const query = queries[Math.floor(Math.random() * queries.length)];
+        const page = Math.floor(Math.random() * 4) + 1;
+        const res = await fetch(`${API}/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=25`);
+        if (!res.ok) return;
+        const data = await res.json();
+        let songs = data.data?.results || [];
+        if (langFilter) songs = songs.filter((s: { language?: string }) => s.language === langFilter);
+        const tracks = songs
+          .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
+          .map((s: { downloadUrl: { quality: string; link: string }[]; name: string; primaryArtists: string; album?: { name?: string } | string; image: { quality: string; link: string }[]; duration: string | number; id: string }, i: number) => {
+            const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+            const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+            const bestUrl = url160 || url96 || s.downloadUrl?.[0]?.link || "";
+            return { id: offset + i, title: s.name?.replace(/&quot;/g, '"').replace(/&amp;/g, "&") || "Unknown", artist: s.primaryArtists || "Unknown", album: typeof s.album === "string" ? s.album : s.album?.name || "", cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "", src: bestUrl, duration: parseInt(String(s.duration)) || 0, type: "audio" as const, songId: s.id } as Track;
+          });
+        setter(getRandomBatch(tracks, DISPLAY_COUNT));
+      } catch { /* skip */ }
+    };
+
     autoRefreshTimerRef.current = setInterval(() => {
       if (trendingSongs.length > DISPLAY_COUNT) {
         setDisplayedTrending(getRandomBatch(trendingSongs, DISPLAY_COUNT));
@@ -183,6 +214,16 @@ export const MainContent = () => {
       if (newReleases.length > DISPLAY_COUNT) {
         setDisplayedNewReleases(getRandomBatch(newReleases, DISPLAY_COUNT));
       }
+      // Re-fetch personalized sections from API for fresh songs
+      refreshFromAPI(
+        ["bengali top hits", "bangla gaan arijit", "anupam roy bengali", "bengali modern songs", "bangla adhunik gaan", "kumar sanu bengali", "bengali romantic songs"],
+        setBengaliHits, 7000, "bengali"
+      );
+      refreshFromAPI(
+        ["thriller suspense hindi", "dark moody bollywood", "horror bollywood songs", "mystery hindi songs", "bhayanak bollywood"],
+        setThrillerVibes, 8000, "hindi"
+      );
+      refreshFromAPI(["bollywood romantic hits", "hindi love songs", "bollywood sad songs", "hindi acoustic"], setForYouTracks, 9000);
     }, AUTO_REFRESH_MS);
 
     return () => {
