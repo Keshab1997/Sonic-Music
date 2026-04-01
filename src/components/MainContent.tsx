@@ -80,7 +80,8 @@ export const MainContent = () => {
   const [horrorPodcast, setHorrorPodcast] = useState<Track[]>([]);
   const [topChartTracks, setTopChartTracks] = useState<Track[]>([]);
 
-  const DISPLAY_COUNT = 10;
+  const DISPLAY_COUNT = 8;
+  const DISPLAY_COUNT_MOBILE = 5;
 
   // Fetch personalized playlists on mount
   useEffect(() => {
@@ -91,7 +92,7 @@ export const MainContent = () => {
         const query = queries[Math.floor(Math.random() * queries.length)];
         // Random page 1-4 for variety
         const page = Math.floor(Math.random() * 4) + 1;
-        const res = await fetch(`${API}/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=25`);
+        const res = await fetch(`${API}/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=15`);
         if (!res.ok) return;
         const data = await res.json();
         let songs = data.data?.results || [];
@@ -151,7 +152,7 @@ export const MainContent = () => {
             name: a.name,
             cover: a.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || a.image?.[a.image.length - 1]?.link || "",
           }));
-        setBengaliAlbums(albums.slice(0, 12));
+        setBengaliAlbums(albums.slice(0, 8));
         // Charts
         const chartItems = (mod.charts || []).slice(0, 3);
         if (chartItems.length > 0) {
@@ -159,7 +160,7 @@ export const MainContent = () => {
             .then((r) => r.json())
             .then((d) => {
               const songs = d.data?.songs || [];
-              setTopChartTracks(songs.slice(0, 10).map((s: { downloadUrl: { quality: string; link: string }[]; name: string; primaryArtists: string; album?: { name?: string } | string; image: { quality: string; link: string }[]; duration: string | number; id: string }, i: number) => {
+              setTopChartTracks(songs.slice(0, 8).map((s: { downloadUrl: { quality: string; link: string }[]; name: string; primaryArtists: string; album?: { name?: string } | string; image: { quality: string; link: string }[]; duration: string | number; id: string }, i: number) => {
                 const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
                 const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
                 return {
@@ -190,7 +191,7 @@ export const MainContent = () => {
     return shuffled.slice(0, count);
   }
 
-  const AUTO_REFRESH_MS = 30000; // 30 seconds
+  const AUTO_REFRESH_MS = 120000; // 2 minutes (was 30s - too aggressive for mobile)
 
   // Initialize displayed batch when master data arrives (run once per dataset)
   useEffect(() => {
@@ -234,7 +235,7 @@ export const MainContent = () => {
       try {
         const query = queries[Math.floor(Math.random() * queries.length)];
         const page = Math.floor(Math.random() * 4) + 1;
-        const res = await fetch(`${API}/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=25`);
+        const res = await fetch(`${API}/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=15`);
         if (!res.ok) return;
         const data = await res.json();
         let songs = data.data?.results || [];
@@ -545,12 +546,12 @@ export const MainContent = () => {
               className={`absolute inset-0 transition-opacity duration-1000 ${i === carouselIndex ? "opacity-100" : "opacity-0 pointer-events-none"}`}
             >
               <div className="absolute inset-0">
-                <img src={song.cover} alt="" className="w-full h-full object-cover" />
+                <img src={song.cover} alt="" decoding="async" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
               </div>
               <div className="relative h-full flex items-end px-4 md:px-6 pb-4 md:pb-6">
                 <div className="flex items-center gap-3 md:gap-4">
-                  <img src={song.cover} alt="" className="w-12 h-12 md:w-20 md:h-20 rounded-xl shadow-2xl object-cover flex-shrink-0" />
+                  <img src={song.cover} alt="" decoding="async" className="w-12 h-12 md:w-20 md:h-20 rounded-xl shadow-2xl object-cover flex-shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-[9px] md:text-xs text-primary font-medium uppercase tracking-wider mb-0.5">
                       {i === 0 ? "Featured" : `#${i + 1} Trending`}
@@ -859,7 +860,7 @@ export const MainContent = () => {
               </div>
             </div>
             <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {history.slice(0, 12).map((entry, i) => (
+              {history.slice(0, 8).map((entry, i) => (
                 <div
                   key={`${entry.track.src}-${i}`}
                   onClick={() => playTrack(entry.track)}
@@ -895,7 +896,7 @@ export const MainContent = () => {
               </div>
             </div>
             <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {history.slice(0, 8).map((entry, i) => (
+              {history.slice(0, 6).map((entry, i) => (
                 <div key={`${entry.track.src}-${i}`} onClick={() => playTrack(entry.track)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
                   <div className="relative mb-1.5 md:mb-2">
                     <img src={entry.track.cover} alt="" loading="lazy" className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
