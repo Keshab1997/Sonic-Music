@@ -412,9 +412,9 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-start justify-center">
-      <div className="absolute inset-0 bg-black/80" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
-      <div ref={overlayRef} className="relative w-full max-w-2xl mx-auto mt-12 md:mt-20 max-h-[85vh] bg-[#0d0d12] border border-white/10 rounded-2xl overflow-hidden flex flex-col" style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }}>
+      <div ref={overlayRef} className="relative w-full max-w-2xl mx-auto mt-12 md:mt-20 max-h-[85vh] bg-background border border-border rounded-2xl overflow-hidden flex flex-col shadow-2xl">
         {/* Search Bar */}
         <div className="flex items-center gap-2 p-3 md:p-4 border-b border-border">
           <div className="flex-1 relative">
