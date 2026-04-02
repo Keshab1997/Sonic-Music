@@ -182,23 +182,19 @@ export default function YoutubeMusicPage() {
   // Resolve YT track to audio URL then play
   const handlePlay = useCallback(async (clickedTrack: Track, allTracks: Track[], idx: number) => {
     setResolvingIdx(idx);
-    const videoId = clickedTrack.songId || clickedTrack.src.split("v=")[1];
+    const videoId = clickedTrack.songId || clickedTrack.src.split("v=")[1]?.split("&")[0];
     const audioUrl = videoId ? await resolveAudioUrl(videoId) : null;
 
     if (audioUrl) {
-      // Convert all tracks to audio type with resolved URL for clicked, youtube for rest
       const resolvedTrack: Track = {
         ...clickedTrack,
         src: audioUrl,
         type: "audio" as const,
       };
-      // Build playlist: resolved track first, rest as youtube (will resolve on play)
-      const playlist = allTracks.map((t, i) =>
-        i === idx ? resolvedTrack : t
-      );
+      const playlist = allTracks.map((t, i) => i === idx ? resolvedTrack : t);
       playTrackList(playlist, idx);
     } else {
-      // Fallback: play as YouTube via ReactPlayer
+      // Fallback: play via ReactPlayer (YouTube iframe)
       playTrackList(allTracks, idx);
     }
     setResolvingIdx(null);
