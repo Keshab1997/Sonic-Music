@@ -342,7 +342,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
 
       {/* Queue Panel */}
       {openPanel === "queue" && (
-        <div className="fixed bottom-[76px] md:bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-1.5rem)] max-w-80 max-h-[60vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-slide-up">
+        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 z-[101] md:z-50 w-[calc(100vw-1.5rem)] max-w-80 max-h-[60vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-slide-up">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
             <h3 className="text-sm font-bold text-foreground">Queue</h3>
             <div className="flex items-center gap-1.5">
@@ -399,7 +399,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
 
       {/* Sleep Timer Menu */}
       {openPanel === "sleep" && (
-        <div className="fixed bottom-[76px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-20 z-50 w-52 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-20 z-[101] md:z-50 w-52 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <span className="text-sm font-bold text-foreground">Sleep Timer</span>
             <button onClick={() => setOpenPanel(null)} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
@@ -432,7 +432,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
 
       {/* Quality Menu */}
       {openPanel === "quality" && (
-        <div className="fixed bottom-[76px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-36 z-50 w-48 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-36 z-[101] md:z-50 w-48 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <span className="text-sm font-bold text-foreground">Audio Quality</span>
             <button onClick={() => setOpenPanel(null)} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
@@ -458,7 +458,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
 
       {/* Playback Speed Menu */}
       {openPanel === "speed" && (
-        <div className="fixed bottom-[76px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-48 z-50 w-44 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-48 z-[101] md:z-50 w-44 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <span className="text-sm font-bold text-foreground">Playback Speed</span>
             <button onClick={() => setOpenPanel(null)} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
@@ -730,7 +730,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
       {showMobileMenu && (
         <>
           <div className="fixed inset-0 z-40 md:hidden" onClick={() => setShowMobileMenu(false)} />
-          <div className="fixed bottom-[76px] right-3 z-50 md:hidden w-60 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+          <div className="fixed bottom-[124px] right-3 z-[101] md:hidden w-60 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
             {/* Main Actions */}
             <div className="p-1.5">
               <button
@@ -913,7 +913,7 @@ const LyricsPanel = ({
   }, [rawLyrics, isSynced, duration]);
 
   return (
-    <div className="fixed bottom-[60px] md:bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)] max-w-[400px] h-[50vh] md:h-[60vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 z-[101] md:z-50 w-[calc(100vw-2rem)] max-w-[400px] h-[50vh] md:h-[60vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col">
       <div className="flex items-center justify-between p-3 border-b border-border flex-shrink-0">
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-foreground truncate">{title} — Lyrics</h3>
