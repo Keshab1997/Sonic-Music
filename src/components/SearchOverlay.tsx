@@ -123,7 +123,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         if (!res.ok) return;
         const mod = await res.json();
         const trendingRaw = mod.data?.trending?.songs || [];
-        const ids = trendingRaw.slice(0, 10).map((s: { id: string }) => s.id).filter(Boolean);
+        const ids = trendingRaw.slice(0, 20).map((s: { id: string }) => s.id).filter(Boolean);
         if (ids.length > 0) {
           const songRes = await fetch(`${API_BASE}/songs?id=${ids.join(",")}`);
           if (songRes.ok) {
@@ -165,7 +165,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   // Search functions
   const searchSongs = useCallback(async (q: string, lang: string) => {
     try {
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=30`);
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=50`);
       if (!res.ok) return [];
       const json = await res.json();
       let results = json.data?.results || [];
@@ -173,7 +173,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         results = results.filter((s: { language?: string }) => s.language === lang);
       }
       const tracks: Track[] = [];
-      results.slice(0, 20).forEach((s: {
+      results.slice(0, 50).forEach((s: {
         name: string;
         primaryArtists?: string;
         album?: { name: string } | string;
@@ -191,7 +191,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
   const searchAlbums = useCallback(async (q: string) => {
     try {
-      const res = await fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(q)}&page=1&limit=20`);
+      const res = await fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(q)}&page=1&limit=50`);
       if (!res.ok) return [];
       const json = await res.json();
       const results = json.data?.results || [];
@@ -218,7 +218,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
   const searchArtists = useCallback(async (q: string) => {
     try {
-      const res = await fetch(`${API_BASE}/search/artists?query=${encodeURIComponent(q)}&page=1&limit=20`);
+      const res = await fetch(`${API_BASE}/search/artists?query=${encodeURIComponent(q)}&page=1&limit=50`);
       if (!res.ok) return [];
       const json = await res.json();
       const results = json.data?.results || [];
@@ -241,7 +241,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
   const searchPlaylists = useCallback(async (q: string) => {
     try {
-      const res = await fetch(`${API_BASE}/search/playlists?query=${encodeURIComponent(q)}&page=1&limit=20`);
+      const res = await fetch(`${API_BASE}/search/playlists?query=${encodeURIComponent(q)}&page=1&limit=50`);
       if (!res.ok) return [];
       const json = await res.json();
       return (json.data?.results || []).map((p: {
@@ -795,11 +795,11 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                       <span className="text-muted-foreground/50 font-normal">({songResults.length})</span>
                     </h3>
                     <div className="space-y-0.5">
-                      {songResults.slice(0, category === "all" ? 6 : 20).map((track, i) => (
+                      {songResults.slice(0, category === "all" ? 10 : 50).map((track, i) => (
                         <SongRow key={track.src} track={track} tracks={songResults} />
                       ))}
                     </div>
-                    {category === "all" && songResults.length > 6 && (
+                    {category === "all" && songResults.length > 10 && (
                       <button
                         onClick={() => handleCategoryChange("songs")}
                         className="w-full mt-2 py-2 text-xs text-primary hover:text-primary/80 font-medium"
@@ -817,7 +817,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                       <Disc3 size={12} /> Albums
                     </h3>
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                      {albumResults.slice(0, 10).map((album) => (
+                      {albumResults.slice(0, 20).map((album) => (
                         <div
                           key={album.id}
                           onClick={() => fetchAlbumSongs(album.id, album.title)}
@@ -846,7 +846,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                       <User size={12} /> Artists
                     </h3>
                     <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                      {artistResults.slice(0, 10).map((artist) => (
+                      {artistResults.slice(0, 20).map((artist) => (
                         <div
                           key={artist.id}
                           onClick={() => fetchArtistSongs(artist.title)}
