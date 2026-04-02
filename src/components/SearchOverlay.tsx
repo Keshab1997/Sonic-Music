@@ -13,6 +13,17 @@ const DEBOUNCE_MS = 500;
 
 type SearchCategory = "all" | "songs" | "albums" | "artists" | "playlists";
 
+type SearchResult = {
+  name: string;
+  primaryArtists?: string;
+  album?: { name: string } | string;
+  duration?: string | number;
+  image?: { quality: string; link: string }[];
+  downloadUrl?: { quality: string; link: string }[];
+  id: string;
+  language?: string;
+};
+
 const LANGUAGES = [
   { key: "all", label: "All" },
   { key: "bengali", label: "বাংলা" },
