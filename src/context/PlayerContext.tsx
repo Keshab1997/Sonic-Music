@@ -623,13 +623,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentTrack?.type, isPlaying]);
 
-  // Visibility change — resume YouTube when tab becomes visible again
+  // Visibility change — handle YouTube background playback
+  const wasPlayingBeforeHidden = useRef(false);
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === "visible" && currentTrack?.type === "youtube" && isPlaying) {
-        // Force ReactPlayer to resume by toggling isPlaying
+      if (currentTrack?.type !== "youtube") return;
+      
+      if (document.visibilityState === "hidden") {
+        // Save current playing state before hiding
+        wasPlayingBeforeHidden.current = isPlaying;
+      } else if (document.visibilityState === "visible" && wasPlayingBeforeHidden.current) {
+        // Resume playback when tab becomes visible again
         setIsPlaying(false);
-        setTimeout(() => setIsPlaying(true), 300);
+        setTimeout(() => setIsPlaying(true), 100);
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
@@ -788,7 +794,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             width="1"
             height="1"
             playsinline
-            config={{ youtube: { playerVars: { playsinline: 1, origin: window.location.origin } } }}
+            config={{ youtube: { playerVars: { playsinline: 1, origin: window.location.origin, enablejsapi: 1, autoplay: 1 } } }}
             onProgress={({ playedSeconds }) => setProgress(playedSeconds)}
             onDuration={(d) => setDuration(d)}
             onEnded={() => {
