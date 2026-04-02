@@ -1,15 +1,15 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, Play, TrendingUp, Music2, Disc3, User, Loader2, Heart, Clock, MoreHorizontal, ListPlus, PlaySquare, Plus, Check, RefreshCw } from "lucide-react";
+import { Search, X, Play, TrendingUp, Music2, Loader2, Heart, Clock, ListPlus, Plus, RefreshCw, User, Disc3, ListMusic } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useLocalData } from "@/hooks/useLocalData";
 import { usePlaylists } from "@/hooks/usePlaylists";
+import { toast } from "@/hooks/use-toast";
 import { Track } from "@/data/playlist";
 
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
-const DEBOUNCE_MS = 400;
-const YT_API = "/api/youtube-search";
+const DEBOUNCE_MS = 500;
 
 interface SearchResult {
   id: string;
@@ -21,35 +21,52 @@ interface SearchResult {
   album?: string;
   duration?: string;
   downloadUrl?: { quality: string; link: string }[];
+  language?: string;
+  songCount?: string;
 }
 
-interface SearchData {
-  topQuery: { results: SearchResult[] };
-  songs: { results: SearchResult[] };
-  albums: { results: SearchResult[] };
-  artists: { results: SearchResult[] };
-  playlists: { results: SearchResult[] };
-}
+type SearchCategory = "all" | "songs" | "albums" | "artists" | "playlists";
+
+const LANGUAGES = [
+  { key: "all", label: "All" },
+  { key: "bengali", label: "বাংলা" },
+  { key: "hindi", label: "Hindi" },
+  { key: "english", label: "English" },
+  { key: "tamil", label: "Tamil" },
+  { key: "telugu", label: "Telugu" },
+  { key: "punjabi", label: "Punjabi" },
+];
 
 const getImage = (images: { quality: string; link: string }[], prefer = "500x500") =>
   images?.find((img) => img.quality === prefer)?.link ||
   images?.find((img) => img.quality === "150x150")?.link ||
   images?.[images.length - 1]?.link || "";
 
-const toTrack = (s: SearchResult): Track => {
+const parseSongToTrack = (s: {
+  name: string;
+  primaryArtists?: string;
+  album?: { name: string } | string;
+  duration?: string | number;
+  image?: { quality: string; link: string }[];
+  downloadUrl?: { quality: string; link: string }[];
+  id: string;
+  language?: string;
+}, idOffset: number): Track | null => {
   const url96 = s.downloadUrl?.find((d) => d.quality === "96kbps")?.link;
   const url160 = s.downloadUrl?.find((d) => d.quality === "160kbps")?.link;
   const url320 = s.downloadUrl?.find((d) => d.quality === "320kbps")?.link;
   const bestUrl = url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "";
+  if (!bestUrl) return null;
   return {
-    id: parseInt(s.id, 36) || Math.random() * 100000 | 0,
-    title: s.title,
-    artist: s.primaryArtists || s.description || "Unknown",
-    album: s.album || "",
-    cover: getImage(s.image),
+    id: idOffset,
+    title: s.name,
+    artist: s.primaryArtists || "Unknown",
+    album: typeof s.album === "string" ? s.album : s.album?.name || "",
+    cover: s.image?.find((img) => img.quality === "500x500")?.link ||
+           s.image?.find((img) => img.quality === "150x150")?.link || "",
     src: bestUrl,
     duration: parseInt(String(s.duration)) || 0,
-    type: "audio",
+    type: "audio" as const,
     songId: s.id,
     audioUrls: {
       ...(url96 ? { "96kbps": url96 } : {}),
@@ -70,40 +87,47 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<SearchData | null>(null);
+  const [category, setCategory] = useState<SearchCategory>("all");
+  const [langFilter, setLangFilter] = useState("all");
+
+  // Results
   const [songResults, setSongResults] = useState<Track[]>([]);
   const [albumResults, setAlbumResults] = useState<SearchResult[]>([]);
+  const [artistResults, setArtistResults] = useState<SearchResult[]>([]);
+  const [playlistResults, setPlaylistResults] = useState<{ id: string; name: string; image: string; songCount: string }[]>([]);
+  const [topResult, setTopResult] = useState<SearchResult | null>(null);
+
+  // Expanded views
+  const [artistSongs, setArtistSongs] = useState<{ name: string; songs: Track[] } | null>(null);
+  const [artistLoading, setArtistLoading] = useState(false);
+  const [albumSongs, setAlbumSongs] = useState<{ name: string; id: string; songs: Track[] } | null>(null);
+  const [albumLoading, setAlbumLoading] = useState(false);
+
+  // Suggestions
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Trending
   const [trending, setTrending] = useState<Track[]>([]);
   const [trendingLoading, setTrendingLoading] = useState(true);
+
+  // Menu
   const [songMenu, setSongMenu] = useState<string | null>(null);
-  const [songMenuPlSubmenu, setSongMenuPlSubmenu] = useState(false);
+  const [songMenuPl, setSongMenuPl] = useState(false);
   const [newPlName, setNewPlName] = useState("");
-  const [artistSongs, setArtistSongs] = useState<{ name: string; query: string; songs: Track[] } | null>(null);
-  const [artistLoading, setArtistLoading] = useState(false);
-  const [showAllAlbums, setShowAllAlbums] = useState(false);
-  const [albumSongs, setAlbumSongs] = useState<{ name: string; query: string; songs: Track[] } | null>(null);
-  const [albumLoading, setAlbumLoading] = useState(false);
-  const [searchType, setSearchType] = useState<"songs" | "playlists" | "ytmusic">("songs");
-  const [playlistResults, setPlaylistResults] = useState<{ id: string; name: string; image: string; songCount: string }[]>([]);
-  const [playlistLoading, setPlaylistLoading] = useState(false);
-  const [langFilter, setLangFilter] = useState<string>("all");
-  const [ytResults, setYtResults] = useState<Track[]>([]);
-  const [ytLoading, setYtLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
 
-  // Focus input on mount
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 100);
   }, []);
 
-  // Load trending on mount
+  // Load trending
   useEffect(() => {
     const fetchTrending = async () => {
       try {
-        const res = await fetch(`${API_BASE}/modules?language=hindi`);
+        const res = await fetch(`${API_BASE}/modules?language=hindi,bengali,english`);
         if (!res.ok) return;
         const mod = await res.json();
         const trendingRaw = mod.data?.trending?.songs || [];
@@ -112,11 +136,14 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           const songRes = await fetch(`${API_BASE}/songs?id=${ids.join(",")}`);
           if (songRes.ok) {
             const songData = await songRes.json();
-            const songs: SearchResult[] = (songData.data || []).map((s: SearchResult) => ({
+            const songs = (songData.data || []).map((s: SearchResult, i: number) => ({
               ...s,
               downloadUrl: s.downloadUrl || [],
             }));
-            setTrending(songs.map((s, i) => ({ ...toTrack(s), id: 7500 + i })));
+            setTrending(songs.map((s: SearchResult, i: number) => {
+              const track = parseSongToTrack(s, 7500 + i);
+              return track!;
+            }).filter(Boolean));
           }
         }
       } catch { /* ignore */ }
@@ -125,223 +152,191 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     fetchTrending();
   }, []);
 
-  // Real-time search with debounce
-  const doSearch = useCallback(async (q: string, lang?: string) => {
+  // Clear all results
+  const clearResults = () => {
+    setSongResults([]);
+    setAlbumResults([]);
+    setArtistResults([]);
+    setPlaylistResults([]);
+    setTopResult(null);
+    setArtistSongs(null);
+    setAlbumSongs(null);
+  };
+
+  // Search functions
+  const searchSongs = useCallback(async (q: string, lang: string) => {
+    const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=30`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    let results = json.data?.results || [];
+    if (lang !== "all") {
+      results = results.filter((s: { language?: string }) => s.language === lang);
+    }
+    return results.slice(0, 20).map((s: SearchResult, i: number) => parseSongToTrack(s, 8000 + i)).filter(Boolean) as Track[];
+  }, []);
+
+  const searchAlbums = useCallback(async (q: string) => {
+    const res = await fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(q)}&page=1&limit=20`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data?.results || [];
+  }, []);
+
+  const searchArtists = useCallback(async (q: string) => {
+    const res = await fetch(`${API_BASE}/search/artists?query=${encodeURIComponent(q)}&page=1&limit=20`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data?.results || [];
+  }, []);
+
+  const searchPlaylists = useCallback(async (q: string) => {
+    const res = await fetch(`${API_BASE}/search/playlists?query=${encodeURIComponent(q)}&page=1&limit=20`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return (json.data?.results || []).map((p: { id: string; name: string; image: { quality: string; link: string }[]; songCount: string }) => ({
+      id: p.id,
+      name: p.name,
+      image: getImage(p.image),
+      songCount: p.songCount || "0",
+    }));
+  }, []);
+
+  const searchAll = useCallback(async (q: string) => {
+    const res = await fetch(`${API_BASE}/search/all?query=${encodeURIComponent(q)}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data || null;
+  }, []);
+
+  // Main search dispatcher
+  const doSearch = useCallback(async (q: string, cat?: SearchCategory, lang?: string) => {
     if (!q.trim()) {
-      setData(null);
-      setSongResults([]);
-      setAlbumResults([]);
+      clearResults();
       return;
     }
     setLoading(true);
+    const activeCat = cat ?? category;
     const activeLang = lang ?? langFilter;
+
     try {
-      const allRes = fetch(`${API_BASE}/search/all?query=${encodeURIComponent(q)}`);
-      const songRes = fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=50`);
-      const albumRes = fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(q)}&page=1&limit=20`);
-
-      const [allData, songData, albumData] = await Promise.all([allRes, songRes, albumRes]);
-
-      if (allData.ok) {
-        const json = await allData.json();
-        setData(json.data || null);
-      }
-
-      if (albumData.ok) {
-        const json = await albumData.json();
-        setAlbumResults(json.data?.results || []);
-      }
-
-      if (songData.ok) {
-        const json = await songData.json();
-        let results = json.data?.results || [];
-        // Filter by language
-        if (activeLang !== "all") {
-          results = results.filter((s: { language?: string }) => s.language === activeLang);
-        }
-        results = results.slice(0, 20);
-        const tracks: Track[] = results
-          .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
-          .map((s: {
-            name: string;
-            primaryArtists: string;
-            album: { name: string } | string;
-            duration: string | number;
-            image: { quality: string; link: string }[];
-            downloadUrl: { quality: string; link: string }[];
-            id: string;
-          }, i: number) => {
-            const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
-            const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
-            const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
-            const bestUrl = url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "";
-            return {
-              id: 8000 + i,
-              title: s.name,
-              artist: s.primaryArtists || "Unknown",
-              album: typeof s.album === "string" ? s.album : s.album?.name || "",
-              cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
-                     s.image?.find((img: { quality: string }) => img.quality === "150x150")?.link || "",
-              src: bestUrl,
-              duration: parseInt(String(s.duration)) || 0,
-              type: "audio" as const,
-              songId: s.id,
-              audioUrls: {
-                ...(url96 ? { "96kbps": url96 } : {}),
-                ...(url160 ? { "160kbps": url160 } : {}),
-                ...(url320 ? { "320kbps": url320 } : {}),
-              },
-            };
-          });
-        setSongResults(tracks);
+      if (activeCat === "all") {
+        const [allData, songs, albums] = await Promise.all([
+          searchAll(q),
+          searchSongs(q, activeLang),
+          searchAlbums(q),
+        ]);
+        setTopResult(allData?.topQuery?.results?.[0] || null);
+        setArtistResults(allData?.artists?.results || []);
+        setSongResults(songs);
+        setAlbumResults(albums);
+      } else if (activeCat === "songs") {
+        const songs = await searchSongs(q, activeLang);
+        setSongResults(songs);
+        setAlbumResults([]);
+        setArtistResults([]);
+        setTopResult(null);
+      } else if (activeCat === "albums") {
+        const albums = await searchAlbums(q);
+        setAlbumResults(albums);
+        setSongResults([]);
+        setArtistResults([]);
+        setTopResult(null);
+      } else if (activeCat === "artists") {
+        const artists = await searchArtists(q);
+        setArtistResults(artists);
+        setSongResults([]);
+        setAlbumResults([]);
+        setTopResult(null);
+      } else if (activeCat === "playlists") {
+        const pls = await searchPlaylists(q);
+        setPlaylistResults(pls);
+        setSongResults([]);
+        setAlbumResults([]);
+        setArtistResults([]);
+        setTopResult(null);
       }
     } catch { /* ignore */ }
     setLoading(false);
-  }, []);
+  }, [category, langFilter, searchAll, searchSongs, searchAlbums, searchArtists, searchPlaylists]);
 
-  const doPlaylistSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setPlaylistResults([]);
+  // Auto-suggestions
+  const fetchSuggestions = useCallback(async (q: string) => {
+    if (!q.trim() || q.length < 2) {
+      setSuggestions([]);
       return;
     }
-    setPlaylistLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/search/playlists?query=${encodeURIComponent(q)}&page=1&limit=20`);
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=5`);
       if (!res.ok) return;
       const json = await res.json();
       const results = json.data?.results || [];
-      setPlaylistResults(results.map((p: { id: string; name: string; image: { quality: string; link: string }[]; songCount: string }) => ({
-        id: p.id,
-        name: p.name,
-        image: getImage(p.image),
-        songCount: p.songCount || "0",
-      })));
-    } catch { setPlaylistResults([]); }
-    setPlaylistLoading(false);
+      const names = results.map((s: { name: string }) => s.name).filter(Boolean);
+      setSuggestions([...new Set(names)].slice(0, 5) as string[]);
+    } catch { setSuggestions([]); }
   }, []);
 
-  const doYtSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setYtResults([]);
-      return;
-    }
-    setYtLoading(true);
-    try {
-      const res = await fetch(`${YT_API}?q=${encodeURIComponent(q)}`);
-      if (!res.ok) return;
-      const videos = await res.json();
-      const tracks: Track[] = videos.map((v: { videoId: string; title: string; author: string; duration: number; thumbnail: string }, i: number) => ({
-        id: 50000 + i,
-        title: v.title,
-        artist: v.author || "Unknown",
-        album: "",
-        cover: v.thumbnail || "",
-        src: `https://www.youtube.com/watch?v=${v.videoId}`,
-        duration: v.duration || 0,
-        type: "youtube" as const,
-        songId: v.videoId,
-      }));
-      setYtResults(tracks);
-    } catch { setYtResults([]); }
-    setYtLoading(false);
-  }, []);
-
-  const handlePlaylistClick = async (playlistId: string, playlistName: string) => {
-    setPlaylistLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/playlists?id=${playlistId}`);
-      if (!res.ok) return;
-      const json = await res.json();
-      const songs = json.data?.songs || [];
-      const tracks: Track[] = songs
-        .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
-        .map((s: {
-          name: string;
-          primaryArtists: string;
-          album: { name: string } | string;
-          duration: string | number;
-          image: { quality: string; link: string }[];
-          downloadUrl: { quality: string; link: string }[];
-          id: string;
-        }, i: number) => {
-          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
-          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
-          const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
-          const bestUrl = url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "";
-          return {
-            id: 30000 + i,
-            title: s.name,
-            artist: s.primaryArtists || "Unknown",
-            album: typeof s.album === "string" ? s.album : s.album?.name || "",
-            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
-                   s.image?.find((img: { quality: string }) => img.quality === "150x150")?.link || "",
-            src: bestUrl,
-            duration: parseInt(String(s.duration)) || 0,
-            type: "audio" as const,
-            songId: s.id,
-            audioUrls: {
-              ...(url96 ? { "96kbps": url96 } : {}),
-              ...(url160 ? { "160kbps": url160 } : {}),
-              ...(url320 ? { "320kbps": url320 } : {}),
-            },
-          };
-        });
-      if (tracks.length > 0) {
-        playTrackList(tracks, 0);
-        onClose();
+  // Input handler with debounce
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setQuery(val);
+    setShowSuggestions(true);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      if (val.trim()) {
+        doSearch(val);
+        fetchSuggestions(val);
+      } else {
+        clearResults();
+        setSuggestions([]);
       }
-    } catch { /* ignore */ }
-    setPlaylistLoading(false);
+    }, DEBOUNCE_MS);
   };
 
-  const fetchArtistSongs = useCallback(async (artistName: string, refresh = false) => {
+  const handleSuggestionClick = (suggestion: string) => {
+    setQuery(suggestion);
+    setShowSuggestions(false);
+    addToHistory(suggestion);
+    doSearch(suggestion);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && query.trim()) {
+      setShowSuggestions(false);
+      addToHistory(query.trim());
+      doSearch(query.trim());
+    }
+    if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
+  };
+
+  // Category change
+  const handleCategoryChange = (cat: SearchCategory) => {
+    setCategory(cat);
+    clearResults();
+    setArtistSongs(null);
+    setAlbumSongs(null);
+    if (query.trim()) {
+      doSearch(query, cat);
+    }
+  };
+
+  // Fetch artist songs
+  const fetchArtistSongs = async (artistName: string) => {
     setArtistLoading(true);
     try {
-      const page = refresh ? Math.floor(Math.random() * 10) + 1 : 1;
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(artistName)}&page=${page}&limit=20`);
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(artistName)}&page=1&limit=20`);
       if (!res.ok) return;
       const json = await res.json();
-      const results = json.data?.results || [];
-      const tracks: Track[] = results
-        .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
-        .slice(0, 10)
-        .map((s: {
-          name: string;
-          primaryArtists: string;
-          album: { name: string } | string;
-          duration: string | number;
-          image: { quality: string; link: string }[];
-          downloadUrl: { quality: string; link: string }[];
-          id: string;
-        }, i: number) => {
-          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
-          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
-          const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
-          const bestUrl = url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "";
-          return {
-            id: 9000 + i,
-            title: s.name,
-            artist: s.primaryArtists || "Unknown",
-            album: typeof s.album === "string" ? s.album : s.album?.name || "",
-            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
-                   s.image?.find((img: { quality: string }) => img.quality === "150x150")?.link || "",
-            src: bestUrl,
-            duration: parseInt(String(s.duration)) || 0,
-            type: "audio" as const,
-            songId: s.id,
-            audioUrls: {
-              ...(url96 ? { "96kbps": url96 } : {}),
-              ...(url160 ? { "160kbps": url160 } : {}),
-              ...(url320 ? { "320kbps": url320 } : {}),
-            },
-          };
-        });
-      setArtistSongs({ name: artistName, query: artistName, songs: tracks });
+      const results = (json.data?.results || []).filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0);
+      const tracks = results.slice(0, 15).map((s: SearchResult, i: number) => parseSongToTrack(s, 9000 + i)).filter(Boolean) as Track[];
+      setArtistSongs({ name: artistName, songs: tracks });
     } catch { /* ignore */ }
     setArtistLoading(false);
-  }, []);
+  };
 
-  const fetchAlbumSongs = useCallback(async (albumId: string, albumName: string) => {
+  // Fetch album songs
+  const fetchAlbumSongs = async (albumId: string, albumName: string) => {
     setAlbumLoading(true);
     try {
       const res = await fetch(`${API_BASE}/albums?id=${albumId}`);
@@ -350,87 +345,28 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
       const songs = json.data?.songs || [];
       const albumImage = json.data?.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
                          json.data?.image?.find((img: { quality: string }) => img.quality === "150x150")?.link || "";
-      const tracks: Track[] = songs
+      const tracks = songs
         .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
-        .map((s: {
-          name: string;
-          primaryArtists: string;
-          album: { name: string } | string;
-          duration: string | number;
-          image: { quality: string; link: string }[];
-          downloadUrl: { quality: string; link: string }[];
-          id: string;
-        }, i: number) => {
-          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
-          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
-          const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
-          const bestUrl = url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "";
-          const cover = s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
-                        s.image?.find((img: { quality: string }) => img.quality === "150x150")?.link ||
-                        albumImage || "";
-          return {
-            id: 9500 + i,
-            title: s.name,
-            artist: s.primaryArtists || "Unknown",
-            album: typeof s.album === "string" ? s.album : s.album?.name || albumName,
-            cover,
-            src: bestUrl,
-            duration: parseInt(String(s.duration)) || 0,
-            type: "audio" as const,
-            songId: s.id,
-            audioUrls: {
-              ...(url96 ? { "96kbps": url96 } : {}),
-              ...(url160 ? { "160kbps": url160 } : {}),
-              ...(url320 ? { "320kbps": url320 } : {}),
-            },
-          };
-        });
-      setAlbumSongs({ name: albumName, query: albumId, songs: tracks });
+        .map((s: SearchResult, i: number) => {
+          const track = parseSongToTrack(s, 9500 + i);
+          if (track && !track.cover) track.cover = albumImage;
+          if (track && !track.album) track.album = albumName;
+          return track;
+        }).filter(Boolean) as Track[];
+      setAlbumSongs({ name: albumName, id: albumId, songs: tracks });
       if (tracks.length > 0) playTrackList(tracks, 0);
     } catch { /* ignore */ }
     setAlbumLoading(false);
-  }, [playTrackList]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setQuery(val);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      if (searchType === "playlists") {
-        doPlaylistSearch(val);
-      } else if (searchType === "ytmusic") {
-        doYtSearch(val);
-      } else {
-        doSearch(val);
-      }
-      // History is added on Enter key or result click, NOT on every keystroke
-    }, DEBOUNCE_MS);
   };
 
-  // Add to history when user commits a search (Enter key)
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && query.trim()) {
-      addToHistory(query.trim());
-    }
-  };
-
-  const handleSearchTypeChange = (type: "songs" | "playlists" | "ytmusic") => {
-    setSearchType(type);
-    setPlaylistResults([]);
-    setData(null);
-    setSongResults([]);
-    setYtResults([]);
-    setAlbumResults([]);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.trim()) {
-      if (type === "playlists") {
-        doPlaylistSearch(query);
-      } else if (type === "ytmusic") {
-        doYtSearch(query);
-      } else {
-        doSearch(query);
-      }
-    }
+  // Add to queue with toast
+  const handleAddToQueue = (track: Track) => {
+    addToQueue(track);
+    toast({
+      title: "Added to Queue",
+      description: track.title,
+      duration: 2000,
+    });
   };
 
   const handleSongClick = (track: Track, allTracks?: Track[]) => {
@@ -443,15 +379,73 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   };
 
   const isSearchMode = query.trim().length > 0;
-  const hasResults = data && (data.songs?.results?.length > 0 || data.albums?.results?.length > 0 || data.artists?.results?.length > 0);
+  const hasAnyResults = songResults.length > 0 || albumResults.length > 0 || artistResults.length > 0 || playlistResults.length > 0;
+
+  const CATEGORIES: { key: SearchCategory; label: string; icon: React.ReactNode }[] = [
+    { key: "all", label: "All", icon: <Search size={13} /> },
+    { key: "songs", label: "Songs", icon: <Music2 size={13} /> },
+    { key: "albums", label: "Albums", icon: <Disc3 size={13} /> },
+    { key: "artists", label: "Artists", icon: <User size={13} /> },
+    { key: "playlists", label: "Playlists", icon: <ListMusic size={13} /> },
+  ];
+
+  // Song row component for reuse
+  const SongRow = ({ track, tracks, index }: { track: Track; tracks: Track[]; index?: number }) => {
+    const isActive = currentTrack?.src === track.src;
+    const liked = isFavorite(track.src);
+    return (
+      <div
+        key={`${track.src}-${index ?? 0}`}
+        onClick={() => handleSongClick(track, tracks)}
+        className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all group ${
+          isActive ? "bg-primary/10 border border-primary/20" : "hover:bg-accent border border-transparent"
+        }`}
+      >
+        {index !== undefined && (
+          <span className="text-[10px] text-muted-foreground w-5 text-center flex-shrink-0 group-hover:hidden">{index + 1}</span>
+        )}
+        <div className="relative flex-shrink-0">
+          <img src={track.cover} alt="" className={`w-11 h-11 rounded-lg object-cover shadow-sm ${isActive ? "ring-2 ring-primary" : ""}`} />
+          <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+            {isActive && isPlaying ? (
+              <div className="flex items-end gap-0.5">
+                <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" />
+                <span className="w-0.5 h-3 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
+                <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
+              </div>
+            ) : (
+              <Play size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={`text-[13px] font-semibold truncate transition-colors ${isActive ? "text-primary" : "text-foreground group-hover:text-primary"}`}>{track.title}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{track.artist}</p>
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); handleAddToQueue(track); }}
+          className="p-1.5 rounded-full text-muted-foreground/0 group-hover:text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all flex-shrink-0"
+          title="Add to Queue"
+        >
+          <Plus size={16} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
+          className={`p-1.5 rounded-full transition-all flex-shrink-0 ${liked ? "text-red-500" : "text-muted-foreground/0 group-hover:text-muted-foreground hover:text-red-500"}`}
+        >
+          <Heart size={14} fill={liked ? "currentColor" : "none"} />
+        </button>
+      </div>
+    );
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-start justify-center">
       <div className="absolute inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl mx-auto mt-4 md:mt-16 max-h-[90vh] bg-background border border-border rounded-2xl overflow-hidden flex flex-col shadow-2xl">
 
-      <div ref={overlayRef} className="relative w-full max-w-2xl mx-auto mt-8 md:mt-20 max-h-[85vh] bg-background border border-border rounded-2xl overflow-hidden flex flex-col shadow-2xl">
         {/* Search Bar */}
-        <div className="flex items-center gap-2 p-3 md:p-4 border-b border-border">
+        <div className="flex items-center gap-2 p-3 md:p-4 border-b border-border flex-shrink-0">
           <div className="flex-1 relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -460,91 +454,85 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
               value={query}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Search for songs, artists, albums..."
-              className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-card border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              onFocus={() => query.length >= 2 && setShowSuggestions(true)}
+              placeholder="Search songs, artists, albums..."
+              className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-card border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
             />
             {query && (
               <button
-                onClick={() => { setQuery(""); setData(null); setSongResults([]); setPlaylistResults([]); inputRef.current?.focus(); }}
+                onClick={() => { setQuery(""); clearResults(); setSuggestions([]); inputRef.current?.focus(); }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 <X size={14} />
               </button>
             )}
+
+            {/* Auto-suggestions dropdown */}
+            {showSuggestions && suggestions.length > 0 && !loading && (
+              <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSuggestionClick(s)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-foreground hover:bg-accent transition-colors text-left"
+                  >
+                    <Search size={13} className="text-muted-foreground flex-shrink-0" />
+                    <span className="truncate">{s}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground flex-shrink-0 md:hidden">
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground flex-shrink-0">
             <X size={20} />
           </button>
         </div>
 
-        {/* Search Type Filters */}
-        <div className="flex items-center gap-2 px-3 md:px-4 pb-2 flex-wrap">
-          <button
-            onClick={() => handleSearchTypeChange("songs")}
-            className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
-              searchType === "songs"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Songs
-          </button>
-          <button
-            onClick={() => handleSearchTypeChange("playlists")}
-            className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
-              searchType === "playlists"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Podcasts & Playlists
-          </button>
-          <button
-            onClick={() => handleSearchTypeChange("ytmusic")}
-            className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
-              searchType === "ytmusic"
-                ? "bg-red-600 text-white"
-                : "bg-muted text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            YTMusic
-          </button>
+        {/* Category Tabs */}
+        <div className="flex items-center gap-1.5 px-3 md:px-4 py-2 border-b border-border overflow-x-auto scrollbar-hide flex-shrink-0">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat.key}
+              onClick={() => handleCategoryChange(cat.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full font-medium whitespace-nowrap transition-all ${
+                category === cat.key
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-muted text-muted-foreground hover:text-foreground hover:bg-accent"
+              }`}
+            >
+              {cat.icon}
+              {cat.label}
+            </button>
+          ))}
 
-          {/* Language chips — only show in songs mode */}
-          {searchType === "songs" && (
-            <>
-              <span className="text-muted-foreground/30 mx-1">|</span>
-              {[
-                { key: "all", label: "All" },
-                { key: "bengali", label: "Bangla" },
-                { key: "hindi", label: "Hindi" },
-                { key: "english", label: "English" },
-              ].map((lang) => (
-                <button
-                  key={lang.key}
-                  onClick={() => {
-                    setLangFilter(lang.key);
-                    if (query.trim()) doSearch(query, lang.key);
-                  }}
-                  className={`px-2.5 py-1 text-[10px] rounded-full font-medium transition-colors ${
-                    langFilter === lang.key
-                      ? "bg-primary/20 text-primary border border-primary/30"
-                      : "bg-muted/50 text-muted-foreground hover:text-foreground border border-transparent"
-                  }`}
-                >
-                  {lang.label}
-                </button>
-              ))}
-            </>
-          )}
+          {/* Language filter */}
+          <span className="text-muted-foreground/30 mx-0.5 flex-shrink-0">|</span>
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+            {LANGUAGES.map((lang) => (
+              <button
+                key={lang.key}
+                onClick={() => {
+                  setLangFilter(lang.key);
+                  if (query.trim()) doSearch(query, category, lang.key);
+                }}
+                className={`px-2 py-1 text-[10px] rounded-full font-medium whitespace-nowrap transition-colors ${
+                  langFilter === lang.key
+                    ? "bg-primary/20 text-primary border border-primary/30"
+                    : "text-muted-foreground hover:text-foreground border border-transparent"
+                }`}
+              >
+                {lang.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Loading — skeleton placeholders */}
-        {(loading || playlistLoading || ytLoading) && (
-          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-2">
+        {/* Loading */}
+        {loading && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 animate-pulse">
-                <div className="w-11 h-11 rounded bg-muted flex-shrink-0" />
+                <div className="w-11 h-11 rounded-lg bg-muted flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="h-3 bg-muted rounded w-3/4 mb-1.5" />
                   <div className="h-2 bg-muted/60 rounded w-1/2" />
@@ -555,596 +543,276 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-3 md:p-4">
-          {/* Default: Trending + History */}
-          {!isSearchMode && !loading && (
-            <>
-              {/* Search History */}
-              {searchHistory.length > 0 && (
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                      <Clock size={13} />
-                      Recent Searches
-                    </div>
-                    <button onClick={clearHistory} className="text-[10px] text-muted-foreground hover:text-destructive">Clear</button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {searchHistory.slice(0, 8).map((h) => (
-                      <div key={h} className="flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full bg-card border border-border hover:bg-accent transition-colors">
-                        <button onClick={() => { setQuery(h); doSearch(h); }} className="text-xs text-foreground">{h}</button>
-                        <button onClick={() => removeHistoryItem(h)} className="p-0.5 text-muted-foreground hover:text-destructive"><X size={10} /></button>
+        {!loading && (
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 pb-28" onClick={() => setShowSuggestions(false)}>
+            {/* Default: Trending + History */}
+            {!isSearchMode && (
+              <>
+                {searchHistory.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                        <Clock size={13} /> Recent
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Trending */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <TrendingUp size={16} className="text-primary" />
-                  <h3 className="text-sm font-bold text-foreground">Trending Now</h3>
-                </div>
-                {trendingLoading && (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 size={20} className="animate-spin text-primary" />
+                      <button onClick={clearHistory} className="text-[10px] text-muted-foreground hover:text-destructive">Clear</button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {searchHistory.slice(0, 8).map((h) => (
+                        <div key={h} className="flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full bg-card border border-border hover:bg-accent transition-colors">
+                          <button onClick={() => { setQuery(h); addToHistory(h); doSearch(h); }} className="text-xs text-foreground">{h}</button>
+                          <button onClick={() => removeHistoryItem(h)} className="p-0.5 text-muted-foreground hover:text-destructive"><X size={10} /></button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
-                {!trendingLoading && trending.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">No trending songs</p>
-                )}
-                {trending.map((track, i) => {
-                  const isActive = currentTrack?.src === track.src;
-                  return (
-                    <div
-                      key={track.src}
-                      onClick={() => handleSongClick(track, trending)}
-                      className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${
-                        isActive ? "bg-primary/10" : "hover:bg-accent"
-                      }`}
-                    >
-                      <span className="text-[10px] text-muted-foreground w-5 text-center flex-shrink-0">{i + 1}</span>
-                      <div className="relative flex-shrink-0">
-                        <img src={track.cover} alt="" className="w-10 h-10 rounded object-cover" />
-                        <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                          <Play size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-medium truncate ${isActive ? "text-primary" : "text-foreground"}`}>{track.title}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
 
-          {/* Search Results */}
-          {isSearchMode && !loading && searchType === "songs" && (
-            <>
-              {!hasResults && songResults.length === 0 && (
-                <div className="text-center py-12">
-                  <Search size={32} className="mx-auto text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground">No results for "{query}"</p>
-                </div>
-              )}
-
-              {/* Top Result */}
-              {data?.topQuery?.results?.length > 0 && !artistSongs && (
-                <div className="mb-6">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Top Result</h3>
-                  {(() => {
-                    const top = data.topQuery.results[0];
-                    const isArtist = top.type === "artist";
-                    return (
-                      <div
-                        onClick={() => {
-                          if (isArtist) {
-                            fetchArtistSongs(top.title);
-                          } else if (songResults.length > 0) {
-                            handleSongClick(songResults[0], songResults);
-                          }
-                        }}
-                        className="p-4 rounded-xl bg-card border border-border hover:border-primary/30 cursor-pointer transition-all group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <img src={getImage(top.image)} alt="" className={`w-16 h-16 object-cover ${isArtist ? "rounded-full" : "rounded-lg"}`} />
-                            <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                              <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
-                                <Play size={16} className="text-primary-foreground ml-0.5" />
-                              </div>
-                            </div>
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-base font-bold text-foreground truncate">{top.title}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{top.type}</p>
-                            {top.description && <p className="text-[10px] text-muted-foreground/60 truncate mt-0.5">{top.description}</p>}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* Artist Songs List */}
-              {artistSongs && (
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{artistSongs.name} — Songs</h3>
-                    <button onClick={() => setArtistSongs(null)} className="text-[10px] text-muted-foreground hover:text-foreground">
-                      <X size={14} />
-                    </button>
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <TrendingUp size={16} className="text-primary" />
+                    <h3 className="text-sm font-bold text-foreground">Trending Now</h3>
                   </div>
-                  {artistLoading && (
-                    <div className="flex items-center justify-center py-6">
+                  {trendingLoading && (
+                    <div className="flex items-center justify-center py-8">
                       <Loader2 size={20} className="animate-spin text-primary" />
                     </div>
                   )}
-                  {!artistLoading && artistSongs.songs.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-4">No songs found</p>
-                  )}
-                  {!artistLoading && artistSongs.songs.map((track) => {
-                    const isActive = currentTrack?.src === track.src;
-                    const liked = isFavorite(track.src);
-                    return (
-                      <div
-                        key={track.src}
-                        onClick={() => handleSongClick(track, artistSongs.songs)}
-                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${
-                          isActive ? "bg-primary/10" : "hover:bg-accent"
-                        }`}
-                      >
-                        <div className="relative flex-shrink-0">
-                          <img src={track.cover} alt="" className={`w-10 h-10 rounded object-cover ${isActive ? "ring-1 ring-primary" : ""}`} />
-                          <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                            {isActive && isPlaying ? (
-                              <div className="flex items-end gap-0.5">
-                                <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" />
-                                <span className="w-0.5 h-3 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
-                                <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
-                              </div>
-                            ) : (
-                              <Play size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-medium truncate ${isActive ? "text-primary" : "text-foreground"}`}>{track.title}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                        </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
-                          className={`p-1.5 rounded-full transition-colors ${liked ? "text-red-500" : "text-muted-foreground/0 group-hover:text-muted-foreground"}`}
-                        >
-                          <Heart size={13} fill={liked ? "currentColor" : "none"} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                  {!artistLoading && artistSongs.songs.length > 0 && (
-                    <button
-                      onClick={() => fetchArtistSongs(artistSongs.name, true)}
-                      className="w-full mt-3 py-2 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <RefreshCw size={13} /> Refresh Songs
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Songs */}
-              {songResults.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Songs</h3>
-                  <div className="space-y-0.5">
-                    {songResults.slice(0, 8).map((track) => {
-                      const isActive = currentTrack?.src === track.src;
-                      const liked = isFavorite(track.src);
-                      return (
-                        <div
-                          key={track.src}
-                          onClick={() => handleSongClick(track, songResults)}
-                          className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${
-                            isActive ? "bg-primary/10" : "hover:bg-accent"
-                          }`}
-                        >
-                          <div className="relative flex-shrink-0">
-                            <img src={track.cover} alt="" className={`w-10 h-10 rounded object-cover ${isActive ? "ring-1 ring-primary" : ""}`} />
-                            <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                              {isActive && isPlaying ? (
-                                <div className="flex items-end gap-0.5">
-                                  <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" />
-                                  <span className="w-0.5 h-3 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
-                                  <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
-                                </div>
-                              ) : (
-                                <Play size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs font-medium truncate ${isActive ? "text-primary" : "text-foreground"}`}>{track.title}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                          </div>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
-                            className={`p-1.5 rounded-full transition-colors ${liked ? "text-red-500" : "text-muted-foreground/0 group-hover:text-muted-foreground"}`}
-                          >
-                            <Heart size={13} fill={liked ? "currentColor" : "none"} />
-                          </button>
-                          <div className="relative">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setSongMenu(songMenu === track.src ? null : track.src); setSongMenuPlSubmenu(false); }}
-                              className="p-1.5 text-muted-foreground/0 group-hover:text-muted-foreground hover:text-foreground rounded-full transition-colors"
-                            >
-                              <MoreHorizontal size={13} />
-                            </button>
-                            {songMenu === track.src && (
-                              <>
-                                <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setSongMenu(null); setSongMenuPlSubmenu(false); }} />
-                                <div className="absolute right-0 top-full mt-1 z-50 w-44 glass-heavy border border-border rounded-lg shadow-2xl overflow-hidden">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); playNext(track); setSongMenu(null); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-foreground hover:bg-accent"
-                                  >
-                                    <PlaySquare size={13} /> Play Next
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); addToQueue(track); setSongMenu(null); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-foreground hover:bg-accent"
-                                  >
-                                    <ListPlus size={13} /> Add to Queue
-                                  </button>
-                                  <div className="border-t border-border" />
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setSongMenuPlSubmenu(!songMenuPlSubmenu); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-foreground hover:bg-accent"
-                                  >
-                                    <Plus size={13} /> Add to Playlist
-                                  </button>
-                                  {songMenuPlSubmenu && (
-                                    <div className="border-t border-border max-h-32 overflow-y-auto">
-                                      {playlists.map((pl) => (
-                                        <button
-                                          key={pl.id}
-                                          onClick={(e) => { e.stopPropagation(); addToPlaylist(pl.id, track); setSongMenu(null); setSongMenuPlSubmenu(false); }}
-                                          className="w-full text-left px-5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent truncate"
-                                        >
-                                          {pl.name}
-                                        </button>
-                                      ))}
-                                      {playlists.length === 0 && <p className="px-5 py-1.5 text-[10px] text-muted-foreground/50">No playlists</p>}
-                                      <div className="flex items-center gap-1 px-3 py-1.5 border-t border-border">
-                                        <input
-                                          type="text"
-                                          value={newPlName}
-                                          onChange={(e) => setNewPlName(e.target.value)}
-                                          onKeyDown={(e) => {
-                                            if (e.key === "Enter" && newPlName.trim()) {
-                                              const pl = createPlaylist(newPlName.trim());
-                                              addToPlaylist(pl.id, track);
-                                              setNewPlName("");
-                                              setSongMenu(null);
-                                              setSongMenuPlSubmenu(false);
-                                            }
-                                          }}
-                                          placeholder="New..."
-                                          className="flex-1 text-[10px] px-2 py-1 rounded bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none"
-                                        />
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Albums */}
-              {albumResults.length > 0 && !albumSongs && (
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Albums</h3>
-                    <button onClick={() => setShowAllAlbums(!showAllAlbums)} className="text-[10px] text-primary hover:text-primary/80 font-medium">
-                      {showAllAlbums ? "Show Less" : "View All"}
-                    </button>
-                  </div>
-                  <div className={`${showAllAlbums ? "grid grid-cols-3 md:grid-cols-4 gap-3" : "flex gap-3 overflow-x-auto pb-1 scrollbar-hide"}`}>
-                    {(showAllAlbums ? albumResults : albumResults.slice(0, 6)).map((album) => (
-                      <div
-                        key={album.id}
-                        onClick={() => fetchAlbumSongs(album.id, album.title)}
-                        className={`${showAllAlbums ? "" : "flex-shrink-0"} w-28 md:w-32 group cursor-pointer`}
-                      >
-                        <div className="relative mb-1.5">
-                          <img src={getImage(album.image)} alt="" className="w-28 h-28 md:w-32 md:h-32 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                          <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
-                              <Play size={14} className="text-primary-foreground ml-0.5" />
-                            </div>
-                          </div>
-                        </div>
-                        <p className="text-[11px] font-medium text-foreground truncate">{album.title}</p>
-                        <p className="text-[9px] text-muted-foreground truncate">{album.description || "Album"}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Album Songs List */}
-              {albumSongs && (
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{albumSongs.name} — Songs</h3>
-                    <button onClick={() => setAlbumSongs(null)} className="text-[10px] text-muted-foreground hover:text-foreground">
-                      <X size={14} />
-                    </button>
-                  </div>
-                  {albumLoading && (
-                    <div className="flex items-center justify-center py-6">
-                      <Loader2 size={20} className="animate-spin text-primary" />
-                    </div>
-                  )}
-                  {!albumLoading && albumSongs.songs.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-4">No songs found</p>
-                  )}
-                  {!albumLoading && albumSongs.songs.map((track) => {
-                    const isActive = currentTrack?.src === track.src;
-                    const liked = isFavorite(track.src);
-                    return (
-                      <div
-                        key={track.src}
-                        onClick={() => handleSongClick(track, albumSongs.songs)}
-                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${
-                          isActive ? "bg-primary/10" : "hover:bg-accent"
-                        }`}
-                      >
-                        <div className="relative flex-shrink-0">
-                          <img src={track.cover} alt="" className={`w-10 h-10 rounded object-cover ${isActive ? "ring-1 ring-primary" : ""}`} />
-                          <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                            {isActive && isPlaying ? (
-                              <div className="flex items-end gap-0.5">
-                                <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" />
-                                <span className="w-0.5 h-3 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
-                                <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
-                              </div>
-                            ) : (
-                              <Play size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-medium truncate ${isActive ? "text-primary" : "text-foreground"}`}>{track.title}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                        </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
-                          className={`p-1.5 rounded-full transition-colors ${liked ? "text-red-500" : "text-muted-foreground/0 group-hover:text-muted-foreground"}`}
-                        >
-                          <Heart size={13} fill={liked ? "currentColor" : "none"} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                  {!albumLoading && albumSongs.songs.length > 0 && (
-                    <button
-                      onClick={() => fetchAlbumSongs(albumSongs.query, albumSongs.name)}
-                      className="w-full mt-3 py-2 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <RefreshCw size={13} /> Refresh Songs
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Artists */}
-              {data?.artists?.results?.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Artists</h3>
-                  <div className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide">
-                    {data.artists.results.slice(0, 6).map((artist) => (
-                      <div
-                        key={artist.id}
-                        onClick={() => { setQuery(artist.title); doSearch(artist.title); }}
-                        className="flex-shrink-0 flex flex-col items-center gap-1.5 group cursor-pointer"
-                      >
-                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden">
-                          <img src={getImage(artist.image)} alt={artist.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                        </div>
-                        <p className="text-[10px] md:text-xs text-foreground text-center w-16 md:w-20 truncate">{artist.title}</p>
-                        <p className="text-[8px] text-muted-foreground">Artist</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Playlist Results */}
-          {isSearchMode && searchType === "playlists" && !playlistLoading && (
-            <>
-              {playlistResults.length === 0 ? (
-                <div className="text-center py-12">
-                  <Search size={32} className="mx-auto text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground">No playlists found for "{query}"</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {playlistResults.map((pl) => (
-                    <button
-                      key={pl.id}
-                      onClick={() => handlePlaylistClick(pl.id, pl.name)}
-                      className="flex flex-col items-center gap-2 p-3 rounded-xl bg-card hover:bg-accent transition-colors group text-center"
-                    >
-                      <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-muted">
-                        {pl.image ? (
-                          <img src={pl.image} alt={pl.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" loading="lazy" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <PlaySquare size={32} className="text-muted-foreground/30" />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                          <Play size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      </div>
-                      <div className="min-w-0 w-full">
-                        <p className="text-xs font-semibold text-foreground truncate">{pl.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{pl.songCount} songs</p>
-                      </div>
-                    </button>
+                  {trending.map((track, i) => (
+                    <SongRow key={track.src} track={track} tracks={trending} index={i} />
                   ))}
                 </div>
-              )}
-            </>
-          )}
+              </>
+            )}
 
-          {/* YTMusic Results */}
-          {isSearchMode && searchType === "ytmusic" && !ytLoading && (
-            <>
-              {ytResults.length === 0 ? (
-                <div className="text-center py-12">
-                  <Search size={32} className="mx-auto text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground">No YouTube results for "{query}"</p>
-                </div>
-              ) : (
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm text-muted-foreground">{ytResults.length} results from YouTube</p>
-                    <button
-                      onClick={() => playTrackList(ytResults, 0)}
-                      className="text-xs px-3 py-1.5 rounded-full bg-red-600/10 text-red-500 hover:bg-red-600/20 transition-colors"
-                    >
-                      Play All
-                    </button>
+            {/* Search Results */}
+            {isSearchMode && (
+              <>
+                {!hasAnyResults && (
+                  <div className="text-center py-12">
+                    <Search size={32} className="mx-auto text-muted-foreground/30 mb-3" />
+                    <p className="text-sm text-muted-foreground">No results for "{query}"</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Try a different search term</p>
                   </div>
-                  <div className="space-y-0.5">
-                    {ytResults.map((track) => {
-                      const isActive = currentTrack?.src === track.src;
-                      const liked = isFavorite(track.src);
-                      return (
-                        <div
-                          key={track.src}
-                          onClick={() => handleSongClick(track, ytResults)}
-                          className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${
-                            isActive ? "bg-red-600/10" : "hover:bg-accent"
-                          }`}
-                        >
-                          <div className="relative flex-shrink-0">
-                            <img src={track.cover} alt="" width={40} height={40} className={`w-10 h-10 rounded object-cover ${isActive ? "ring-1 ring-red-500" : ""}`} />
-                            <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                              {isActive && isPlaying ? (
-                                <div className="flex items-end gap-0.5">
-                                  <span className="w-0.5 h-2 bg-red-500 rounded-full animate-pulse-glow" />
-                                  <span className="w-0.5 h-3 bg-red-500 rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
-                                  <span className="w-0.5 h-2 bg-red-500 rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
-                                </div>
-                              ) : (
-                                <Play size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                              )}
+                )}
+
+                {/* Top Result (All category) */}
+                {category === "all" && topResult && !artistSongs && (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Top Result</h3>
+                    <div
+                      onClick={() => {
+                        if (topResult.type === "artist") {
+                          fetchArtistSongs(topResult.title);
+                        } else if (topResult.type === "album") {
+                          fetchAlbumSongs(topResult.id, topResult.title);
+                        } else if (songResults.length > 0) {
+                          handleSongClick(songResults[0], songResults);
+                        }
+                      }}
+                      className="p-4 rounded-xl bg-card border border-border hover:border-primary/30 cursor-pointer transition-all group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <img src={getImage(topResult.image)} alt="" className={`w-16 h-16 object-cover ${topResult.type === "artist" ? "rounded-full" : "rounded-lg"}`} />
+                          <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                            <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                              <Play size={16} className="text-primary-foreground ml-0.5" />
                             </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs font-medium truncate ${isActive ? "text-red-500" : "text-foreground"}`}>{track.title}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                          </div>
-                          <span className="text-[9px] text-red-500/60 font-medium flex-shrink-0">YT</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-base font-bold text-foreground truncate">{topResult.title}</p>
+                          <p className="text-xs text-muted-foreground capitalize flex items-center gap-1">
+                            {topResult.type === "artist" && <User size={11} />}
+                            {topResult.type === "album" && <Disc3 size={11} />}
+                            {topResult.type === "song" && <Music2 size={11} />}
+                            {topResult.type}
+                          </p>
+                          {topResult.description && <p className="text-[10px] text-muted-foreground/60 truncate mt-0.5">{topResult.description}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Artist Songs expanded */}
+                {artistSongs && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <User size={12} /> {artistSongs.name}
+                      </h3>
+                      <button onClick={() => setArtistSongs(null)} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    {artistLoading ? (
+                      <div className="flex items-center justify-center py-6"><Loader2 size={20} className="animate-spin text-primary" /></div>
+                    ) : (
+                      <>
+                        {artistSongs.songs.map((track, i) => <SongRow key={track.src} track={track} tracks={artistSongs.songs} />)}
+                        {artistSongs.songs.length > 0 && (
                           <button
-                            onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
-                            className={`p-1.5 rounded-full transition-colors ${liked ? "text-red-500" : "text-muted-foreground/0 group-hover:text-muted-foreground"}`}
+                            onClick={() => fetchArtistSongs(artistSongs.name)}
+                            className="w-full mt-3 py-2 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
                           >
-                            <Heart size={13} fill={liked ? "currentColor" : "none"} />
+                            <RefreshCw size={13} /> Refresh
                           </button>
-                          <div className="relative">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setSongMenu(songMenu === track.src ? null : track.src); setSongMenuPlSubmenu(false); }}
-                              className="p-1.5 text-muted-foreground/0 group-hover:text-muted-foreground hover:text-foreground rounded-full transition-colors"
-                            >
-                              <MoreHorizontal size={13} />
-                            </button>
-                            {songMenu === track.src && (
-                              <>
-                                <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setSongMenu(null); setSongMenuPlSubmenu(false); }} />
-                                <div className="absolute right-0 top-full mt-1 z-50 w-44 glass-heavy border border-border rounded-lg shadow-2xl overflow-hidden">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); playNext(track); setSongMenu(null); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-foreground hover:bg-accent"
-                                  >
-                                    <PlaySquare size={13} /> Play Next
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); addToQueue(track); setSongMenu(null); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-foreground hover:bg-accent"
-                                  >
-                                    <ListPlus size={13} /> Add to Queue
-                                  </button>
-                                  <div className="border-t border-border" />
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setSongMenuPlSubmenu(!songMenuPlSubmenu); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-foreground hover:bg-accent"
-                                  >
-                                    <Plus size={13} /> Add to Playlist
-                                  </button>
-                                  {songMenuPlSubmenu && (
-                                    <div className="border-t border-border max-h-32 overflow-y-auto">
-                                      {playlists.map((pl) => (
-                                        <button
-                                          key={pl.id}
-                                          onClick={(e) => { e.stopPropagation(); addToPlaylist(pl.id, track); setSongMenu(null); setSongMenuPlSubmenu(false); }}
-                                          className="w-full text-left px-5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent truncate"
-                                        >
-                                          {pl.name}
-                                        </button>
-                                      ))}
-                                      {playlists.length === 0 && <p className="px-5 py-1.5 text-[10px] text-muted-foreground/50">No playlists</p>}
-                                      <div className="flex items-center gap-1 px-3 py-1.5 border-t border-border">
-                                        <input
-                                          type="text"
-                                          value={newPlName}
-                                          onChange={(e) => setNewPlName(e.target.value)}
-                                          onKeyDown={(e) => {
-                                            if (e.key === "Enter" && newPlName.trim()) {
-                                              const pl = createPlaylist(newPlName.trim());
-                                              addToPlaylist(pl.id, track);
-                                              setNewPlName("");
-                                              setSongMenu(null);
-                                              setSongMenuPlSubmenu(false);
-                                            }
-                                          }}
-                                          placeholder="New..."
-                                          className="flex-1 text-[10px] px-2 py-1 rounded bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none"
-                                        />
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Album Songs expanded */}
+                {albumSongs && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <Disc3 size={12} /> {albumSongs.name}
+                      </h3>
+                      <button onClick={() => setAlbumSongs(null)} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    {albumLoading ? (
+                      <div className="flex items-center justify-center py-6"><Loader2 size={20} className="animate-spin text-primary" /></div>
+                    ) : (
+                      albumSongs.songs.map((track, i) => <SongRow key={track.src} track={track} tracks={albumSongs.songs} />)
+                    )}
+                  </div>
+                )}
+
+                {/* Songs */}
+                {songResults.length > 0 && !artistSongs && (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <Music2 size={12} /> Songs
+                      <span className="text-muted-foreground/50 font-normal">({songResults.length})</span>
+                    </h3>
+                    <div className="space-y-0.5">
+                      {songResults.slice(0, category === "all" ? 6 : 20).map((track, i) => (
+                        <SongRow key={track.src} track={track} tracks={songResults} />
+                      ))}
+                    </div>
+                    {category === "all" && songResults.length > 6 && (
+                      <button
+                        onClick={() => handleCategoryChange("songs")}
+                        className="w-full mt-2 py-2 text-xs text-primary hover:text-primary/80 font-medium"
+                      >
+                        Show all {songResults.length} songs
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Albums */}
+                {albumResults.length > 0 && !albumSongs && (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <Disc3 size={12} /> Albums
+                    </h3>
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                      {albumResults.slice(0, 10).map((album) => (
+                        <div
+                          key={album.id}
+                          onClick={() => fetchAlbumSongs(album.id, album.title)}
+                          className="flex-shrink-0 w-28 group cursor-pointer"
+                        >
+                          <div className="relative mb-1.5">
+                            <img src={getImage(album.image)} alt="" className="w-28 h-28 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
+                            <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                              <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                                <Play size={14} className="text-primary-foreground ml-0.5" />
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-[11px] font-medium text-foreground truncate">{album.title}</p>
+                          <p className="text-[9px] text-muted-foreground truncate">{album.description || "Album"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Artists */}
+                {artistResults.length > 0 && !artistSongs && (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <User size={12} /> Artists
+                    </h3>
+                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                      {artistResults.slice(0, 10).map((artist) => (
+                        <div
+                          key={artist.id}
+                          onClick={() => fetchArtistSongs(artist.title)}
+                          className="flex-shrink-0 flex flex-col items-center gap-1.5 group cursor-pointer"
+                        >
+                          <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-primary/30 transition-all">
+                            <img src={getImage(artist.image)} alt={artist.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                          </div>
+                          <p className="text-[10px] md:text-xs text-foreground text-center w-16 md:w-20 truncate font-medium">{artist.title}</p>
+                          <p className="text-[8px] text-muted-foreground">Artist</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Playlists */}
+                {category === "playlists" && playlistResults.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <ListMusic size={12} /> Playlists
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {playlistResults.map((pl) => (
+                        <div
+                          key={pl.id}
+                          onClick={() => {
+                            fetch(`${API_BASE}/playlists?id=${pl.id}`)
+                              .then(r => r.json())
+                              .then(json => {
+                                const songs = (json.data?.songs || [])
+                                  .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
+                                  .map((s: SearchResult, i: number) => parseSongToTrack(s, 30000 + i))
+                                  .filter(Boolean) as Track[];
+                                if (songs.length > 0) {
+                                  playTrackList(songs, 0);
+                                  onClose();
+                                }
+                              })
+                              .catch(() => {});
+                          }}
+                          className="flex flex-col items-center gap-2 p-3 rounded-xl bg-card hover:bg-accent transition-colors group cursor-pointer"
+                        >
+                          <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-muted">
+                            {pl.image ? (
+                              <img src={pl.image} alt={pl.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" loading="lazy" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <ListMusic size={24} className="text-muted-foreground/30" />
+                              </div>
                             )}
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                              <Play size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </div>
+                          <div className="min-w-0 w-full">
+                            <p className="text-xs font-semibold text-foreground truncate">{pl.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{pl.songCount} songs</p>
                           </div>
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>,
     document.body
   );
 };
-
