@@ -3,6 +3,9 @@ import React, { createContext, useContext, useState, useRef, useCallback, useEff
 import { Track, playlist } from "@/data/playlist";
 import ReactPlayer from "react-player";
 
+// Silent audio data URI to keep audio session alive on mobile
+const SILENT_AUDIO = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+
 export type AudioQuality = "96kbps" | "160kbps" | "320kbps";
 
 interface PlayerContextType {
@@ -110,6 +113,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const sleepEndTimeRef = useRef<number | null>(null);
 
   const audioRef = useRef<HTMLAudioElement>(null!);
+  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
   const ytPlayerRef = useRef<ReactPlayer>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -599,6 +603,39 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
+  // Silent audio loop to keep audio session alive on mobile (for YouTube background play)
+  useEffect(() => {
+    const silent = new Audio(SILENT_AUDIO);
+    silent.loop = true;
+    silent.volume = 0.001;
+    silentAudioRef.current = silent;
+    return () => { silent.pause(); };
+  }, []);
+
+  // Start/stop silent audio based on YouTube playback
+  useEffect(() => {
+    const silent = silentAudioRef.current;
+    if (!silent) return;
+    if (currentTrack?.type === "youtube" && isPlaying) {
+      silent.play().catch(() => {});
+    } else {
+      silent.pause();
+    }
+  }, [currentTrack?.type, isPlaying]);
+
+  // Visibility change — resume YouTube when tab becomes visible again
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && currentTrack?.type === "youtube" && isPlaying) {
+        // Force ReactPlayer to resume by toggling isPlaying
+        setIsPlaying(false);
+        setTimeout(() => setIsPlaying(true), 300);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [currentTrack?.type, isPlaying]);
+
   // When switching FROM youtube TO audio — force audio element to play
   useEffect(() => {
     if (!currentTrack) return;
@@ -750,6 +787,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             volume={volume}
             width="1"
             height="1"
+            playsinline
+            config={{ youtube: { playerVars: { playsinline: 1, origin: window.location.origin } } }}
             onProgress={({ playedSeconds }) => setProgress(playedSeconds)}
             onDuration={(d) => setDuration(d)}
             onEnded={() => {
