@@ -200,15 +200,19 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         name?: string;
         title?: string;
         image?: { quality: string; link: string }[];
-        description?: string;
+        description?: string | { text?: string };
         primaryArtists?: string;
-      }) => ({
-        id: a.id,
-        title: a.name || a.title || "",
-        image: a.image || [],
-        description: a.description || a.primaryArtists || "",
-        type: "album" as const,
-      }));
+      }) => {
+        const desc = a.description;
+        const descStr = typeof desc === 'string' ? desc : (typeof desc === 'object' && desc !== null && 'text' in desc ? String((desc as { text?: string }).text || "") : "");
+        return {
+          id: a.id,
+          title: a.name || a.title || "",
+          image: a.image || [],
+          description: descStr || a.primaryArtists || "",
+          type: "album" as const,
+        };
+      });
     } catch { return []; }
   }, []);
 
@@ -223,13 +227,13 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         name?: string;
         title?: string;
         image?: { quality: string; link: string }[];
-        description?: string;
+        description?: string | { text?: string };
         role?: string;
       }) => ({
         id: a.id,
         title: a.name || a.title || "",
         image: a.image || [],
-        description: a.description || a.role || "",
+        description: typeof a.description === 'string' ? a.description : (typeof a.role === 'string' ? a.role : ""),
         type: "artist" as const,
       }));
     } catch { return []; }
@@ -281,22 +285,26 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           searchAlbums(q),
         ]);
         const top = allData?.topQuery?.results?.[0];
+        const topDesc = top?.description;
         setTopResult(top ? {
           id: top.id || "",
           title: top.title || top.name || "",
           image: top.image || [],
           type: top.type || "song",
-          description: top.description || "",
+          description: typeof topDesc === 'string' ? topDesc : (typeof topDesc === 'object' && topDesc !== null && 'text' in topDesc ? String((topDesc as { text?: string }).text || "") : ""),
         } : null);
         const artists = (allData?.artists?.results || []).map((a: {
           id: string;
           name?: string;
           title?: string;
           image?: { quality: string; link: string }[];
+          description?: string | { text?: string };
+          role?: string;
         }) => ({
           id: a.id,
           title: a.name || a.title || "",
           image: a.image || [],
+          description: typeof a.description === 'string' ? a.description : (typeof a.role === 'string' ? a.role : ""),
           type: "artist" as const,
         }));
         setArtistResults(artists);
@@ -724,7 +732,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                             {topResult.type === "song" && <Music2 size={11} />}
                             {topResult.type}
                           </p>
-                          {topResult.description && <p className="text-[10px] text-muted-foreground/60 truncate mt-0.5">{topResult.description}</p>}
+                          {topResult.description && typeof topResult.description === 'string' && <p className="text-[10px] text-muted-foreground/60 truncate mt-0.5">{topResult.description}</p>}
                         </div>
                       </div>
                     </div>
@@ -824,7 +832,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                             </div>
                           </div>
                           <p className="text-[11px] font-medium text-foreground truncate">{album.title}</p>
-                          <p className="text-[9px] text-muted-foreground truncate">{album.description || "Album"}</p>
+                          <p className="text-[9px] text-muted-foreground truncate">{typeof album.description === 'string' ? album.description : "Album"}</p>
                         </div>
                       ))}
                     </div>
