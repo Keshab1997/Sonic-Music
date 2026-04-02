@@ -240,7 +240,7 @@ export default function YoutubeMusicPage() {
       {/* Header */}
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border px-4 md:px-6 pt-4 pb-3">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center flex-shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
             <Play size={16} className="text-white ml-0.5" fill="white" />
           </div>
           <div>
@@ -255,7 +255,7 @@ export default function YoutubeMusicPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search songs, artists, albums..."
-            className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/20 transition-all"
+            className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
           />
           {query && (
             <button onClick={() => setQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -275,7 +275,7 @@ export default function YoutubeMusicPage() {
                 onClick={() => handleCategoryClick(cat)}
                 className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                   activeCategory.label === cat.label
-                    ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
+                    ? "bg-primary text-white shadow-lg shadow-primary/30"
                     : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                 }`}
               >
@@ -291,21 +291,21 @@ export default function YoutubeMusicPage() {
           <div className="flex items-center gap-2">
             {isSearchMode ? (
               <>
-                <Search size={15} className="text-red-400" />
+                <Search size={15} className="text-primary" />
                 <h2 className="text-sm font-bold text-foreground">"{query}"</h2>
               </>
             ) : (
               <>
                 <span className="text-base">{activeCategory.emoji}</span>
                 <h2 className="text-sm font-bold text-foreground">{activeCategory.label}</h2>
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-600/20 text-red-400 font-bold">YT</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold">YT</span>
               </>
             )}
           </div>
           {tracks.length > 0 && (
             <button
               onClick={() => handlePlay(tracks[0], tracks, 0)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-white text-xs font-medium hover:bg-primary/80 transition-colors"
             >
               <Play size={11} fill="currentColor" /> Play All
             </button>
@@ -315,8 +315,8 @@ export default function YoutubeMusicPage() {
         {/* Initial Loading */}
         {loading && (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <div className="w-10 h-10 rounded-full bg-red-600/20 flex items-center justify-center">
-              <Loader2 size={20} className="text-red-400 animate-spin" />
+            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+              <Loader2 size={20} className="text-primary animate-spin" />
             </div>
             <p className="text-sm text-muted-foreground">Loading from YouTube...</p>
           </div>
@@ -341,7 +341,7 @@ export default function YoutubeMusicPage() {
                 onClick={() => handlePlay(track, tracks, i)}
                 className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all group ${
                   isTrackPlaying(track)
-                    ? "bg-red-600/10 border border-red-600/20"
+                    ? "bg-primary/10 border border-primary/20"
                     : resolvingIdx === i ? "bg-muted/40" : "hover:bg-muted/60"
                 }`}
               >
@@ -358,10 +358,10 @@ export default function YoutubeMusicPage() {
                       <Play size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity ml-0.5" />
                     )}
                   </div>
-                  <span className="absolute bottom-0.5 right-0.5 text-[7px] font-bold text-white bg-red-600 px-1 py-0.5 rounded leading-none">YT</span>
+                  <span className="absolute bottom-0.5 right-0.5 text-[7px] font-bold text-white bg-primary px-1 py-0.5 rounded leading-none">YT</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium truncate ${isTrackPlaying(track) ? "text-red-400" : "text-foreground"}`}>
+                  <p className={`text-sm font-medium truncate ${isTrackPlaying(track) ? "text-primary" : "text-foreground"}`}>
                     {track.title}
                   </p>
                   <p className="text-[11px] text-muted-foreground truncate">{track.artist}</p>
@@ -375,7 +375,7 @@ export default function YoutubeMusicPage() {
                   {/* Desktop: hover visible, Mobile: always visible */}
                   <button
                     onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
-                    className="w-8 h-8 rounded-full bg-muted hover:bg-red-600/20 flex items-center justify-center transition-colors md:opacity-0 md:group-hover:opacity-100"
+                    className="w-8 h-8 rounded-full bg-muted hover:bg-primary/20 flex items-center justify-center transition-colors md:opacity-0 md:group-hover:opacity-100"
                     title="Add to queue"
                   >
                     <Plus size={14} className="text-muted-foreground" />
@@ -395,7 +395,7 @@ export default function YoutubeMusicPage() {
             <div ref={bottomRef} className="py-2 flex justify-center">
               {loadingMore && (
                 <div className="flex items-center gap-2 text-muted-foreground text-xs py-3">
-                  <Loader2 size={14} className="animate-spin text-red-400" />
+                  <Loader2 size={14} className="animate-spin text-primary" />
                   <span>Loading more...</span>
                 </div>
               )}
@@ -410,14 +410,14 @@ export default function YoutubeMusicPage() {
         {!isSearchMode && !loading && (
           <div className="mt-6 mb-4">
             <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
-              <Music2 size={15} className="text-red-400" /> Quick Picks
+              <Music2 size={15} className="text-primary" /> Quick Picks
             </h3>
             <div className="grid grid-cols-2 gap-2">
               {QUICK_PICKS.map((pick) => (
                 <button
                   key={pick.label}
                   onClick={() => handleCategoryClick({ label: pick.label, emoji: pick.emoji, query: pick.query })}
-                  className="flex items-center gap-2.5 p-3 rounded-xl bg-muted hover:bg-muted/70 border border-border hover:border-red-500/30 transition-all text-left"
+                  className="flex items-center gap-2.5 p-3 rounded-xl bg-muted hover:bg-muted/70 border border-border hover:border-primary/30 transition-all text-left"
                 >
                   <span className="text-xl">{pick.emoji}</span>
                   <div className="min-w-0">
@@ -445,7 +445,7 @@ export default function YoutubeMusicPage() {
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground truncate">{menuTrack.title}</p>
                 <p className="text-xs text-muted-foreground truncate">{menuTrack.artist}</p>
-                <span className="text-[9px] font-bold text-red-400 bg-red-600/10 px-1.5 py-0.5 rounded">YouTube</span>
+                <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">YouTube</span>
               </div>
             </div>
             {/* Actions */}
@@ -454,8 +454,8 @@ export default function YoutubeMusicPage() {
                 onClick={() => { handlePlay(menuTrack, tracks, tracks.findIndex(t => t.src === menuTrack.src)); setMenuTrack(null); }}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left"
               >
-                <div className="w-8 h-8 rounded-full bg-red-600/20 flex items-center justify-center">
-                  <Play size={15} className="text-red-400 ml-0.5" />
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Play size={15} className="text-primary ml-0.5" />
                 </div>
                 <span className="text-sm font-medium text-foreground">Play Now</span>
               </button>
