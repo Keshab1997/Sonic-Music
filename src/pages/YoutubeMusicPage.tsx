@@ -40,10 +40,10 @@ const toTrack = (v: YTVideo, offset: number, i: number): Track => ({
 const resolveAudioUrl = async (videoId: string): Promise<string | null> => {
   if (streamCache.has(videoId)) return streamCache.get(videoId)!;
   
-  // Method 1: Try backend API first
+  // Try backend API
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const timer = setTimeout(() => ctrl.abort(), 6000);
     const res = await fetch(`${YT_STREAM_API}?id=${videoId}`, { signal: ctrl.signal }).catch(() => null);
     clearTimeout(timer);
     if (res && res.ok) {
@@ -55,45 +55,7 @@ const resolveAudioUrl = async (videoId: string): Promise<string | null> => {
     }
   } catch { /* silent */ }
 
-  // Method 2: Client-side YouTube InnerTube API fallback
-  try {
-    const payload = {
-      videoId,
-      context: {
-        client: {
-          hl: "en",
-          clientName: "ANDROID",
-          clientVersion: "19.09.37",
-          androidSdkVersion: 30,
-        }
-      }
-    };
-    const ctrl2 = new AbortController();
-    const timer2 = setTimeout(() => ctrl2.abort(), 5000);
-    const res = await fetch("https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: ctrl2.signal
-    }).catch(() => null);
-    clearTimeout(timer2);
-    if (res && res.ok) {
-      const json = await res.json().catch(() => null);
-      if (json?.streamingData?.adaptiveFormats) {
-        // Find audio-only format (itag 140 = AAC 128kbps, 139 = AAC 48kbps)
-        const audioFormat = json.streamingData.adaptiveFormats.find(
-          (f: { itag: number; url?: string }) => f.itag === 140 && f.url
-        ) || json.streamingData.adaptiveFormats.find(
-          (f: { mimeType?: string; url?: string }) => f.mimeType?.startsWith("audio/") && f.url
-        );
-        if (audioFormat?.url) {
-          streamCache.set(videoId, audioFormat.url);
-          return audioFormat.url;
-        }
-      }
-    }
-  } catch { /* silent */ }
-
+  // If backend fails, return null to use ReactPlayer fallback
   return null;
 };
 
@@ -267,7 +229,7 @@ export default function YoutubeMusicPage() {
       const playlist = allTracks.map((t, i) => i === idx ? resolvedTrack : t);
       playTrackList(playlist, idx);
     } else {
-      // Fallback: play via ReactPlayer (YouTube iframe) - always works
+      // Fallback: play via ReactPlayer (YouTube iframe) - always works but may have restrictions
       const youtubeTrack = {
         ...clickedTrack,
         type: "youtube" as const,
