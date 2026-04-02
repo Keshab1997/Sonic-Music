@@ -97,7 +97,7 @@ export const FullScreenPlayer = ({
 
   return (
     <div
-      className="fixed inset-0 z-[60] animate-slide-up"
+      className="fixed inset-0 z-[110] animate-slide-up bg-background"
       style={swipeOffset > 0 ? { transform: `translateY(${swipeOffset}px)` } : undefined}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}

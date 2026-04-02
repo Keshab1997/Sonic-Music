@@ -14,6 +14,7 @@ import { MainContent } from "@/components/MainContent";
 const DJMixerPage = lazy(() => import("@/components/DJMixerPage").then(m => ({ default: m.DJMixerPage })));
 const SearchPage = lazy(() => import("@/pages/SearchPage"));
 const YoutubeMusicPage = lazy(() => import("@/pages/YoutubeMusicPage"));
+const LikedSongsPage = lazy(() => import("@/pages/LikedSongsPage").then(m => ({ default: m.LikedSongsPage })));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 const queryClient = new QueryClient();
@@ -56,6 +57,13 @@ const App = () => (
                 <AppShell>
                   <Suspense fallback={<PageLoader />}>
                     <YoutubeMusicPage />
+                  </Suspense>
+                </AppShell>
+              } />
+              <Route path="/liked" element={
+                <AppShell>
+                  <Suspense fallback={<PageLoader />}>
+                    <LikedSongsPage />
                   </Suspense>
                 </AppShell>
               } />

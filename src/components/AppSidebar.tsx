@@ -6,6 +6,7 @@ import { usePlayer } from "@/context/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { usePlaylists } from "@/hooks/usePlaylists";
 import { useArtistFavorites } from "@/hooks/useArtistFavorites";
+import { useLocalData } from "@/hooks/useLocalData";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { ArtistPlaylist } from "@/components/ArtistPlaylist";
 import { Link, useLocation } from "react-router-dom";
@@ -20,6 +21,7 @@ export const AppSidebar = () => {
   const { theme, toggleTheme } = useTheme();
   const { playlists, createPlaylist, deletePlaylist, renamePlaylist } = usePlaylists();
   const { favorites: artistFavorites, removeFavorite: removeArtistFav } = useArtistFavorites();
+  const { favorites: likedSongs } = useLocalData();
   const location = useLocation();
 
   const [showCreateInput, setShowCreateInput] = useState(false);
@@ -132,10 +134,16 @@ export const AppSidebar = () => {
         )}
 
         {/* Liked Songs */}
-        <button className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors">
-          <Heart size={18} />
+        <Link
+          to="/liked"
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors group"
+        >
+          <Heart size={18} className={likedSongs.length > 0 ? "text-red-500" : ""} fill={likedSongs.length > 0 ? "currentColor" : "none"} />
           <span className="text-sm font-medium">Liked Songs</span>
-        </button>
+          {likedSongs.length > 0 && (
+            <span className="ml-auto text-xs text-muted-foreground group-hover:text-foreground">({likedSongs.length})</span>
+          )}
+        </Link>
 
         {/* Saved Artists */}
         {artistFavorites.length > 0 && (

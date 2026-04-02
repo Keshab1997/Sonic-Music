@@ -6,6 +6,8 @@ export const KEYBOARD_SHORTCUTS = [
   { key: "Space", description: "Play / Pause" },
   { key: "→", description: "Next track" },
   { key: "←", description: "Previous track" },
+  { key: "Shift + →", description: "Forward 10s" },
+  { key: "Shift + ←", description: "Backward 10s" },
   { key: "↑", description: "Volume up" },
   { key: "↓", description: "Volume down" },
   { key: "M", description: "Mute / Unmute" },
@@ -22,7 +24,7 @@ export const useKeyboardShortcuts = (callbacks?: {
   onLike?: () => void;
   onShowShortcuts?: () => void;
 }) => {
-  const { togglePlay, next, prev, setVolume, volume, toggleShuffle, toggleRepeat, seek, progress } = usePlayer();
+  const { togglePlay, next, prev, setVolume, volume, toggleShuffle, toggleRepeat, seek, progress, duration } = usePlayer();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -35,11 +37,17 @@ export const useKeyboardShortcuts = (callbacks?: {
           togglePlay();
           break;
         case "ArrowRight":
-          if (e.shiftKey) { seek(Math.min(progress + 10, 9999)); }
+          if (e.shiftKey) { 
+            e.preventDefault();
+            seek(Math.min(progress + 10, duration || progress + 10)); 
+          }
           else { e.preventDefault(); next(); }
           break;
         case "ArrowLeft":
-          if (e.shiftKey) { seek(Math.max(progress - 10, 0)); }
+          if (e.shiftKey) { 
+            e.preventDefault();
+            seek(Math.max(progress - 10, 0)); 
+          }
           else { e.preventDefault(); prev(); }
           break;
         case "ArrowUp":
@@ -77,6 +85,6 @@ export const useKeyboardShortcuts = (callbacks?: {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [togglePlay, next, prev, setVolume, volume, toggleShuffle, toggleRepeat, seek, progress, callbacks]);
+  }, [togglePlay, next, prev, setVolume, volume, toggleShuffle, toggleRepeat, seek, progress, duration, callbacks]);
 };
 

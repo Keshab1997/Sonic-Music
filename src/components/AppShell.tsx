@@ -21,6 +21,7 @@ export const AppShell = ({ children }: AppShellProps) => {
   const { gradient } = useCoverGradient(currentTrack?.cover);
   const [showMiniPlayer, setShowMiniPlayer] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showPlaylist, setShowPlaylist] = useState(false);
   const isOffline = useOffline();
 
   // MediaSession for lock screen / bluetooth controls
@@ -63,10 +64,12 @@ export const AppShell = ({ children }: AppShellProps) => {
       <div className={`relative flex-1 min-w-0 flex flex-col overflow-x-hidden z-10 ${isOffline ? "pt-8" : ""}`}>
         {children}
       </div>
-      <MobileNav />
+      <MobileNav onClosePlaylist={() => setShowPlaylist(false)} />
       <BottomPlayer
         onShowMiniPlayer={() => setShowMiniPlayer(true)}
         onShowEqualizer={() => {}}
+        showPlaylist={showPlaylist}
+        setShowPlaylist={setShowPlaylist}
       />
 
       {/* Mini Player */}

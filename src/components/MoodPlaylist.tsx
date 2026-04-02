@@ -1,8 +1,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { X, Play, Loader2, Shuffle, Music2 } from "lucide-react";
+import { X, Play, Loader2, Shuffle, Music2, RefreshCw, ListPlus } from "lucide-react";
 import { Track } from "@/data/playlist";
 import { usePlayer } from "@/context/PlayerContext";
+import { toast } from "@/hooks/use-toast";
 
 interface MoodPlaylistProps {
   moodName: string;
@@ -64,10 +65,12 @@ const parseSong = (s: {
 };
 
 export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }: MoodPlaylistProps) => {
-  const { playTrackList } = usePlayer();
+  const { playTrackList, addToQueue } = usePlayer();
   const [songs, setSongs] = useState<Track[]>([]);
+  const [allFetchedSongs, setAllFetchedSongs] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -107,6 +110,13 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
         if (track) newTracks.push(track);
       });
 
+      // Store all fetched songs for refresh functionality
+      if (append) {
+        setAllFetchedSongs((prev) => [...prev, ...newTracks]);
+      } else {
+        setAllFetchedSongs(newTracks);
+      }
+
       // Daily shuffle only for first page
       const tracksToSet = pageNum === 1 ? dailyShuffle(newTracks) : newTracks;
 
@@ -129,6 +139,50 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
   useEffect(() => {
     fetchSongs(1, false);
   }, [fetchSongs]);
+
+  // Refresh with new shuffled songs (infinite shuffle)
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    
+    if (allFetchedSongs.length === 0) {
+      setRefreshing(false);
+      return;
+    }
+
+    // Create a truly random shuffle using current timestamp as seed
+    const randomShuffle = <T,>(arr: T[]): T[] => {
+      const shuffled = [...arr];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    };
+
+    // Shuffle all fetched songs and take up to 20
+    const shuffled = randomShuffle(allFetchedSongs);
+    const newSongs = shuffled.slice(0, Math.min(20, shuffled.length));
+    
+    // Update displayed songs
+    setSongs(newSongs);
+    
+    setRefreshing(false);
+    
+    // Scroll to top
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [allFetchedSongs]);
+
+  // Add all current songs to queue
+  const handleAddToQueue = useCallback(() => {
+    songs.forEach(track => addToQueue(track));
+    toast({
+      title: "Added to Queue",
+      description: `${songs.length} ${songs.length === 1 ? 'song' : 'songs'} added to your queue`,
+      duration: 3000,
+    });
+  }, [songs, addToQueue]);
 
   // Infinite scroll
   useEffect(() => {
@@ -175,12 +229,31 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
               </div>
               <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
                 {songs.length > 0 && (
-                  <button
-                    onClick={() => playTrackList(songs, 0)}
-                    className="px-3 md:px-4 py-1.5 md:py-2 text-[10px] md:text-xs rounded-full bg-white/20 backdrop-blur-sm text-white font-medium hover:bg-white/30 transition-all"
-                  >
-                    Play All
-                  </button>
+                  <>
+                    <button
+                      onClick={handleAddToQueue}
+                      className="px-2 md:px-3 py-1.5 md:py-2 text-[10px] md:text-xs rounded-full bg-white/20 backdrop-blur-sm text-white font-medium hover:bg-white/30 transition-all flex items-center gap-1"
+                      title="Add to Queue"
+                    >
+                      <ListPlus size={14} />
+                      <span className="hidden md:inline">Queue</span>
+                    </button>
+                    <button
+                      onClick={handleRefresh}
+                      disabled={refreshing || allFetchedSongs.length === 0}
+                      className="px-2 md:px-3 py-1.5 md:py-2 text-[10px] md:text-xs rounded-full bg-white/20 backdrop-blur-sm text-white font-medium hover:bg-white/30 transition-all flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Refresh songs"
+                    >
+                      <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+                      <span className="hidden md:inline">Refresh</span>
+                    </button>
+                    <button
+                      onClick={() => playTrackList(songs, 0)}
+                      className="px-3 md:px-4 py-1.5 md:py-2 text-[10px] md:text-xs rounded-full bg-white/20 backdrop-blur-sm text-white font-medium hover:bg-white/30 transition-all"
+                    >
+                      Play All
+                    </button>
+                  </>
                 )}
                 <button onClick={onClose} className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
                   <X size={18} />
@@ -191,7 +264,7 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
         </div>
 
         {/* Song List */}
-        <div ref={scrollRef} className="overflow-y-auto flex-1 p-3 space-y-0.5">
+        <div ref={scrollRef} className="overflow-y-auto flex-1 p-3 pb-6 space-y-0.5">
           {loading && (
             <div className="flex items-center justify-center py-12">
               <Loader2 size={28} className="animate-spin text-primary" />
@@ -246,16 +319,27 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-border flex items-center justify-between">
+        <div className="p-3 border-t border-border flex items-center justify-between flex-shrink-0">
           <span className="text-xs text-muted-foreground">{songs.length} songs loaded</span>
-          {songs.length > 0 && (
-            <button
-              onClick={() => playTrackList(songs, 0)}
-              className="px-4 py-1.5 text-xs rounded-full bg-primary text-primary-foreground font-medium hover:brightness-110 transition-all"
-            >
-              Play All
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {songs.length > 0 && (
+              <>
+                <button
+                  onClick={handleAddToQueue}
+                  className="px-3 py-1.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20 font-medium hover:bg-primary/20 transition-all flex items-center gap-1.5"
+                >
+                  <ListPlus size={14} />
+                  Add to Queue
+                </button>
+                <button
+                  onClick={() => playTrackList(songs, 0)}
+                  className="px-4 py-1.5 text-xs rounded-full bg-primary text-primary-foreground font-medium hover:brightness-110 transition-all"
+                >
+                  Play All
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

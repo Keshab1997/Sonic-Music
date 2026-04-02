@@ -37,6 +37,7 @@ import { Equalizer } from "@/components/Equalizer";
 import { SyncedLyrics } from "@/components/SyncedLyrics";
 import { parseLyrics } from "@/lib/lyricsParser";
 import { fetchLyrics } from "@/lib/lyricsFetcher";
+import { toast } from "@/hooks/use-toast";
 
 const formatTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -55,9 +56,11 @@ const SLEEP_OPTIONS = [15, 30, 45, 60, 90, 120];
 interface BottomPlayerProps {
   onShowMiniPlayer?: () => void;
   onShowEqualizer?: () => void;
+  showPlaylist?: boolean;
+  setShowPlaylist?: (show: boolean) => void;
 }
 
-export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayerProps = {}) => {
+export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: externalShowPlaylist, setShowPlaylist: externalSetShowPlaylist }: BottomPlayerProps = {}) => {
   const {
     currentTrack,
     isPlaying,
@@ -103,7 +106,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
-  const [showPlaylist, setShowPlaylist] = useState(false);
+  const [internalShowPlaylist, setInternalShowPlaylist] = useState(false);
   const [showFullScreen, setShowFullScreen] = useState(false);
   const [showEqualizer, setShowEqualizer] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -111,6 +114,10 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
   const [songMenu, setSongMenu] = useState<number | null>(null);
   const [songMenuPlSubmenu, setSongMenuPlSubmenu] = useState(false);
   const [newPlName, setNewPlName] = useState("");
+
+  // Use external state if provided, otherwise use internal state
+  const showPlaylist = externalShowPlaylist !== undefined ? externalShowPlaylist : internalShowPlaylist;
+  const setShowPlaylist = externalSetShowPlaylist || setInternalShowPlaylist;
 
   const handleSavePlaylist = () => {
     if (tracks.length === 0) return;
@@ -120,16 +127,26 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
     setTimeout(() => setSavedPlaylist(false), 2000);
   };
 
+  const handleAddAllToQueue = () => {
+    if (tracks.length === 0) return;
+    tracks.forEach(track => addToQueue(track));
+    toast({
+      title: "Added to Queue",
+      description: `${tracks.length} ${tracks.length === 1 ? 'song' : 'songs'} added to your queue`,
+      duration: 3000,
+    });
+  };
+
   if (!currentTrack) return null;
 
   return (
     <>
       {/* Full Playlist Panel */}
       {showPlaylist && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-4">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center md:items-center md:p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPlaylist(false)} />
-          <div className="relative w-full md:max-w-lg md:max-h-[85vh] max-h-[80vh] glass-heavy border border-border md:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-border">
+          <div className="relative w-full h-full md:h-auto md:max-w-lg md:max-h-[85vh] glass-heavy border-t md:border border-border md:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-border flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Now Playing</h2>
@@ -137,37 +154,45 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={handleAddAllToQueue}
+                    disabled={tracks.length === 0}
+                    className="px-3 py-1.5 text-xs rounded-full font-medium transition-all flex items-center gap-1.5 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Add all to queue"
+                  >
+                    <ListPlus size={13} /> Add to Queue
+                  </button>
+                  <button
                     onClick={handleSavePlaylist}
                     disabled={tracks.length === 0 || savedPlaylist}
                     className={`px-3 py-1.5 text-xs rounded-full font-medium transition-all flex items-center gap-1.5 ${
                       savedPlaylist
                         ? "bg-green-500/20 text-green-400 border border-green-500/30"
                         : "bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20"
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    {savedPlaylist ? <><Check size={13} /> Saved</> : <><Save size={13} /> Save Playlist</>}
+                    {savedPlaylist ? <><Check size={13} /> Saved</> : <><Save size={13} /> Save</>}
                   </button>
-                  <button onClick={() => setShowPlaylist(false)} className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground">
+                  <button onClick={() => setShowPlaylist(false)} className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                     <X size={18} />
                   </button>
                 </div>
               </div>
               {/* Current song big display */}
-              <div className="flex items-center gap-3 mt-3 p-3 rounded-xl bg-primary/10 border border-primary/20">
+              <div className="flex items-center gap-3 mt-4 p-3 rounded-xl bg-primary/10 border border-primary/20 shadow-sm">
                 <img src={currentTrack.cover} alt="" width={56} height={56} className="w-14 h-14 rounded-lg object-cover shadow-md" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground truncate">{currentTrack.title}</p>
                   <p className="text-xs text-muted-foreground truncate">{currentTrack.artist}</p>
                   {isPlaying && (
-                    <div className="flex items-center gap-1 mt-1">
+                    <div className="flex items-center gap-1 mt-1.5">
                       <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" />
                       <span className="w-0.5 h-3 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
                       <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
-                      <span className="text-[10px] text-primary ml-1">Playing</span>
+                      <span className="text-[10px] text-primary ml-1 font-medium">Playing</span>
                     </div>
                   )}
                 </div>
-                <button onClick={togglePlay} className="w-10 h-10 rounded-full bg-primary flex items-center justify-center hover:scale-105 transition-transform">
+                <button onClick={togglePlay} className="w-10 h-10 rounded-full bg-primary flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-md">
                   {isPlaying ? (
                     <Pause size={18} className="text-primary-foreground" />
                   ) : (
@@ -177,15 +202,15 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
               </div>
             </div>
 
-            <div className="overflow-y-auto max-h-[55vh] p-2 space-y-0.5">
+            <div className="flex-1 overflow-y-auto pb-32 md:pb-6 p-3 space-y-1 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
               {tracks.map((track, i) => {
                 const isCurrent = i === currentIndex;
                 const liked = isFavorite(track.src);
                 return (
                   <div
                     key={`${track.src}-${i}`}
-                    className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors group ${
-                      isCurrent ? "bg-primary/10 border border-primary/20" : "hover:bg-accent border border-transparent"
+                    className={`flex items-center gap-3 p-2.5 rounded-lg transition-all group ${
+                      isCurrent ? "bg-primary/10 border border-primary/20 shadow-sm" : "hover:bg-accent/50 border border-transparent"
                     }`}
                   >
                     <div className="relative flex-shrink-0 w-8 text-center cursor-pointer" onClick={() => playTrackList(tracks, i)}>
@@ -196,32 +221,32 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                           <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
                         </div>
                       ) : isCurrent ? (
-                        <Pause size={12} className="text-primary mx-auto" />
+                        <Pause size={13} className="text-primary mx-auto" />
                       ) : (
                         <>
-                          <span className="text-xs text-muted-foreground group-hover:hidden">{i + 1}</span>
-                          <Play size={12} className="text-primary hidden group-hover:block mx-auto" />
+                          <span className="text-xs text-muted-foreground group-hover:hidden font-medium">{i + 1}</span>
+                          <Play size={13} className="text-primary hidden group-hover:block mx-auto" />
                         </>
                       )}
                     </div>
                     <div className="relative flex-shrink-0 cursor-pointer" onClick={() => playTrackList(tracks, i)}>
-                      <img src={track.cover} alt="" width={40} height={40} className={`w-10 h-10 rounded-md object-cover ${isCurrent ? "ring-2 ring-primary" : ""}`} />
+                      <img src={track.cover} alt="" width={40} height={40} className={`w-10 h-10 rounded-md object-cover shadow-sm transition-all ${isCurrent ? "ring-2 ring-primary" : "group-hover:ring-1 group-hover:ring-primary/30"}`} />
                     </div>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => playTrackList(tracks, i)}>
-                      <p className={`text-sm font-medium truncate ${isCurrent ? "text-primary" : "text-foreground"}`}>{track.title}</p>
+                      <p className={`text-sm font-medium truncate transition-colors ${isCurrent ? "text-primary" : "text-foreground group-hover:text-primary"}`}>{track.title}</p>
                       <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
                     </div>
-                    <span className="text-[10px] text-muted-foreground tabular-nums cursor-pointer" onClick={() => playTrackList(tracks, i)}>
+                    <span className="text-[10px] text-muted-foreground tabular-nums cursor-pointer font-medium" onClick={() => playTrackList(tracks, i)}>
                       {track.duration ? formatTime(track.duration) : "--:--"}
                     </span>
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
-                      className={`p-1.5 rounded-full transition-colors ${
-                        liked ? "text-red-500" : "text-muted-foreground/0 group-hover:text-muted-foreground hover:text-red-400"
+                      className={`p-1.5 rounded-full transition-all ${
+                        liked ? "text-red-500 hover:text-red-600 hover:scale-110" : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-red-500 hover:scale-110"
                       }`}
                       title={liked ? "Remove from favorites" : "Add to favorites"}
                     >
-                      <Heart size={14} fill={liked ? "currentColor" : "none"} />
+                      <Heart size={15} fill={liked ? "currentColor" : "none"} strokeWidth={2} />
                     </button>
                     <div className="relative">
                       <button
@@ -237,13 +262,31 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
                           <div className="absolute right-0 top-full mt-1 z-[60] w-44 glass-heavy border border-border rounded-lg shadow-2xl overflow-hidden">
                             {/* Queue actions */}
                             <button
-                              onClick={(e) => { e.stopPropagation(); playNext(track); setSongMenu(null); }}
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                playNext(track); 
+                                setSongMenu(null);
+                                toast({
+                                  title: "Added to Queue",
+                                  description: `${track.title} will play next`,
+                                  duration: 3000,
+                                });
+                              }}
                               className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] text-foreground hover:bg-accent transition-colors"
                             >
                               <ListPlus size={13} /> Play Next
                             </button>
                             <button
-                              onClick={(e) => { e.stopPropagation(); addToQueue(track); setSongMenu(null); }}
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                addToQueue(track); 
+                                setSongMenu(null);
+                                toast({
+                                  title: "Added to Queue",
+                                  description: `${track.title} added to your queue`,
+                                  duration: 3000,
+                                });
+                              }}
                               className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] text-foreground hover:bg-accent transition-colors"
                             >
                               <ListMusic size={13} /> Add to Queue
@@ -444,7 +487,9 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
         />
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 z-50 glass-heavy border-t border-border safe-bottom">
+      {/* Bottom Player - Hidden when fullscreen is active */}
+      {!showFullScreen && (
+        <div className="fixed bottom-[60px] md:bottom-0 left-0 right-0 z-[90] glass-heavy border-t border-border safe-bottom">
         <div className="max-w-full mx-auto px-3 md:px-4 py-2 md:py-2.5 flex items-center gap-2 md:gap-4">
           {/* Track info — clickable to open full screen player */}
           <div
@@ -542,7 +587,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
           {/* Mobile More Button */}
           <div className="flex md:hidden">
             <button
-              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              onClick={() => { setShowPlaylist(false); setShowMobileMenu(!showMobileMenu); }}
               className="p-2.5 rounded-full text-muted-foreground hover:text-foreground active:bg-accent transition-colors"
               title="More options"
             >
@@ -669,7 +714,8 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer }: BottomPlayer
             />
           </div>
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Mobile Menu Panel */}
       {showMobileMenu && (
