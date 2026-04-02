@@ -544,12 +544,12 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-start justify-center">
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-start justify-center">
       <div className="absolute inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl mx-auto mt-4 md:mt-16 max-h-[90vh] bg-background border border-border rounded-2xl overflow-hidden flex flex-col shadow-2xl">
+      <div className="relative w-full max-w-2xl mx-auto h-[92vh] sm:h-auto sm:max-h-[85vh] sm:mt-12 md:mt-16 bg-background border border-border sm:rounded-2xl rounded-t-2xl rounded-b-none overflow-hidden flex flex-col shadow-2xl">
 
         {/* Search Bar */}
-        <div className="flex items-center gap-2 p-3 md:p-4 border-b border-border flex-shrink-0">
+        <div className="flex items-center gap-2 px-3 pt-3 pb-2 sm:p-4 sm:pb-3 border-b border-border flex-shrink-0">
           <div className="flex-1 relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -560,7 +560,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
               onKeyDown={handleKeyDown}
               onFocus={() => query.length >= 2 && setShowSuggestions(true)}
               placeholder="Search songs, artists, albums..."
-              className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-card border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+              className="w-full pl-9 pr-8 py-2 sm:py-2.5 rounded-xl bg-card border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
             />
             {query && (
               <button
@@ -573,7 +573,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
             {/* Auto-suggestions dropdown */}
             {showSuggestions && suggestions.length > 0 && !loading && (
-              <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+              <div className="absolute top-full left-0 right-0 mt-1 z-[100] bg-card border border-border rounded-xl shadow-xl overflow-hidden">
                 {suggestions.map((s, i) => (
                   <button
                     key={i}
@@ -593,7 +593,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         </div>
 
         {/* Category Tabs */}
-        <div className="flex items-center gap-1.5 px-3 md:px-4 py-2 border-b border-border overflow-x-auto scrollbar-hide flex-shrink-0">
+        <div className="flex items-center gap-1.5 px-3 sm:px-4 py-2 border-b border-border overflow-x-auto scrollbar-hide flex-shrink-0">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.key}
@@ -610,7 +610,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           ))}
 
           {/* Language filter */}
-          <span className="text-muted-foreground/30 mx-0.5 flex-shrink-0">|</span>
+          <div className="h-4 w-px bg-border mx-0.5 flex-shrink-0" />
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
             {LANGUAGES.map((lang) => (
               <button
@@ -633,7 +633,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
         {/* Loading */}
         {loading && (
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 animate-pulse">
                 <div className="w-11 h-11 rounded-lg bg-muted flex-shrink-0" />
@@ -648,7 +648,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
         {/* Content */}
         {!loading && (
-          <div className="flex-1 overflow-y-auto p-3 md:p-4 pb-28" onClick={() => setShowSuggestions(false)}>
+          <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 pb-28 sm:pb-6" onClick={() => setShowSuggestions(false)}>
             {/* Default: Trending + History */}
             {!isSearchMode && (
               <>
