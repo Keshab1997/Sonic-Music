@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, Play, TrendingUp, Music2, Loader2, Heart, Clock, ListPlus, Plus, RefreshCw, User, Disc3, ListMusic } from "lucide-react";
+import { Search, X, Play, TrendingUp, Music2, Loader2, Heart, Clock, Plus, RefreshCw, User, Disc3, ListMusic } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useLocalData } from "@/hooks/useLocalData";
 import { usePlaylists } from "@/hooks/usePlaylists";
@@ -10,20 +10,6 @@ import { Track } from "@/data/playlist";
 
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 const DEBOUNCE_MS = 500;
-
-interface SearchResult {
-  id: string;
-  title: string;
-  image: { quality: string; link: string }[];
-  type: "song" | "album" | "artist" | "playlist";
-  description?: string;
-  primaryArtists?: string;
-  album?: string;
-  duration?: string;
-  downloadUrl?: { quality: string; link: string }[];
-  language?: string;
-  songCount?: string;
-}
 
 type SearchCategory = "all" | "songs" | "albums" | "artists" | "playlists";
 
@@ -92,10 +78,10 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
   // Results
   const [songResults, setSongResults] = useState<Track[]>([]);
-  const [albumResults, setAlbumResults] = useState<SearchResult[]>([]);
-  const [artistResults, setArtistResults] = useState<SearchResult[]>([]);
+  const [albumResults, setAlbumResults] = useState<{ id: string; title: string; image: { quality: string; link: string }[]; description?: string; type: string }[]>([]);
+  const [artistResults, setArtistResults] = useState<{ id: string; title: string; image: { quality: string; link: string }[]; description?: string; type: string }[]>([]);
   const [playlistResults, setPlaylistResults] = useState<{ id: string; name: string; image: string; songCount: string }[]>([]);
-  const [topResult, setTopResult] = useState<SearchResult | null>(null);
+  const [topResult, setTopResult] = useState<{ id: string; title: string; image: { quality: string; link: string }[]; type: string; description?: string } | null>(null);
 
   // Expanded views
   const [artistSongs, setArtistSongs] = useState<{ name: string; songs: Track[] } | null>(null);
@@ -110,11 +96,6 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   // Trending
   const [trending, setTrending] = useState<Track[]>([]);
   const [trendingLoading, setTrendingLoading] = useState(true);
-
-  // Menu
-  const [songMenu, setSongMenu] = useState<string | null>(null);
-  const [songMenuPl, setSongMenuPl] = useState(false);
-  const [newPlName, setNewPlName] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -136,14 +117,21 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           const songRes = await fetch(`${API_BASE}/songs?id=${ids.join(",")}`);
           if (songRes.ok) {
             const songData = await songRes.json();
-            const songs = (songData.data || []).map((s: SearchResult, i: number) => ({
-              ...s,
-              downloadUrl: s.downloadUrl || [],
-            }));
-            setTrending(songs.map((s: SearchResult, i: number) => {
+            const rawSongs = songData.data || [];
+            const tracks: Track[] = [];
+            rawSongs.forEach((s: {
+              name: string;
+              primaryArtists?: string;
+              album?: { name: string } | string;
+              duration?: string | number;
+              image?: { quality: string; link: string }[];
+              downloadUrl?: { quality: string; link: string }[];
+              id: string;
+            }, i: number) => {
               const track = parseSongToTrack(s, 7500 + i);
-              return track!;
-            }).filter(Boolean));
+              if (track) tracks.push(track);
+            });
+            setTrending(tracks);
           }
         }
       } catch { /* ignore */ }
@@ -165,47 +153,103 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
   // Search functions
   const searchSongs = useCallback(async (q: string, lang: string) => {
-    const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=30`);
-    if (!res.ok) return [];
-    const json = await res.json();
-    let results = json.data?.results || [];
-    if (lang !== "all") {
-      results = results.filter((s: { language?: string }) => s.language === lang);
-    }
-    return results.slice(0, 20).map((s: SearchResult, i: number) => parseSongToTrack(s, 8000 + i)).filter(Boolean) as Track[];
+    try {
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=30`);
+      if (!res.ok) return [];
+      const json = await res.json();
+      let results = json.data?.results || [];
+      if (lang !== "all") {
+        results = results.filter((s: { language?: string }) => s.language === lang);
+      }
+      const tracks: Track[] = [];
+      results.slice(0, 20).forEach((s: {
+        name: string;
+        primaryArtists?: string;
+        album?: { name: string } | string;
+        duration?: string | number;
+        image?: { quality: string; link: string }[];
+        downloadUrl?: { quality: string; link: string }[];
+        id: string;
+      }, i: number) => {
+        const track = parseSongToTrack(s, 8000 + i);
+        if (track) tracks.push(track);
+      });
+      return tracks;
+    } catch { return []; }
   }, []);
 
   const searchAlbums = useCallback(async (q: string) => {
-    const res = await fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(q)}&page=1&limit=20`);
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.data?.results || [];
+    try {
+      const res = await fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(q)}&page=1&limit=20`);
+      if (!res.ok) return [];
+      const json = await res.json();
+      const results = json.data?.results || [];
+      return results.map((a: {
+        id: string;
+        name?: string;
+        title?: string;
+        image?: { quality: string; link: string }[];
+        description?: string;
+        primaryArtists?: string;
+      }) => ({
+        id: a.id,
+        title: a.name || a.title || "",
+        image: a.image || [],
+        description: a.description || a.primaryArtists || "",
+        type: "album" as const,
+      }));
+    } catch { return []; }
   }, []);
 
   const searchArtists = useCallback(async (q: string) => {
-    const res = await fetch(`${API_BASE}/search/artists?query=${encodeURIComponent(q)}&page=1&limit=20`);
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.data?.results || [];
+    try {
+      const res = await fetch(`${API_BASE}/search/artists?query=${encodeURIComponent(q)}&page=1&limit=20`);
+      if (!res.ok) return [];
+      const json = await res.json();
+      const results = json.data?.results || [];
+      return results.map((a: {
+        id: string;
+        name?: string;
+        title?: string;
+        image?: { quality: string; link: string }[];
+        description?: string;
+        role?: string;
+      }) => ({
+        id: a.id,
+        title: a.name || a.title || "",
+        image: a.image || [],
+        description: a.description || a.role || "",
+        type: "artist" as const,
+      }));
+    } catch { return []; }
   }, []);
 
   const searchPlaylists = useCallback(async (q: string) => {
-    const res = await fetch(`${API_BASE}/search/playlists?query=${encodeURIComponent(q)}&page=1&limit=20`);
-    if (!res.ok) return [];
-    const json = await res.json();
-    return (json.data?.results || []).map((p: { id: string; name: string; image: { quality: string; link: string }[]; songCount: string }) => ({
-      id: p.id,
-      name: p.name,
-      image: getImage(p.image),
-      songCount: p.songCount || "0",
-    }));
+    try {
+      const res = await fetch(`${API_BASE}/search/playlists?query=${encodeURIComponent(q)}&page=1&limit=20`);
+      if (!res.ok) return [];
+      const json = await res.json();
+      return (json.data?.results || []).map((p: {
+        id: string;
+        name: string;
+        image?: { quality: string; link: string }[];
+        songCount?: string;
+      }) => ({
+        id: p.id,
+        name: p.name,
+        image: getImage(p.image || []),
+        songCount: p.songCount || "0",
+      }));
+    } catch { return []; }
   }, []);
 
   const searchAll = useCallback(async (q: string) => {
-    const res = await fetch(`${API_BASE}/search/all?query=${encodeURIComponent(q)}`);
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.data || null;
+    try {
+      const res = await fetch(`${API_BASE}/search/all?query=${encodeURIComponent(q)}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.data || null;
+    } catch { return null; }
   }, []);
 
   // Main search dispatcher
@@ -225,8 +269,26 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           searchSongs(q, activeLang),
           searchAlbums(q),
         ]);
-        setTopResult(allData?.topQuery?.results?.[0] || null);
-        setArtistResults(allData?.artists?.results || []);
+        const top = allData?.topQuery?.results?.[0];
+        setTopResult(top ? {
+          id: top.id || "",
+          title: top.title || top.name || "",
+          image: top.image || [],
+          type: top.type || "song",
+          description: top.description || "",
+        } : null);
+        const artists = (allData?.artists?.results || []).map((a: {
+          id: string;
+          name?: string;
+          title?: string;
+          image?: { quality: string; link: string }[];
+        }) => ({
+          id: a.id,
+          title: a.name || a.title || "",
+          image: a.image || [],
+          type: "artist" as const,
+        }));
+        setArtistResults(artists);
         setSongResults(songs);
         setAlbumResults(albums);
       } else if (activeCat === "songs") {
@@ -255,7 +317,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         setArtistResults([]);
         setTopResult(null);
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error("Search error:", err); }
     setLoading(false);
   }, [category, langFilter, searchAll, searchSongs, searchAlbums, searchArtists, searchPlaylists]);
 
@@ -326,10 +388,22 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     setArtistLoading(true);
     try {
       const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(artistName)}&page=1&limit=20`);
-      if (!res.ok) return;
+      if (!res.ok) { setArtistLoading(false); return; }
       const json = await res.json();
       const results = (json.data?.results || []).filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0);
-      const tracks = results.slice(0, 15).map((s: SearchResult, i: number) => parseSongToTrack(s, 9000 + i)).filter(Boolean) as Track[];
+      const tracks: Track[] = [];
+      results.slice(0, 15).forEach((s: {
+        name: string;
+        primaryArtists?: string;
+        album?: { name: string } | string;
+        duration?: string | number;
+        image?: { quality: string; link: string }[];
+        downloadUrl?: { quality: string; link: string }[];
+        id: string;
+      }, i: number) => {
+        const track = parseSongToTrack(s, 9000 + i);
+        if (track) tracks.push(track);
+      });
       setArtistSongs({ name: artistName, songs: tracks });
     } catch { /* ignore */ }
     setArtistLoading(false);
@@ -340,19 +414,30 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     setAlbumLoading(true);
     try {
       const res = await fetch(`${API_BASE}/albums?id=${albumId}`);
-      if (!res.ok) return;
+      if (!res.ok) { setAlbumLoading(false); return; }
       const json = await res.json();
       const songs = json.data?.songs || [];
       const albumImage = json.data?.image?.find((img: { quality: string }) => img.quality === "500x500")?.link ||
                          json.data?.image?.find((img: { quality: string }) => img.quality === "150x150")?.link || "";
-      const tracks = songs
+      const tracks: Track[] = [];
+      songs
         .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
-        .map((s: SearchResult, i: number) => {
+        .forEach((s: {
+          name: string;
+          primaryArtists?: string;
+          album?: { name: string } | string;
+          duration?: string | number;
+          image?: { quality: string; link: string }[];
+          downloadUrl?: { quality: string; link: string }[];
+          id: string;
+        }, i: number) => {
           const track = parseSongToTrack(s, 9500 + i);
-          if (track && !track.cover) track.cover = albumImage;
-          if (track && !track.album) track.album = albumName;
-          return track;
-        }).filter(Boolean) as Track[];
+          if (track) {
+            if (!track.cover) track.cover = albumImage;
+            if (!track.album) track.album = albumName;
+            tracks.push(track);
+          }
+        });
       setAlbumSongs({ name: albumName, id: albumId, songs: tracks });
       if (tracks.length > 0) playTrackList(tracks, 0);
     } catch { /* ignore */ }
