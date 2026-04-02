@@ -4,7 +4,9 @@ import { usePlayer } from "@/context/PlayerContext";
 import { Track } from "@/data/playlist";
 
 const YT_API = "/api/youtube-search";
+const YT_STREAM_API = "/api/yt-stream";
 const DEBOUNCE_MS = 450;
+const streamCache = new Map<string, string>(); // videoId → audioUrl cache
 
 // Suffix variants to get different results for same query
 const PAGE_SUFFIXES = [
@@ -20,6 +22,7 @@ interface YTVideo {
   thumbnail: string;
 }
 
+// Convert to youtube type first, then resolve to audio on play
 const toTrack = (v: YTVideo, offset: number, i: number): Track => ({
   id: 70000 + offset + i,
   title: v.title,
@@ -31,6 +34,21 @@ const toTrack = (v: YTVideo, offset: number, i: number): Track => ({
   type: "youtube" as const,
   songId: v.videoId,
 });
+
+// Fetch direct audio URL from yt-stream API
+const resolveAudioUrl = async (videoId: string): Promise<string | null> => {
+  if (streamCache.has(videoId)) return streamCache.get(videoId)!;
+  try {
+    const res = await fetch(`${YT_STREAM_API}?id=${videoId}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.audioUrl) {
+      streamCache.set(videoId, data.audioUrl);
+      return data.audioUrl;
+    }
+  } catch { /* ignore */ }
+  return null;
+};
 
 const CATEGORIES = [
   { label: "Trending", emoji: "🔥", query: "trending music india 2025" },
@@ -68,6 +86,7 @@ export default function YoutubeMusicPage() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [menuTrack, setMenuTrack] = useState<Track | null>(null);
+  const [resolvingIdx, setResolvingIdx] = useState<number | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -160,6 +179,31 @@ export default function YoutubeMusicPage() {
   const isSearchMode = query.trim().length > 0;
   const isTrackPlaying = (t: Track) => currentTrack?.src === t.src && isPlaying;
 
+  // Resolve YT track to audio URL then play
+  const handlePlay = useCallback(async (clickedTrack: Track, allTracks: Track[], idx: number) => {
+    setResolvingIdx(idx);
+    const videoId = clickedTrack.songId || clickedTrack.src.split("v=")[1];
+    const audioUrl = videoId ? await resolveAudioUrl(videoId) : null;
+
+    if (audioUrl) {
+      // Convert all tracks to audio type with resolved URL for clicked, youtube for rest
+      const resolvedTrack: Track = {
+        ...clickedTrack,
+        src: audioUrl,
+        type: "audio" as const,
+      };
+      // Build playlist: resolved track first, rest as youtube (will resolve on play)
+      const playlist = allTracks.map((t, i) =>
+        i === idx ? resolvedTrack : t
+      );
+      playTrackList(playlist, idx);
+    } else {
+      // Fallback: play as YouTube via ReactPlayer
+      playTrackList(allTracks, idx);
+    }
+    setResolvingIdx(null);
+  }, [playTrackList]);
+
   return (
     <main className="flex-1 overflow-y-auto overflow-x-hidden pb-32 md:pb-28 bg-background">
       {/* Header */}
@@ -229,7 +273,7 @@ export default function YoutubeMusicPage() {
           </div>
           {tracks.length > 0 && (
             <button
-              onClick={() => playTrackList(tracks, 0)}
+              onClick={() => handlePlay(tracks[0], tracks, 0)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors"
             >
               <Play size={11} fill="currentColor" /> Play All
@@ -263,19 +307,21 @@ export default function YoutubeMusicPage() {
             {tracks.map((track, i) => (
               <div
                 key={track.src + i}
-                onClick={() => playTrackList(tracks, i)}
+                onClick={() => handlePlay(track, tracks, i)}
                 className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all group ${
                   isTrackPlaying(track)
                     ? "bg-red-600/10 border border-red-600/20"
-                    : "hover:bg-muted/60"
+                    : resolvingIdx === i ? "bg-muted/40" : "hover:bg-muted/60"
                 }`}
               >
                 <div className="relative flex-shrink-0">
                   <img src={track.cover} alt="" width={56} height={56} loading="lazy" className="w-14 h-14 rounded-lg object-cover shadow-md" />
                   <div className={`absolute inset-0 rounded-lg flex items-center justify-center transition-all ${
-                    isTrackPlaying(track) ? "bg-black/40" : "bg-black/0 group-hover:bg-black/40"
+                    isTrackPlaying(track) ? "bg-black/40" : resolvingIdx === i ? "bg-black/50" : "bg-black/0 group-hover:bg-black/40"
                   }`}>
-                    {isTrackPlaying(track) ? (
+                    {resolvingIdx === i ? (
+                      <Loader2 size={18} className="text-white animate-spin" />
+                    ) : isTrackPlaying(track) ? (
                       <Pause size={18} className="text-white" />
                     ) : (
                       <Play size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity ml-0.5" />
@@ -374,7 +420,7 @@ export default function YoutubeMusicPage() {
             {/* Actions */}
             <div className="space-y-1">
               <button
-                onClick={() => { playTrackList(tracks, tracks.findIndex(t => t.src === menuTrack.src)); setMenuTrack(null); }}
+                onClick={() => { handlePlay(menuTrack, tracks, tracks.findIndex(t => t.src === menuTrack.src)); setMenuTrack(null); }}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left"
               >
                 <div className="w-8 h-8 rounded-full bg-red-600/20 flex items-center justify-center">
