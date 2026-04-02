@@ -7,6 +7,7 @@ const YT_API = "/api/youtube-search";
 const YT_STREAM_API = "/api/yt-stream";
 const DEBOUNCE_MS = 450;
 const streamCache = new Map<string, string>(); // videoId → audioUrl cache
+const categoryCache = new Map<string, Track[]>(); // query → tracks cache
 
 // Suffix variants to get different results for same query
 const PAGE_SUFFIXES = [
@@ -111,12 +112,22 @@ export default function YoutubeMusicPage() {
   }, []);
 
   const loadInitial = useCallback(async (q: string) => {
+    // Check cache first
+    if (categoryCache.has(q)) {
+      const cached = categoryCache.get(q)!;
+      setTracks(cached);
+      setPage(1);
+      setHasMore(cached.length > 0);
+      setLoading(false);
+      return;
+    }
     seenIds.current = new Set();
     setLoading(true);
     setTracks([]);
     setPage(0);
     setHasMore(true);
     const result = await fetchYT(q, 0);
+    categoryCache.set(q, result); // Cache the results
     setTracks(result);
     setPage(1);
     setHasMore(result.length > 0);
@@ -130,7 +141,12 @@ export default function YoutubeMusicPage() {
     if (result.length === 0) {
       setHasMore(false);
     } else {
-      setTracks((prev) => [...prev, ...result]);
+      setTracks((prev) => {
+        const updated = [...prev, ...result];
+        // Update cache with new results
+        categoryCache.set(currentQuery, updated);
+        return updated;
+      });
       setPage((p) => p + 1);
     }
     setLoadingMore(false);
@@ -153,9 +169,14 @@ export default function YoutubeMusicPage() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query]);
 
-  // Clear search → restore category
+  // Clear search → restore category (only if not already loaded)
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    if (query === "") {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (query === "" && currentQuery !== activeCategory.query) {
       setCurrentQuery(activeCategory.query);
       loadInitial(activeCategory.query);
     }
@@ -186,9 +207,15 @@ export default function YoutubeMusicPage() {
   const handlePlay = useCallback(async (clickedTrack: Track, allTracks: Track[], idx: number) => {
     setResolvingIdx(idx);
     const videoId = clickedTrack.songId || clickedTrack.src.split("v=")[1]?.split("&")[0];
-    const audioUrl = videoId ? await resolveAudioUrl(videoId) : null;
+    
+    // Try to resolve audio URL, but always have a fallback
+    let audioUrl: string | null = null;
+    if (videoId) {
+      audioUrl = await resolveAudioUrl(videoId);
+    }
 
     if (audioUrl) {
+      // Play as native audio (better for background play)
       const resolvedTrack: Track = {
         ...clickedTrack,
         src: audioUrl,
@@ -197,8 +224,13 @@ export default function YoutubeMusicPage() {
       const playlist = allTracks.map((t, i) => i === idx ? resolvedTrack : t);
       playTrackList(playlist, idx);
     } else {
-      // Fallback: play via ReactPlayer (YouTube iframe)
-      playTrackList(allTracks, idx);
+      // Fallback: play via ReactPlayer (YouTube iframe) - always works
+      const youtubeTrack = {
+        ...clickedTrack,
+        type: "youtube" as const,
+      };
+      const playlist = allTracks.map((t, i) => i === idx ? youtubeTrack : t);
+      playTrackList(playlist, idx);
     }
     setResolvingIdx(null);
   }, [playTrackList]);
