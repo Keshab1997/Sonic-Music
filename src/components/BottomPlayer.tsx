@@ -793,6 +793,26 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                 <span className="ml-auto text-xs text-muted-foreground font-medium">{quality.replace("kbps", "")}kbps</span>
               </button>
               <button
+                onClick={() => togglePanel("speed")}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors text-foreground hover:bg-accent"
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${playbackSpeed !== 1 ? "bg-primary/10" : "bg-muted"}`}>
+                  <span className={`text-[11px] font-bold ${playbackSpeed !== 1 ? "text-primary" : "text-muted-foreground"}`}>{playbackSpeed}x</span>
+                </div>
+                <span className="font-medium">Playback Speed</span>
+                {playbackSpeed !== 1 && <span className="ml-auto text-xs text-primary font-medium">{playbackSpeed}x</span>}
+              </button>
+              <button
+                onClick={() => { setCrossfade(crossfade === 0 ? 3 : crossfade === 3 ? 5 : crossfade === 5 ? 0 : 0); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors text-foreground hover:bg-accent"
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${crossfade > 0 ? "bg-primary/10" : "bg-muted"}`}>
+                  <Zap size={16} className={crossfade > 0 ? "text-primary" : "text-muted-foreground"} />
+                </div>
+                <span className="font-medium">Crossfade</span>
+                {crossfade > 0 && <span className="ml-auto text-xs text-primary font-medium">{crossfade}s</span>}
+              </button>
+              <button
                 onClick={() => { setShowEqualizer(true); setShowMobileMenu(false); }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors text-foreground hover:bg-accent"
               >
