@@ -15,7 +15,7 @@ export const MiniPlayer = ({ onExpand, onClose }: MiniPlayerProps) => {
   const progressPercent = duration ? (progress / duration) * 100 : 0;
 
   return (
-    <div className="fixed bottom-[140px] md:bottom-24 right-2 md:right-4 z-50 w-[calc(100vw-1rem)] max-w-72 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-up">
+    <div className="fixed bottom-[140px] md:bottom-24 right-2 md:right-4 z-[101] md:z-50 w-[calc(100vw-1rem)] max-w-72 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-up">
       {/* Progress bar at top */}
       <div className="h-0.5 bg-muted">
         <div
