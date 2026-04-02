@@ -101,10 +101,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
   const { isFavorite, toggleFavorite } = useLocalData();
   const { playlists, createPlaylist, addToPlaylist } = usePlaylists();
 
-  const [showQueue, setShowQueue] = useState(false);
-  const [showSleepMenu, setShowSleepMenu] = useState(false);
-  const [showQualityMenu, setShowQualityMenu] = useState(false);
-  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [openPanel, setOpenPanel] = useState<"queue" | "sleep" | "quality" | "speed" | null>(null);
   const [showLyrics, setShowLyrics] = useState(false);
   const [internalShowPlaylist, setInternalShowPlaylist] = useState(false);
   const [showFullScreen, setShowFullScreen] = useState(false);
@@ -114,6 +111,16 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
   const [songMenu, setSongMenu] = useState<number | null>(null);
   const [songMenuPlSubmenu, setSongMenuPlSubmenu] = useState(false);
   const [newPlName, setNewPlName] = useState("");
+
+  const togglePanel = (panel: "queue" | "sleep" | "quality" | "speed") => {
+    setShowMobileMenu(false);
+    setOpenPanel(prev => prev === panel ? null : panel);
+  };
+
+  const closeAllPanels = () => {
+    setOpenPanel(null);
+    setShowMobileMenu(false);
+  };
 
   // Use external state if provided, otherwise use internal state
   const showPlaylist = externalShowPlaylist !== undefined ? externalShowPlaylist : internalShowPlaylist;
@@ -334,49 +341,52 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
       )}
 
       {/* Queue Panel */}
-      {showQueue && (
-        <div className="fixed bottom-[60px] md:bottom-20 right-2 md:right-4 z-50 w-[calc(100vw-1rem)] max-w-80 max-h-[70vh] glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
-          <div className="flex items-center justify-between p-3 border-b border-border">
-            <h3 className="text-sm font-semibold text-foreground">Queue ({queue.length})</h3>
-            <div className="flex items-center gap-1">
+      {openPanel === "queue" && (
+        <div className="fixed bottom-[76px] md:bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-1.5rem)] max-w-80 max-h-[60vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-slide-up">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+            <h3 className="text-sm font-bold text-foreground">Queue</h3>
+            <div className="flex items-center gap-1.5">
               {queue.length > 1 && (
-                <button onClick={shuffleQueue} className="p-1 text-muted-foreground hover:text-primary transition-colors" title="Shuffle queue">
+                <button onClick={shuffleQueue} className="p-1.5 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors" title="Shuffle queue">
                   <Shuffle size={14} />
                 </button>
               )}
               {queue.length > 0 && (
-                <button onClick={clearQueue} className="p-1 text-muted-foreground hover:text-destructive transition-colors" title="Clear queue">
+                <button onClick={clearQueue} className="p-1.5 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors" title="Clear queue">
                   <Trash2 size={14} />
                 </button>
               )}
-              <button onClick={() => setShowQueue(false)} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={() => setOpenPanel(null)} className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
                 <X size={14} />
               </button>
             </div>
           </div>
-          <div className="overflow-y-auto max-h-72 p-2 space-y-1">
+          <div className="overflow-y-auto flex-1 p-2 space-y-0.5">
             {queue.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">Queue is empty</p>
+              <div className="flex flex-col items-center justify-center py-10 gap-2">
+                <ListMusic size={24} className="text-muted-foreground/40" />
+                <p className="text-xs text-muted-foreground">Queue is empty</p>
+              </div>
             ) : (
               queue.map((track, i) => (
-                <div key={`${track.src}-${i}`} onClick={() => { removeFromQueue(i); playTrack(track); }} className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent group cursor-pointer">
-                  <img src={track.cover} alt="" width={32} height={32} className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                <div key={`${track.src}-${i}`} onClick={() => { removeFromQueue(i); playTrack(track); }} className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-accent group cursor-pointer transition-colors">
+                  <img src={track.cover} alt="" width={36} height={36} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-foreground truncate">{track.title}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
                   </div>
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
+                  <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                     {i > 0 && (
-                      <button onClick={(e) => { e.stopPropagation(); moveQueueItem(i, i - 1); }} className="p-1 text-muted-foreground hover:text-foreground" title="Move up">
+                      <button onClick={(e) => { e.stopPropagation(); moveQueueItem(i, i - 1); }} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted" title="Move up">
                         <ChevronUp size={12} />
                       </button>
                     )}
                     {i < queue.length - 1 && (
-                      <button onClick={(e) => { e.stopPropagation(); moveQueueItem(i, i + 1); }} className="p-1 text-muted-foreground hover:text-foreground" title="Move down">
+                      <button onClick={(e) => { e.stopPropagation(); moveQueueItem(i, i + 1); }} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted" title="Move down">
                         <ChevronDown size={12} />
                       </button>
                     )}
-                    <button onClick={(e) => { e.stopPropagation(); removeFromQueue(i); }} className="p-1 text-muted-foreground hover:text-destructive" title="Remove">
+                    <button onClick={(e) => { e.stopPropagation(); removeFromQueue(i); }} className="p-1 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="Remove">
                       <X size={12} />
                     </button>
                   </div>
@@ -388,28 +398,30 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
       )}
 
       {/* Sleep Timer Menu */}
-      {showSleepMenu && (
-        <div className="fixed bottom-[60px] md:bottom-20 right-2 md:right-20 z-50 w-48 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
-          <div className="p-2 border-b border-border">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-foreground">Sleep Timer</span>
-              <button onClick={() => setShowSleepMenu(false)} className="p-0.5 text-muted-foreground hover:text-foreground">
-                <X size={12} />
-              </button>
-            </div>
+      {openPanel === "sleep" && (
+        <div className="fixed bottom-[76px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-20 z-50 w-52 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <span className="text-sm font-bold text-foreground">Sleep Timer</span>
+            <button onClick={() => setOpenPanel(null)} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+              <X size={14} />
+            </button>
           </div>
           {sleepMinutes !== null && (
-            <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-              <span className="text-xs text-primary">Timer active</span>
-              <button onClick={cancelSleepTimer} className="text-[10px] text-destructive hover:underline">Cancel</button>
+            <div className="px-4 py-2.5 border-b border-border flex items-center justify-between bg-primary/5">
+              <span className="text-xs text-primary font-medium flex items-center gap-1.5">
+                <Moon size={12} /> {sleepMinutes}m remaining
+              </span>
+              <button onClick={cancelSleepTimer} className="text-[10px] text-destructive font-medium hover:underline">Cancel</button>
             </div>
           )}
-          <div className="p-1">
+          <div className="p-1.5">
             {SLEEP_OPTIONS.map((min) => (
               <button
                 key={min}
-                onClick={() => { setSleepTimer(min); setShowSleepMenu(false); }}
-                className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+                onClick={() => { setSleepTimer(min); setOpenPanel(null); }}
+                className={`w-full text-left px-3 py-2.5 text-xs rounded-xl transition-colors ${
+                  sleepMinutes === min ? "text-primary bg-primary/10 font-medium" : "text-foreground hover:bg-accent"
+                }`}
               >
                 {min} minutes
               </button>
@@ -419,26 +431,25 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
       )}
 
       {/* Quality Menu */}
-      {showQualityMenu && (
-        <div className="fixed bottom-[60px] md:bottom-20 right-2 md:right-36 z-50 w-40 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
-          <div className="p-2 border-b border-border">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-foreground">Audio Quality</span>
-              <button onClick={() => setShowQualityMenu(false)} className="p-0.5 text-muted-foreground hover:text-foreground">
-                <X size={12} />
-              </button>
-            </div>
+      {openPanel === "quality" && (
+        <div className="fixed bottom-[76px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-36 z-50 w-48 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <span className="text-sm font-bold text-foreground">Audio Quality</span>
+            <button onClick={() => setOpenPanel(null)} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+              <X size={14} />
+            </button>
           </div>
-          <div className="p-1">
+          <div className="p-1.5">
             {QUALITY_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => { setQuality(opt.value); setShowQualityMenu(false); }}
-                className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors ${
-                  quality === opt.value ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                onClick={() => { setQuality(opt.value); setOpenPanel(null); }}
+                className={`w-full text-left px-3 py-2.5 text-xs rounded-xl transition-colors flex items-center justify-between ${
+                  quality === opt.value ? "text-primary bg-primary/10 font-medium" : "text-foreground hover:bg-accent"
                 }`}
               >
-                {opt.label} {quality === opt.value && "✓"}
+                <span>{opt.label}</span>
+                {quality === opt.value && <Check size={14} className="text-primary" />}
               </button>
             ))}
           </div>
@@ -446,27 +457,25 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
       )}
 
       {/* Playback Speed Menu */}
-      {showSpeedMenu && (
-        <div className="fixed bottom-[60px] md:bottom-20 right-2 md:right-48 z-50 w-36 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden">
-          <div className="p-2 border-b border-border">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-foreground">Speed</span>
-              <button onClick={() => setShowSpeedMenu(false)} className="p-0.5 text-muted-foreground hover:text-foreground">
-                <X size={12} />
-              </button>
-            </div>
+      {openPanel === "speed" && (
+        <div className="fixed bottom-[76px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-48 z-50 w-44 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <span className="text-sm font-bold text-foreground">Playback Speed</span>
+            <button onClick={() => setOpenPanel(null)} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+              <X size={14} />
+            </button>
           </div>
-          <div className="p-1">
+          <div className="p-1.5">
             {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
               <button
                 key={speed}
-                onClick={() => { setPlaybackSpeed(speed); setShowSpeedMenu(false); }}
-                className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-between ${
-                  playbackSpeed === speed ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                onClick={() => { setPlaybackSpeed(speed); setOpenPanel(null); }}
+                className={`w-full text-left px-3 py-2.5 text-xs rounded-xl transition-colors flex items-center justify-between ${
+                  playbackSpeed === speed ? "text-primary bg-primary/10 font-medium" : "text-foreground hover:bg-accent"
                 }`}
               >
                 <span>{speed}x</span>
-                {playbackSpeed === speed && <Check size={12} />}
+                {playbackSpeed === speed && <Check size={14} className="text-primary" />}
               </button>
             ))}
           </div>
@@ -587,7 +596,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
           {/* Mobile More Button */}
           <div className="flex md:hidden">
             <button
-              onClick={() => { setShowPlaylist(false); setShowMobileMenu(!showMobileMenu); }}
+              onClick={() => { setShowPlaylist(false); setOpenPanel(null); setShowMobileMenu(!showMobileMenu); }}
               className="p-2.5 rounded-full text-muted-foreground hover:text-foreground active:bg-accent transition-colors"
               title="More options"
             >
@@ -611,7 +620,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
             {/* Sleep Timer */}
             <div className="relative hidden lg:block">
               <button
-                onClick={() => { setShowSleepMenu(!showSleepMenu); setShowQueue(false); setShowQualityMenu(false); }}
+                onClick={() => togglePanel("sleep")}
                 className={`p-1.5 rounded-full transition-colors ${
                   sleepMinutes !== null ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
@@ -624,9 +633,9 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
             {/* Queue */}
             <div className="relative">
               <button
-                onClick={() => { setShowQueue(!showQueue); setShowSleepMenu(false); setShowQualityMenu(false); }}
+                onClick={() => togglePanel("queue")}
                 className={`p-1.5 rounded-full transition-colors relative ${
-                  showQueue ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  openPanel === "queue" ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
                 title="Queue"
               >
@@ -642,7 +651,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
             {/* Quality */}
             <div className="relative hidden lg:block">
               <button
-                onClick={() => { setShowQualityMenu(!showQualityMenu); setShowQueue(false); setShowSleepMenu(false); }}
+                onClick={() => togglePanel("quality")}
                 className="p-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
                 title="Audio Quality"
               >
@@ -654,7 +663,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
             {/* Playback Speed */}
             <div className="relative hidden lg:block">
               <button
-                onClick={() => { setShowSpeedMenu(!showSpeedMenu); setShowQualityMenu(false); setShowQueue(false); setShowSleepMenu(false); }}
+                onClick={() => togglePanel("speed")}
                 className={`p-1.5 rounded-full transition-colors flex items-center gap-0.5 ${
                   playbackSpeed !== 1 ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
@@ -721,63 +730,102 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
       {showMobileMenu && (
         <>
           <div className="fixed inset-0 z-40 md:hidden" onClick={() => setShowMobileMenu(false)} />
-          <div className="fixed bottom-[60px] right-2 z-50 md:hidden w-56 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-up">
-            <div className="p-2">
+          <div className="fixed bottom-[76px] right-3 z-50 md:hidden w-60 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+            {/* Main Actions */}
+            <div className="p-1.5">
               <button
                 onClick={() => { setShowLyrics(true); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors text-foreground hover:bg-accent"
               >
-                <Music2 size={18} /> Lyrics
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Music2 size={16} className="text-primary" />
+                </div>
+                <span className="font-medium">Lyrics</span>
               </button>
               <button
                 onClick={() => { setShowPlaylist(true); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors text-foreground hover:bg-accent"
               >
-                <ListMusic size={18} /> Playlist
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <ListMusic size={16} className="text-primary" />
+                </div>
+                <span className="font-medium">Playlist</span>
               </button>
               <button
-                onClick={() => { setShowQueue(!showQueue); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
+                onClick={() => togglePanel("queue")}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors text-foreground hover:bg-accent"
               >
-                <ListMusic size={18} /> Queue
-                {queue.length > 0 && <span className="ml-auto text-xs text-primary font-medium">{queue.length}</span>}
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 relative">
+                  <ListMusic size={16} className="text-primary" />
+                  {queue.length > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground text-[8px] font-bold rounded-full flex items-center justify-center">
+                      {queue.length}
+                    </span>
+                  )}
+                </div>
+                <span className="font-medium">Queue</span>
+                {queue.length > 0 && <span className="ml-auto text-xs text-muted-foreground">{queue.length} tracks</span>}
+              </button>
+            </div>
+
+            <div className="h-px bg-border mx-3" />
+
+            {/* Settings Actions */}
+            <div className="p-1.5">
+              <button
+                onClick={() => togglePanel("sleep")}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors text-foreground hover:bg-accent"
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${sleepMinutes !== null ? "bg-primary/10" : "bg-muted"}`}>
+                  <Moon size={16} className={sleepMinutes !== null ? "text-primary" : "text-muted-foreground"} />
+                </div>
+                <span className="font-medium">Sleep Timer</span>
+                {sleepMinutes !== null && <span className="ml-auto text-xs text-primary font-medium">{sleepMinutes}m</span>}
               </button>
               <button
-                onClick={() => { setShowSleepMenu(true); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
+                onClick={() => togglePanel("quality")}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors text-foreground hover:bg-accent"
               >
-                <Moon size={18} /> Sleep Timer
-                {sleepMinutes !== null && <span className="ml-auto text-xs text-primary">{sleepMinutes}m</span>}
-              </button>
-              <button
-                onClick={() => { setShowQualityMenu(true); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
-              >
-                <Settings size={18} /> Quality
-                <span className="ml-auto text-xs text-primary font-medium">{quality.replace("kbps", "")}</span>
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                  <Settings size={16} className="text-muted-foreground" />
+                </div>
+                <span className="font-medium">Quality</span>
+                <span className="ml-auto text-xs text-muted-foreground font-medium">{quality.replace("kbps", "")}kbps</span>
               </button>
               <button
                 onClick={() => { setShowEqualizer(true); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors text-foreground hover:bg-accent"
               >
-                <Sliders size={18} /> Equalizer
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                  <Sliders size={16} className="text-muted-foreground" />
+                </div>
+                <span className="font-medium">Equalizer</span>
               </button>
-              <div className="border-t border-border my-1" />
-              <div className="flex items-center gap-3 px-3 py-2.5">
-                {volume === 0 ? <VolumeX size={18} className="text-muted-foreground" /> : <Volume2 size={18} className="text-muted-foreground" />}
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={volume}
-                  onChange={(e) => setVolume(Number(e.target.value))}
-                  className="flex-1 h-1 accent-primary cursor-pointer appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted"
-                  style={{
-                    background: `linear-gradient(to right, hsl(var(--foreground)) ${volume * 100}%, hsl(var(--muted)) ${volume * 100}%)`,
-                  }}
-                />
-              </div>
+            </div>
+
+            <div className="h-px bg-border mx-3" />
+
+            {/* Volume Control */}
+            <div className="flex items-center gap-3 px-4 py-3">
+              <button onClick={() => setVolume(volume === 0 ? 0.7 : 0)} className="flex-shrink-0">
+                {volume === 0
+                  ? <VolumeX size={18} className="text-muted-foreground" />
+                  : <Volume2 size={18} className="text-muted-foreground" />
+                }
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={volume}
+                onChange={(e) => setVolume(Number(e.target.value))}
+                className="flex-1 h-1 accent-primary cursor-pointer appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted"
+                style={{
+                  background: `linear-gradient(to right, hsl(var(--foreground)) ${volume * 100}%, hsl(var(--muted)) ${volume * 100}%)`,
+                }}
+              />
+              <span className="text-[10px] text-muted-foreground w-7 text-right tabular-nums font-medium">{Math.round(volume * 100)}%</span>
             </div>
           </div>
         </>

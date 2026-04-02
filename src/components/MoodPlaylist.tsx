@@ -82,13 +82,20 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
     if (pageNum === 1) setLoading(true);
     else setLoadingMore(true);
 
+    console.log(`[MoodPlaylist] 🎵 Fetching songs for mood: "${moodName}" | Query: "${searchQuery}" | Page: ${pageNum}`);
+
     try {
       const res = await fetch(
         `${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${pageNum}&limit=20`
       );
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.error(`[MoodPlaylist] ❌ API request failed with status: ${res.status}`);
+        return;
+      }
       const data = await res.json();
       const results = data.data?.results || [];
+
+      console.log(`[MoodPlaylist] ✅ Mood: "${moodName}" | Page ${pageNum} returned ${results.length} songs`);
 
       if (results.length === 0) {
         setHasMore(false);
@@ -121,29 +128,36 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
       const tracksToSet = pageNum === 1 ? dailyShuffle(newTracks) : newTracks;
 
       if (append) {
-        setSongs((prev) => [...prev, ...tracksToSet]);
+        setSongs((prev) => {
+          const updated = [...prev, ...tracksToSet];
+          console.log(`[MoodPlaylist] 📋 Mood: "${moodName}" | Total displayed songs: ${updated.length}`);
+          return updated;
+        });
       } else {
         setSongs(tracksToSet);
+        console.log(`[MoodPlaylist] 📋 Mood: "${moodName}" | Displayed songs reset to: ${tracksToSet.length}`);
       }
 
       if (results.length < 20) {
+        console.log(`[MoodPlaylist] 🏁 Mood: "${moodName}" | No more pages available (got ${results.length} < 20)`);
         setHasMore(false);
       }
     } catch { /* ignore */ }
 
     setLoading(false);
     setLoadingMore(false);
-  }, [searchQuery]);
+  }, [searchQuery, moodName]);
 
   // Initial load
   useEffect(() => {
+    console.log(`[MoodPlaylist] 🚀 MoodPlaylist opened | Mood: "${moodName}" | Search Query: "${searchQuery}"`);
     fetchSongs(1, false);
   }, [fetchSongs]);
 
   // Refresh with new shuffled songs (infinite shuffle)
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    
+
     if (allFetchedSongs.length === 0) {
       setRefreshing(false);
       return;
@@ -162,12 +176,12 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
     // Shuffle all fetched songs and take up to 20
     const shuffled = randomShuffle(allFetchedSongs);
     const newSongs = shuffled.slice(0, Math.min(20, shuffled.length));
-    
+
     // Update displayed songs
     setSongs(newSongs);
-    
+
     setRefreshing(false);
-    
+
     // Scroll to top
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
@@ -320,7 +334,7 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
 
         {/* Footer */}
         <div className="p-3 border-t border-border flex items-center justify-between flex-shrink-0">
-          <span className="text-xs text-muted-foreground">{songs.length} songs loaded</span>
+          <span className="text-xs text-muted-foreground">{songs.length} songs</span>
           <div className="flex items-center gap-2">
             {songs.length > 0 && (
               <>
@@ -345,4 +359,3 @@ export const MoodPlaylist = ({ moodName, emoji, searchQuery, gradient, onClose }
     </div>
   );
 };
-

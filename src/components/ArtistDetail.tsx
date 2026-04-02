@@ -104,70 +104,82 @@ export const ArtistDetail = ({ artistName, searchQuery, onClose }: ArtistDetailP
   }, [searchQuery]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg max-h-[85vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden">
-        <div className="p-3 md:p-4 border-b border-border flex items-center justify-between">
-          <div className="min-w-0 flex-1 mr-2">
-            <h2 className="text-base md:text-lg font-bold text-foreground truncate">{artistName}</h2>
-            <div className="flex items-center gap-2 mt-0.5">
-              <p className="text-xs text-muted-foreground">{songs.length} songs</p>
-              <span className="text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full flex items-center gap-1">
-                <Shuffle size={9} /> Daily Mix
+      <div className="relative w-full max-w-lg h-[90vh] sm:h-auto sm:max-h-[85vh] glass-heavy border border-border sm:rounded-2xl rounded-t-2xl rounded-b-none shadow-2xl overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="relative px-4 pt-3 pb-3 sm:px-5 sm:pt-4 sm:pb-4 border-b border-border flex-shrink-0 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent" />
+          <div className="absolute inset-0 backdrop-blur-sm" />
+
+          <div className="relative z-10">
+            {/* Top Row: Name (Left) | Buttons (Right) */}
+            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
+              <h2 className="text-lg sm:text-2xl font-extrabold text-foreground truncate tracking-tight flex-1 mr-2">{artistName}</h2>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {songs.length > 0 && (
+                  <button
+                    onClick={() => playTrackList(songs, 0)}
+                    className="px-3.5 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm rounded-full bg-primary text-primary-foreground font-semibold hover:brightness-110 hover:shadow-lg hover:shadow-primary/25 transition-all active:scale-95"
+                  >
+                    Play All
+                  </button>
+                )}
+                <button
+                  onClick={fetchSongs}
+                  disabled={loading}
+                  className="p-2 rounded-full bg-muted hover:bg-accent text-muted-foreground hover:text-foreground transition-all active:scale-95"
+                  title="Refresh songs"
+                >
+                  <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+                </button>
+                <button
+                  onClick={onClose}
+                  className="p-1.5 sm:p-2 rounded-full bg-muted hover:bg-accent text-muted-foreground hover:text-foreground transition-all hover:scale-110 active:scale-95"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <p className="text-xs sm:text-sm text-muted-foreground">{songs.length} songs</p>
+              <span className="text-[10px] text-primary bg-primary/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Shuffle size={10} /> Daily Mix
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={fetchSongs}
-              disabled={loading}
-              className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-              title="Refresh songs"
-            >
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            </button>
-            {songs.length > 0 && (
-              <button
-                onClick={() => playTrackList(songs, 0)}
-                className="px-3 py-1.5 text-xs rounded-full bg-primary text-primary-foreground font-medium hover:brightness-110 transition-all"
-              >
-                Play All
-              </button>
-            )}
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground">
-              <X size={18} />
-            </button>
-          </div>
         </div>
 
-        <div className="overflow-y-auto max-h-[65vh] p-3 space-y-1">
+        {/* Song List */}
+        <div className="overflow-y-auto flex-1 px-3 sm:px-4 pt-3 pb-28 space-y-1.5 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
           <p className="text-[10px] text-muted-foreground/60 px-2 pb-1">Updated: {today}</p>
           {loading && (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex items-center justify-center py-16">
               <Loader2 size={28} className="animate-spin text-primary" />
             </div>
           )}
           {!loading && songs.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-12">No songs found</p>
+            <p className="text-sm text-muted-foreground text-center py-16">No songs found</p>
           )}
           {songs.map((track, i) => (
             <div
               key={`${track.src}-${i}`}
               onClick={() => playTrackList(songs, i)}
-              className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent cursor-pointer transition-colors group"
+              className="flex items-center gap-3 p-3 rounded-xl hover:bg-accent/50 cursor-pointer transition-all group"
             >
-              <div className="relative flex-shrink-0 w-8 text-center">
-                <span className="text-xs text-muted-foreground group-hover:hidden">{i + 1}</span>
-                <Play size={14} className="text-primary hidden group-hover:block mx-auto" />
+              <div className="relative flex-shrink-0 w-8 sm:w-10 text-center">
+                <span className="text-xs sm:text-sm text-muted-foreground group-hover:hidden font-medium">{i + 1}</span>
+                <Play size={14} className="text-primary hidden group-hover:block mx-auto" fill="currentColor" />
               </div>
               <div className="relative flex-shrink-0">
-                <img src={track.cover} alt="" className="w-11 h-11 rounded-md object-cover" />
+                <img src={track.cover} alt="" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover shadow-sm group-hover:ring-1 group-hover:ring-primary/30 transition-all" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{track.title}</p>
-                <p className="text-xs text-muted-foreground truncate">{track.album}</p>
+                <p className="text-xs sm:text-[13px] font-semibold text-foreground truncate group-hover:text-primary transition-colors">{track.title}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">{track.album}</p>
               </div>
-              <span className="text-[10px] text-muted-foreground tabular-nums">
+              <span className="text-[10px] sm:text-xs text-muted-foreground tabular-nums font-medium">
                 {Math.floor(track.duration / 60)}:{(track.duration % 60).toString().padStart(2, "0")}
               </span>
             </div>

@@ -947,7 +947,7 @@ export const MainContent = () => {
             {moodCategories.map((mood) => (
               <button
                 key={mood.name}
-                onClick={() => setMoodPlaylist(mood)}
+                onClick={() => { console.log(`[BrowseByMood] 🎯 Mood selected: "${mood.name}" | Search Query: "${mood.searchQuery}"`); setMoodPlaylist(mood); }}
                 className={`relative p-3.5 md:p-3.5 rounded-xl bg-gradient-to-br ${mood.gradient} cursor-pointer hover:scale-[1.03] active:scale-[0.97] transition-transform group overflow-hidden`}
               >
                 <div className="absolute inset-0 bg-black/10 group-hover:bg-black/5 transition-colors" />

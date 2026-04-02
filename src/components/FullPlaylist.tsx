@@ -155,9 +155,9 @@ export const FullPlaylist = ({ title, icon, initialSongs, loadMore, onClose }: F
                     e.stopPropagation();
                     setActiveMenu(showMenu ? null : i);
                   }}
-                  className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted flex-shrink-0"
+                  className="p-1.5 sm:opacity-0 sm:group-hover:opacity-100 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent flex-shrink-0 transition-all"
                 >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                     <circle cx="8" cy="3" r="1.5" />
                     <circle cx="8" cy="8" r="1.5" />
                     <circle cx="8" cy="13" r="1.5" />
@@ -167,26 +167,26 @@ export const FullPlaylist = ({ title, icon, initialSongs, loadMore, onClose }: F
                 {/* Dropdown menu */}
                 {showMenu && (
                   <div
-                    className="absolute right-2 top-full z-20 mt-1 w-40 bg-popover border border-border rounded-xl shadow-xl overflow-hidden"
+                    className="absolute right-0 top-full z-20 mt-1 w-44 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden p-1"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
                       onClick={() => { playTrackList(songs, i); setActiveMenu(null); }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-foreground hover:bg-accent transition-colors"
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
                     >
-                      <Play size={13} /> Play Now
+                      <Play size={14} fill="currentColor" /> Play Now
                     </button>
                     <button
                       onClick={() => { playNext(track); setActiveMenu(null); }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-foreground hover:bg-accent transition-colors"
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
                     >
-                      <ListPlus size={13} /> Play Next
+                      <ListPlus size={14} /> Play Next
                     </button>
                     <button
                       onClick={() => { addToQueue(track); setActiveMenu(null); }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-foreground hover:bg-accent transition-colors"
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-foreground hover:bg-accent rounded-lg transition-colors"
                     >
-                      <ListMusic size={13} /> Add to Queue
+                      <ListMusic size={14} /> Add to Queue
                     </button>
                   </div>
                 )}

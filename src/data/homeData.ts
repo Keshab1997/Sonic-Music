@@ -82,16 +82,16 @@ export const allArtists: Artist[] = [
 ];
 
 export const moodCategories: MoodCategory[] = [
-  { name: "Bollywood", emoji: "🎬", gradient: "from-orange-500 to-red-600", searchQuery: "Bollywood latest hits" },
-  { name: "Romantic", emoji: "❤️", gradient: "from-pink-500 to-rose-600", searchQuery: "romantic hindi songs" },
-  { name: "Sad", emoji: "😢", gradient: "from-blue-500 to-indigo-600", searchQuery: "sad hindi songs" },
+  { name: "Bollywood", emoji: "🎬", gradient: "from-orange-500 to-red-600", searchQuery: "bollywood songs hits" },
+  { name: "Romantic", emoji: "❤️", gradient: "from-pink-500 to-rose-600", searchQuery: "romantic bollywood songs" },
+  { name: "Sad", emoji: "😢", gradient: "from-blue-500 to-indigo-600", searchQuery: "dard bhare sad songs" },
   { name: "Party", emoji: "🎉", gradient: "from-yellow-500 to-orange-500", searchQuery: "party songs hindi" },
   { name: "Devotional", emoji: "🙏", gradient: "from-amber-500 to-yellow-600", searchQuery: "devotional bhajan songs" },
   { name: "Bengali", emoji: "🎵", gradient: "from-green-500 to-teal-600", searchQuery: "bengali popular songs" },
   { name: "Retro", emoji: "📻", gradient: "from-purple-500 to-violet-600", searchQuery: "old hindi classic songs" },
-  { name: "Workout", emoji: "💪", gradient: "from-red-500 to-orange-600", searchQuery: "workout motivation songs hindi" },
-  { name: "Chill", emoji: "🌊", gradient: "from-cyan-500 to-blue-500", searchQuery: "chill hindi songs lofi" },
-  { name: "Rap", emoji: "🎤", gradient: "from-gray-600 to-gray-800", searchQuery: "indian rap hip hop" },
+  { name: "Workout", emoji: "💪", gradient: "from-red-500 to-orange-600", searchQuery: "workout motivation songs" },
+  { name: "Chill", emoji: "🌊", gradient: "from-cyan-500 to-blue-500", searchQuery: "chill hindi songs" },
+  { name: "Rap", emoji: "🎤", gradient: "from-gray-600 to-gray-800", searchQuery: "rap songs hindi" },
 ];
 
 export const eraCategories: EraCategory[] = [
