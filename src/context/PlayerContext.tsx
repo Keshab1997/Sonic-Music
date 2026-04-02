@@ -605,11 +605,25 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Silent audio loop to keep audio session alive on mobile (for YouTube background play)
   useEffect(() => {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 0.001; // Nearly silent
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    oscillator.frequency.value = 0; // Inaudible frequency
+    oscillator.start();
+    
     const silent = new Audio(SILENT_AUDIO);
     silent.loop = true;
     silent.volume = 0.001;
     silentAudioRef.current = silent;
-    return () => { silent.pause(); };
+    
+    return () => { 
+      silent.pause();
+      oscillator.stop();
+      ctx.close();
+    };
   }, []);
 
   // Start/stop silent audio based on YouTube playback
@@ -794,7 +808,25 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             width="1"
             height="1"
             playsinline
-            config={{ youtube: { playerVars: { playsinline: 1, origin: window.location.origin, enablejsapi: 1, autoplay: 1 } } }}
+            config={{ 
+              youtube: { 
+                playerVars: { 
+                  playsinline: 1, 
+                  origin: window.location.origin, 
+                  enablejsapi: 1, 
+                  autoplay: 1,
+                  controls: 0,
+                  modestbranding: 1,
+                  rel: 0,
+                  fs: 0,
+                  iv_load_policy: 3,
+                  disablekb: 1
+                },
+                embedOptions: {
+                  playsinline: 1
+                }
+              } 
+            }}
             onProgress={({ playedSeconds }) => setProgress(playedSeconds)}
             onDuration={(d) => setDuration(d)}
             onEnded={() => {
