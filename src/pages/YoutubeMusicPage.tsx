@@ -39,18 +39,61 @@ const toTrack = (v: YTVideo, offset: number, i: number): Track => ({
 // Fetch direct audio URL from yt-stream API (silent fail — fallback to ReactPlayer)
 const resolveAudioUrl = async (videoId: string): Promise<string | null> => {
   if (streamCache.has(videoId)) return streamCache.get(videoId)!;
+  
+  // Method 1: Try backend API first
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
     const res = await fetch(`${YT_STREAM_API}?id=${videoId}`, { signal: ctrl.signal }).catch(() => null);
     clearTimeout(timer);
-    if (!res || !res.ok) return null;
-    const data = await res.json().catch(() => null);
-    if (data?.audioUrl) {
-      streamCache.set(videoId, data.audioUrl);
-      return data.audioUrl;
+    if (res && res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data?.audioUrl) {
+        streamCache.set(videoId, data.audioUrl);
+        return data.audioUrl;
+      }
     }
   } catch { /* silent */ }
+
+  // Method 2: Client-side YouTube InnerTube API fallback
+  try {
+    const payload = {
+      videoId,
+      context: {
+        client: {
+          hl: "en",
+          clientName: "ANDROID",
+          clientVersion: "20.42.38",
+          androidSdkVersion: 30,
+        }
+      }
+    };
+    const ctrl2 = new AbortController();
+    const timer2 = setTimeout(() => ctrl2.abort(), 5000);
+    const res = await fetch("https://release-youtubei.sandbox.googleapis.com/youtubei/v1/player", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: ctrl2.signal
+    }).catch(() => null);
+    clearTimeout(timer2);
+    if (res && res.ok) {
+      const json = await res.json().catch(() => null);
+      if (json?.streamingData?.adaptiveFormats) {
+        // Find audio-only format (itag 140 = AAC 128kbps, 139 = AAC 48kbps)
+        const audioFormat = json.streamingData.adaptiveFormats.find(
+          (f: { itag: number; url?: string }) => f.itag === 140 && f.url
+        ) || json.streamingData.adaptiveFormats.find(
+          (f: { mimeType?: string; url?: string }) => f.mimeType?.startsWith("audio/") && f.url
+        );
+        if (audioFormat?.url) {
+          streamCache.set(videoId, audioFormat.url);
+          return audioFormat.url;
+        }
+      }
+    }
+  } catch { /* silent */ }
+
   return null;
 };
 
