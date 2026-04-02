@@ -35,18 +35,21 @@ const toTrack = (v: YTVideo, offset: number, i: number): Track => ({
   songId: v.videoId,
 });
 
-// Fetch direct audio URL from yt-stream API
+// Fetch direct audio URL from yt-stream API (silent fail — fallback to ReactPlayer)
 const resolveAudioUrl = async (videoId: string): Promise<string | null> => {
   if (streamCache.has(videoId)) return streamCache.get(videoId)!;
   try {
-    const res = await fetch(`${YT_STREAM_API}?id=${videoId}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.audioUrl) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(`${YT_STREAM_API}?id=${videoId}`, { signal: ctrl.signal }).catch(() => null);
+    clearTimeout(timer);
+    if (!res || !res.ok) return null;
+    const data = await res.json().catch(() => null);
+    if (data?.audioUrl) {
       streamCache.set(videoId, data.audioUrl);
       return data.audioUrl;
     }
-  } catch { /* ignore */ }
+  } catch { /* silent */ }
   return null;
 };
 
