@@ -593,25 +593,26 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         </div>
 
         {/* Category Tabs */}
-        <div className="flex items-center gap-1.5 px-3 sm:px-4 py-2 border-b border-border overflow-x-auto scrollbar-hide flex-shrink-0">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.key}
-              onClick={() => handleCategoryChange(cat.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full font-medium whitespace-nowrap transition-all ${
-                category === cat.key
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-muted text-muted-foreground hover:text-foreground hover:bg-accent"
-              }`}
-            >
-              {cat.icon}
-              {cat.label}
-            </button>
-          ))}
+        <div className="flex-shrink-0 border-b border-border">
+          <div className="flex items-center gap-1.5 px-3 sm:px-4 pt-2 pb-1.5 overflow-x-auto scrollbar-hide">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.key}
+                onClick={() => handleCategoryChange(cat.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full font-medium whitespace-nowrap transition-all ${
+                  category === cat.key
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted text-muted-foreground hover:text-foreground hover:bg-accent"
+                }`}
+              >
+                {cat.icon}
+                {cat.label}
+              </button>
+            ))}
+          </div>
 
-          {/* Language filter */}
-          <div className="h-4 w-px bg-border mx-0.5 flex-shrink-0" />
-          <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+          {/* Language filter - separate row */}
+          <div className="flex items-center gap-1 px-3 sm:px-4 pb-2 overflow-x-auto scrollbar-hide">
             {LANGUAGES.map((lang) => (
               <button
                 key={lang.key}
@@ -619,10 +620,10 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                   setLangFilter(lang.key);
                   if (query.trim()) doSearch(query, category, lang.key);
                 }}
-                className={`px-2 py-1 text-[10px] rounded-full font-medium whitespace-nowrap transition-colors ${
+                className={`px-2.5 py-1 text-[10px] rounded-full font-medium whitespace-nowrap transition-colors ${
                   langFilter === lang.key
                     ? "bg-primary/20 text-primary border border-primary/30"
-                    : "text-muted-foreground hover:text-foreground border border-transparent"
+                    : "bg-muted/50 text-muted-foreground hover:text-foreground border border-transparent"
                 }`}
               >
                 {lang.label}
