@@ -63,14 +63,14 @@ const resolveAudioUrl = async (videoId: string): Promise<string | null> => {
         client: {
           hl: "en",
           clientName: "ANDROID",
-          clientVersion: "20.42.38",
+          clientVersion: "19.09.37",
           androidSdkVersion: 30,
         }
       }
     };
     const ctrl2 = new AbortController();
     const timer2 = setTimeout(() => ctrl2.abort(), 5000);
-    const res = await fetch("https://release-youtubei.sandbox.googleapis.com/youtubei/v1/player", {
+    const res = await fetch("https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

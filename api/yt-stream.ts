@@ -1,7 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-// Cobalt API — free public YouTube audio extractor, works on serverless
-const COBALT_API = "https://api.cobalt.tools/api/json";
+const INVIDIOUS_INSTANCES = [
+  "https://inv.nadeko.net",
+  "https://invidious.privacyredirect.com",
+  "https://invidious.nerdvpn.de",
+];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -11,42 +14,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const videoId = req.query.id as string;
   if (!videoId) return res.status(400).json({ error: "Missing id parameter" });
 
-  const url = `https://www.youtube.com/watch?v=${videoId}`;
-
+  // Method 1: YouTube InnerTube API (most reliable)
   try {
-    const cobaltRes = await fetch(COBALT_API, {
+    const payload = {
+      videoId,
+      context: {
+        client: {
+          hl: "en",
+          clientName: "ANDROID",
+          clientVersion: "19.09.37",
+          androidSdkVersion: 30,
+        }
+      }
+    };
+    const ytRes = await fetch("https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        url,
-        vCodec: "h264",
-        vQuality: "720",
-        aFormat: "mp3",
-        isAudioOnly: true,
-        isNoTTWatermark: true,
-        dubLang: false,
-        disableMetadata: false,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
-
-    if (!cobaltRes.ok) throw new Error(`Cobalt error: ${cobaltRes.status}`);
-    const data = await cobaltRes.json();
-
-    // Cobalt returns { status: "stream"|"redirect"|"picker", url }
-    if ((data.status === "stream" || data.status === "redirect") && data.url) {
-      return res.status(200).json({ audioUrl: data.url });
+    if (ytRes.ok) {
+      const data = await ytRes.json();
+      if (data?.streamingData?.adaptiveFormats) {
+        const audioFormat = data.streamingData.adaptiveFormats.find(
+          (f: { itag: number; url?: string }) => f.itag === 140 && f.url
+        ) || data.streamingData.adaptiveFormats.find(
+          (f: { mimeType?: string; url?: string }) => f.mimeType?.startsWith("audio/") && f.url
+        );
+        if (audioFormat?.url) {
+          return res.status(200).json({ audioUrl: audioFormat.url });
+        }
+      }
     }
+  } catch { /* try next method */ }
 
-    throw new Error(`Unexpected cobalt response: ${JSON.stringify(data)}`);
-  } catch (err) {
-    // Fallback: try invidious API
+  // Method 2: Try Invidious instances
+  for (const instance of INVIDIOUS_INSTANCES) {
     try {
-      const invRes = await fetch(
-        `https://invidious.snopyta.org/api/v1/videos/${videoId}?fields=adaptiveFormats`
-      );
+      const invRes = await fetch(`${instance}/api/v1/videos/${videoId}?fields=adaptiveFormats`, {
+        signal: AbortSignal.timeout(3000)
+      });
       if (invRes.ok) {
         const invData = await invRes.json();
         const audioFormats = (invData.adaptiveFormats || []).filter(
@@ -59,8 +65,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({ audioUrl: best.url });
         }
       }
-    } catch { /* ignore fallback error */ }
-
-    return res.status(500).json({ error: "Could not extract audio", details: String(err) });
+    } catch { /* try next instance */ }
   }
+
+  return res.status(500).json({ error: "Could not extract audio" });
 }
