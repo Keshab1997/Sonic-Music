@@ -11,7 +11,7 @@ const categoryCache = new Map<string, Track[]>(); // query → tracks cache
 
 // Suffix variants to get different results for same query
 const PAGE_SUFFIXES = [
-  "", " 2025", " new", " best", " hits", " top", " latest", " popular",
+  "", " 2026", " new", " best", " hits", " top", " latest", " popular",
   " official", " full", " hd", " audio", " live", " remix", " unplugged",
 ];
 
@@ -43,7 +43,7 @@ const resolveAudioUrl = async (videoId: string): Promise<string | null> => {
   // Try backend API
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const timer = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(`${YT_STREAM_API}?id=${videoId}`, { signal: ctrl.signal }).catch(() => null);
     clearTimeout(timer);
     if (res && res.ok) {
@@ -59,16 +59,39 @@ const resolveAudioUrl = async (videoId: string): Promise<string | null> => {
   return null;
 };
 
+// Batch-resolve audio URLs for a set of tracks, with concurrency limit
+const batchResolveAudio = async (
+  tracks: Track[],
+  onResolved: (videoId: string, audioUrl: string) => void,
+  maxConcurrent = 3
+) => {
+  const pending = tracks.filter((t) => t.type === "youtube" && t.songId && !streamCache.has(t.songId));
+  let idx = 0;
+  
+  const worker = async () => {
+    while (idx < pending.length) {
+      const track = pending[idx++];
+      const videoId = track.songId!;
+      const audioUrl = await resolveAudioUrl(videoId);
+      if (audioUrl) {
+        onResolved(videoId, audioUrl);
+      }
+    }
+  };
+  
+  await Promise.all(Array.from({ length: Math.min(maxConcurrent, pending.length) }, () => worker()));
+};
+
 const CATEGORIES = [
-  { label: "Trending", emoji: "🔥", query: "trending music india 2025" },
-  { label: "Bangla Hits", emoji: "🎵", query: "viral bangla song 2025" },
-  { label: "Bollywood", emoji: "🎬", query: "bollywood hits 2025" },
+  { label: "Trending", emoji: "🔥", query: "trending music india 2026" },
+  { label: "Bangla Hits", emoji: "🎵", query: "viral bangla song 2026" },
+  { label: "Bollywood", emoji: "🎬", query: "bollywood hits 2026" },
   { label: "Arijit Singh", emoji: "🎤", query: "arijit singh best songs" },
   { label: "Lofi", emoji: "🌙", query: "hindi lofi chill music" },
   { label: "Unplugged", emoji: "🎸", query: "bollywood unplugged acoustic" },
   { label: "Indie Bengali", emoji: "🌿", query: "indie bengali songs fossils chandrabindoo" },
-  { label: "Romantic", emoji: "💕", query: "hindi romantic songs 2025" },
-  { label: "Party", emoji: "🎉", query: "bollywood party songs 2025" },
+  { label: "Romantic", emoji: "💕", query: "hindi romantic songs 2026" },
+  { label: "Party", emoji: "🎉", query: "bollywood party songs 2026" },
   { label: "Sad Songs", emoji: "😢", query: "hindi sad songs emotional" },
   { label: "Old Gold", emoji: "🏅", query: "old hindi classic songs 90s" },
   { label: "Devotional", emoji: "🙏", query: "bengali devotional songs kirtan" },
@@ -96,6 +119,8 @@ export default function YoutubeMusicPage() {
   const [hasMore, setHasMore] = useState(true);
   const [menuTrack, setMenuTrack] = useState<Track | null>(null);
   const [resolvingIdx, setResolvingIdx] = useState<number | null>(null);
+  // Track which videoIds have resolved native audio
+  const [resolvedAudio, setResolvedAudio] = useState<Map<string, string>>(new Map());
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -124,6 +149,10 @@ export default function YoutubeMusicPage() {
       setPage(1);
       setHasMore(cached.length > 0);
       setLoading(false);
+      // Still resolve audio for cached tracks
+      batchResolveAudio(cached, (videoId, audioUrl) => {
+        setResolvedAudio((prev) => new Map(prev).set(videoId, audioUrl));
+      });
       return;
     }
     seenIds.current = new Set();
@@ -137,6 +166,10 @@ export default function YoutubeMusicPage() {
     setPage(1);
     setHasMore(result.length > 0);
     setLoading(false);
+    // Batch-resolve audio URLs in background
+    batchResolveAudio(result, (videoId, audioUrl) => {
+      setResolvedAudio((prev) => new Map(prev).set(videoId, audioUrl));
+    });
   }, [fetchYT]);
 
   const loadMore = useCallback(async () => {
@@ -153,6 +186,10 @@ export default function YoutubeMusicPage() {
         return updated;
       });
       setPage((p) => p + 1);
+      // Batch-resolve audio for new tracks
+      batchResolveAudio(result, (videoId, audioUrl) => {
+        setResolvedAudio((prev) => new Map(prev).set(videoId, audioUrl));
+      });
     }
     setLoadingMore(false);
   }, [loadingMore, hasMore, fetchYT, currentQuery, page]);
@@ -210,35 +247,39 @@ export default function YoutubeMusicPage() {
 
   // Resolve YT track to audio URL then play
   const handlePlay = useCallback(async (clickedTrack: Track, allTracks: Track[], idx: number) => {
-    setResolvingIdx(idx);
-    const videoId = clickedTrack.songId || clickedTrack.src.split("v=")[1]?.split("&")[0];
+    const videoId = clickedTrack.songId;
     
-    // Try to resolve audio URL, but always have a fallback
+    // Check if we already have a resolved audio URL
+    if (videoId && resolvedAudio.has(videoId)) {
+      const audioUrl = resolvedAudio.get(videoId)!;
+      const resolvedTrack: Track = { ...clickedTrack, src: audioUrl, type: "audio" as const };
+      const playlist = allTracks.map((t, i) => i === idx ? resolvedTrack : t);
+      playTrackList(playlist, idx);
+      return;
+    }
+
+    // Try to resolve on-the-fly
+    setResolvingIdx(idx);
     let audioUrl: string | null = null;
     if (videoId) {
       audioUrl = await resolveAudioUrl(videoId);
     }
 
     if (audioUrl) {
-      // Play as native audio (better for background play)
-      const resolvedTrack: Track = {
-        ...clickedTrack,
-        src: audioUrl,
-        type: "audio" as const,
-      };
+      // Play as native audio (works in background)
+      const resolvedTrack: Track = { ...clickedTrack, src: audioUrl, type: "audio" as const };
+      setResolvedAudio((prev) => new Map(prev).set(videoId!, audioUrl));
       const playlist = allTracks.map((t, i) => i === idx ? resolvedTrack : t);
       playTrackList(playlist, idx);
     } else {
-      // Fallback: play via ReactPlayer (YouTube iframe) - always works but may have restrictions
-      const youtubeTrack = {
-        ...clickedTrack,
-        type: "youtube" as const,
-      };
+      // Fallback: play via ReactPlayer (YouTube iframe) - background won't work
+      const youtubeTrack = { ...clickedTrack, type: "youtube" as const };
       const playlist = allTracks.map((t, i) => i === idx ? youtubeTrack : t);
       playTrackList(playlist, idx);
     }
     setResolvingIdx(null);
-  }, [playTrackList]);
+    setResolvingIdx(null);
+  }, [playTrackList, resolvedAudio]);
 
   return (
     <main className="flex-1 overflow-y-auto overflow-x-hidden pb-32 md:pb-28 bg-background">
@@ -363,21 +404,21 @@ export default function YoutubeMusicPage() {
                       <Play size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity ml-0.5" />
                     )}
                   </div>
-                  <span className="absolute bottom-0.5 right-0.5 text-[7px] font-bold text-white bg-primary px-1 py-0.5 rounded leading-none">YT</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={`text-xs md:text-sm font-medium truncate ${isTrackPlaying(track) ? "text-primary" : "text-foreground"}`}>
                     {track.title}
                   </p>
                   <p className="text-[10px] md:text-[11px] text-muted-foreground truncate">{track.artist}</p>
-                  {track.duration > 0 && (
-                    <p className="text-[9px] md:text-[10px] text-muted-foreground/60 mt-0.5">
-                      {Math.floor(track.duration / 60)}:{String(track.duration % 60).padStart(2, "0")}
-                    </p>
-                  )}
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {track.duration > 0 && (
+                      <p className="text-[9px] md:text-[10px] text-muted-foreground/60">
+                        {Math.floor(track.duration / 60)}:{String(track.duration % 60).padStart(2, "0")}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {/* Desktop: hover visible, Mobile: always visible */}
                   <button
                     onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
                     className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-muted hover:bg-primary/20 flex items-center justify-center transition-colors md:opacity-0 md:group-hover:opacity-100"
@@ -450,7 +491,6 @@ export default function YoutubeMusicPage() {
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground truncate">{menuTrack.title}</p>
                 <p className="text-xs text-muted-foreground truncate">{menuTrack.artist}</p>
-                <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">YouTube</span>
               </div>
             </div>
             {/* Actions */}

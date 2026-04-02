@@ -184,11 +184,11 @@ export const MainContent = () => {
     );
 
     // YouTube Trending
-    const ytQueries = ["trending music india 2025", "top hindi songs youtube 2025", "viral bengali songs 2025", "bollywood hits youtube"];
+    const ytQueries = ["trending music india 2026", "top hindi songs youtube 2026", "viral bengali songs 2026", "bollywood hits youtube"];
     const ytQ = ytQueries[Math.floor(Math.random() * ytQueries.length)];
     fetch(`/api/youtube-search?q=${encodeURIComponent(ytQ)}`)
       .then((r) => r.json())
-      .then((videos: { videoId: string; title: string; author: string; duration: number; thumbnail: string }[]) => {
+      .then(async (videos: { videoId: string; title: string; author: string; duration: number; thumbnail: string }[]) => {
         const tracks: Track[] = videos.slice(0, 10).map((v, i) => ({
           id: 60000 + i,
           title: v.title,
@@ -200,6 +200,18 @@ export const MainContent = () => {
           type: "youtube" as const,
           songId: v.videoId,
         }));
+        // Resolve first track audio for faster playback
+        if (tracks[0]?.songId) {
+          try {
+            const streamRes = await fetch(`/api/yt-stream?id=${tracks[0].songId}`);
+            if (streamRes.ok) {
+              const streamData = await streamRes.json().catch(() => null);
+              if (streamData?.audioUrl) {
+                tracks[0] = { ...tracks[0], src: streamData.audioUrl, type: "audio" as const };
+              }
+            }
+          } catch { /* fallback to youtube type */ }
+        }
         setYtTrending(tracks);
       }).catch(() => {});
   }, []);
@@ -524,7 +536,22 @@ export const MainContent = () => {
         type: "youtube" as const,
         songId: v.videoId,
       }));
-      if (tracks.length > 0) playTrackList(tracks, 0);
+      if (tracks.length > 0) {
+        // Try to resolve first track to audio for faster playback
+        const firstId = tracks[0].songId;
+        if (firstId) {
+          try {
+            const streamRes = await fetch(`/api/yt-stream?id=${firstId}`);
+            if (streamRes.ok) {
+              const streamData = await streamRes.json().catch(() => null);
+              if (streamData?.audioUrl) {
+                tracks[0] = { ...tracks[0], src: streamData.audioUrl, type: "audio" as const };
+              }
+            }
+          } catch { /* fallback to youtube type */ }
+        }
+        playTrackList(tracks, 0);
+      }
     } catch { /* ignore */ }
     setYtLoadingQuery(null);
   }, [playTrackList]);

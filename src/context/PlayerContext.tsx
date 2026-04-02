@@ -879,12 +879,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               if (!isPlaying) setIsPlaying(true);
             }}
             onPause={() => {
-              // If paused unexpectedly, resume if we should be playing
-              if (isPlaying) {
-                setTimeout(() => {
-                  ytPlayerRef.current?.getInternalPlayer()?.playVideo?.();
-                }, 100);
-              }
+              // Sync state only — don't auto-resume to avoid infinite loop
+              if (isPlaying) setIsPlaying(false);
             }}
             onEnded={() => {
               if (repeat === "one") {
@@ -897,13 +893,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }}
             onError={(error) => {
               console.error("YouTube player error:", error);
-              // Try to recover by reloading
+              // Only skip to next after a retry fails — don't retry forever
+              const retryOnce = setTimeout(() => {
+                if (isPlaying && ytPlayerRef.current) {
+                  ytPlayerRef.current.getInternalPlayer()?.playVideo?.();
+                }
+              }, 1500);
+              // If still failing after 5s, skip track
               setTimeout(() => {
+                clearTimeout(retryOnce);
                 if (isPlaying) {
                   setIsPlaying(false);
-                  setTimeout(() => setIsPlaying(true), 500);
+                  next();
                 }
-              }, 1000);
+              }, 5000);
             }}
           />
         </div>
