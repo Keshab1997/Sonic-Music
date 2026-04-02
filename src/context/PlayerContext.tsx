@@ -646,14 +646,41 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (document.visibilityState === "hidden") {
         // Save current playing state before hiding
         wasPlayingBeforeHidden.current = isPlaying;
-      } else if (document.visibilityState === "visible" && wasPlayingBeforeHidden.current) {
+        // Keep playing in background
+        if (isPlaying && ytPlayerRef.current) {
+          ytPlayerRef.current.getInternalPlayer()?.playVideo?.();
+        }
+      } else if (document.visibilityState === "visible") {
         // Resume playback when tab becomes visible again
-        setIsPlaying(false);
-        setTimeout(() => setIsPlaying(true), 100);
+        if (wasPlayingBeforeHidden.current && ytPlayerRef.current) {
+          setTimeout(() => {
+            ytPlayerRef.current?.getInternalPlayer()?.playVideo?.();
+            setIsPlaying(true);
+          }, 100);
+        }
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [currentTrack?.type, isPlaying]);
+
+  // Keep YouTube player alive on route changes
+  useEffect(() => {
+    if (currentTrack?.type === "youtube" && isPlaying && ytPlayerRef.current) {
+      // Periodically check if player is still playing
+      const interval = setInterval(() => {
+        const player = ytPlayerRef.current?.getInternalPlayer();
+        if (player && typeof player.getPlayerState === "function") {
+          const state = player.getPlayerState();
+          // YouTube player states: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (cued)
+          if (isPlaying && state !== 1 && state !== 3) {
+            // If should be playing but isn't, restart
+            player.playVideo?.();
+          }
+        }
+      }, 2000);
+      return () => clearInterval(interval);
+    }
   }, [currentTrack?.type, isPlaying]);
 
   // When switching FROM youtube TO audio — force audio element to play
@@ -799,15 +826,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     <PlayerContext.Provider value={contextValue}>
       <audio ref={audioRef} src={getAudioSrc()} crossOrigin="anonymous" preload="auto" />
       {currentTrack?.type === "youtube" && (
-        <div style={{ position: "fixed", top: -9999, left: -9999, width: 1, height: 1 }}>
+        <div style={{ position: "fixed", top: -9999, left: -9999, width: 1, height: 1, pointerEvents: "none", zIndex: -1 }}>
           <ReactPlayer
             ref={ytPlayerRef}
             url={currentTrack.src}
             playing={isPlaying}
             volume={volume}
-            width="1"
-            height="1"
+            width="1px"
+            height="1px"
             playsinline
+            muted={false}
+            loop={repeat === "one"}
             config={{ 
               youtube: { 
                 playerVars: { 
@@ -820,15 +849,43 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                   rel: 0,
                   fs: 0,
                   iv_load_policy: 3,
-                  disablekb: 1
+                  disablekb: 1,
+                  widget_referrer: window.location.origin
                 },
                 embedOptions: {
-                  playsinline: 1
+                  playsinline: 1,
+                  host: "https://www.youtube.com"
+                },
+                onUnstarted: () => {
+                  // Auto-play if unstarted
+                  if (isPlaying) {
+                    setTimeout(() => setIsPlaying(true), 500);
+                  }
                 }
               } 
             }}
             onProgress={({ playedSeconds }) => setProgress(playedSeconds)}
             onDuration={(d) => setDuration(d)}
+            onReady={() => {
+              // Ensure playback starts when ready
+              if (isPlaying && ytPlayerRef.current) {
+                setTimeout(() => {
+                  ytPlayerRef.current?.getInternalPlayer()?.playVideo?.();
+                }, 100);
+              }
+            }}
+            onPlay={() => {
+              // Keep playing state in sync
+              if (!isPlaying) setIsPlaying(true);
+            }}
+            onPause={() => {
+              // If paused unexpectedly, resume if we should be playing
+              if (isPlaying) {
+                setTimeout(() => {
+                  ytPlayerRef.current?.getInternalPlayer()?.playVideo?.();
+                }, 100);
+              }
+            }}
             onEnded={() => {
               if (repeat === "one") {
                 ytPlayerRef.current?.seekTo(0, "seconds");
@@ -838,8 +895,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 next();
               }
             }}
-            onError={() => {
-              next();
+            onError={(error) => {
+              console.error("YouTube player error:", error);
+              // Try to recover by reloading
+              setTimeout(() => {
+                if (isPlaying) {
+                  setIsPlaying(false);
+                  setTimeout(() => setIsPlaying(true), 500);
+                }
+              }, 1000);
             }}
           />
         </div>
