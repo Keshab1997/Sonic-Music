@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Play, ChevronRight, Music2, Sparkles, TrendingUp, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2, Search, Loader2, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { usePlayer } from "@/context/PlayerContext";
 import { useHomeData } from "@/hooks/useHomeData";
 import { useRecentlyPlayed } from "@/hooks/useRecentlyPlayed";
@@ -607,10 +608,13 @@ export const MainContent = () => {
   };
 
   const playJioSaavnPlaylist = async (playlist: { id: string; title: string }) => {
-    setLoadingLabel(playlist.id);
+    toast.loading(`Loading ${playlist.title}...`, { id: "playlist-load" });
     try {
       const res = await fetch(`${API_BASE}/playlists?id=${playlist.id}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        toast.error("Failed to load playlist", { id: "playlist-load" });
+        return;
+      }
       const data = await res.json();
       const songs = data.data?.songs || [];
       const tracks: Track[] = songs
@@ -632,10 +636,14 @@ export const MainContent = () => {
           } as Track;
         });
       if (tracks.length > 0) {
+        toast.success(`Playing ${playlist.title} (${tracks.length} songs)`, { id: "playlist-load" });
         playTrackList(tracks, 0);
+      } else {
+        toast.error("No songs found in playlist", { id: "playlist-load" });
       }
-    } catch { /* ignore */ }
-    setLoadingLabel(null);
+    } catch { 
+      toast.error("Failed to load playlist", { id: "playlist-load" });
+    }
   };
 
   const { containerRef: pullRef, pullDistance, isRefreshing } = usePullToRefresh({
@@ -1144,7 +1152,11 @@ export const MainContent = () => {
                       </div>
                     </div>
                     <button
-                      onClick={(e) => { e.stopPropagation(); addToQueue({ id: Date.now(), title: playlist.title, artist: playlist.subtitle, album: "", cover: playlist.image?.[0]?.link || "", src: "", duration: 0, type: "audio" }); }}
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        addToQueue({ id: Date.now(), title: playlist.title, artist: playlist.subtitle, album: "", cover: playlist.image?.[0]?.link || "", src: "", duration: 0, type: "audio" }); 
+                        toast.success("Added to queue", { description: playlist.title });
+                      }}
                       className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
                       title="Add to queue"
                     >
