@@ -605,6 +605,38 @@ export const MainContent = () => {
     setLoadingLabel(null);
   };
 
+  const playJioSaavnPlaylist = async (playlist: { id: string; title: string }) => {
+    setLoadingLabel(playlist.id);
+    try {
+      const res = await fetch(`${API_BASE}/playlists?id=${playlist.id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const songs = data.data?.songs || [];
+      const tracks: Track[] = songs
+        .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
+        .map((s: { downloadUrl: { quality: string; link: string }[]; name: string; primaryArtists: string; album?: { name?: string } | string; image: { quality: string; link: string }[]; duration: string | number; id: string }, i: number) => {
+          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+          const bestUrl = url160 || url96 || s.downloadUrl?.[0]?.link || "";
+          return {
+            id: 8000 + i,
+            title: s.name?.replace(/&quot;/g, '"').replace(/&amp;/g, "&") || "Unknown",
+            artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
+            src: bestUrl,
+            duration: parseInt(String(s.duration)) || 0,
+            type: "audio" as const,
+            songId: s.id,
+          } as Track;
+        });
+      if (tracks.length > 0) {
+        playTrackList(tracks, 0);
+      }
+    } catch { /* ignore */ }
+    setLoadingLabel(null);
+  };
+
   const { containerRef: pullRef, pullDistance, isRefreshing } = usePullToRefresh({
     onRefresh: async () => {
       trendingInitialized.current = false;
@@ -1094,7 +1126,8 @@ export const MainContent = () => {
               {featuredPlaylists.slice(0, 10).map((playlist) => (
                 <div
                   key={playlist.id}
-                  className="flex-shrink-0 w-28 md:w-36 group"
+                  onClick={() => loadingLabel !== playlist.id && playJioSaavnPlaylist(playlist)}
+                  className="flex-shrink-0 w-28 md:w-36 group cursor-pointer"
                 >
                   <div className="relative mb-1.5 md:mb-2">
                     <img
@@ -1106,7 +1139,7 @@ export const MainContent = () => {
                     />
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
-                        <Play size={14} className="text-primary-foreground ml-0.5" onClick={() => loadingLabel !== playlist.id && playLabelSongs({ name: playlist.title, searchQuery: playlist.title, gradient: "", textColor: "" })} />
+                        <Play size={14} className="text-primary-foreground ml-0.5" />
                       </div>
                     </div>
                     <button

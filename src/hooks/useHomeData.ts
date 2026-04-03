@@ -45,6 +45,16 @@ interface FeaturedPlaylist {
   language?: string;
 }
 
+export const fetchPlaylistSongs = async (playlistId: string): Promise<Track[]> => {
+  try {
+    const res = await fetch(`${API_BASE}/playlists?id=${playlistId}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const songs = data.data?.songs || [];
+    return songs.map((s: SaavnSong, i: number) => saavnToTrack(s, 10000 + i));
+  } catch { return []; }
+};
+
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 
 const getDailySeed = () => {
