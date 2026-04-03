@@ -224,6 +224,12 @@ export const FullScreenPlayer = ({
             <input
               type="range" min={0} max={duration || 0} value={progress}
               onChange={(e) => seek(Number(e.target.value))}
+              onWheel={(e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -5 : 5;
+                const newProgress = Math.max(0, Math.min(duration || 0, progress + delta));
+                seek(newProgress);
+              }}
               className="w-full h-1.5 cursor-pointer appearance-none
                 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:shadow-lg
                 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-white/20"
@@ -273,6 +279,11 @@ export const FullScreenPlayer = ({
               </button>
               <input type="range" min={0} max={1} step={0.01} value={volume}
                 onChange={(e) => setVolume(Number(e.target.value))}
+                onWheel={(e) => {
+                  e.preventDefault();
+                  const delta = e.deltaY > 0 ? -0.05 : 0.05;
+                  setVolume(Math.max(0, Math.min(1, volume + delta)));
+                }}
                 className="w-20 h-1.5 cursor-pointer appearance-none
                   [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none
                   [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-white/15"

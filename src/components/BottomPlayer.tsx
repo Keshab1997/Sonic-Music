@@ -570,7 +570,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
             </div>
 
             {/* Seek bar - desktop only */}
-            <div className="hidden md:flex items-center gap-2 w-full">
+            <div className="hidden md:flex items-center gap-2 w-full group">
                 <span className="text-[10px] text-muted-foreground w-10 text-right tabular-nums">
                   {formatTime(progress)}
                 </span>
@@ -580,6 +580,12 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                   max={duration || 0}
                   value={progress}
                   onChange={(e) => seek(Number(e.target.value))}
+                  onWheel={(e) => {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? -5 : 5;
+                    const newProgress = Math.max(0, Math.min(duration || 0, progress + delta));
+                    seek(newProgress);
+                  }}
                   className="flex-1 h-1 accent-primary cursor-pointer [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted appearance-none"
                   style={{
                     background: `linear-gradient(to right, hsl(var(--foreground)) ${
@@ -716,6 +722,11 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
               step={0.01}
               value={volume}
               onChange={(e) => setVolume(Number(e.target.value))}
+              onWheel={(e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.05 : 0.05;
+                setVolume(Math.max(0, Math.min(1, volume + delta)));
+              }}
               className="w-16 lg:w-20 h-1 accent-primary cursor-pointer appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted"
               style={{
                 background: `linear-gradient(to right, hsl(var(--foreground)) ${volume * 100}%, hsl(var(--muted)) ${volume * 100}%)`,
