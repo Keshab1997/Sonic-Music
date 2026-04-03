@@ -62,11 +62,12 @@ export const MainContent = () => {
       } else if (playlistFilter === "bengali") {
         filtered = filtered.filter(p => p.language === "bengali");
       }
-      // Apply shuffle based on shuffleIndex
-      const shuffled = filtered.sort(() => {
-        const seed = shuffleIndex * 1234;
-        return (seed % 17) / 17 - 0.5;
-      });
+      // Apply shuffle based on shuffleIndex using Fisher-Yates
+      const shuffled = [...filtered];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
       setFeaturedPlaylists(shuffled.slice(0, 10));
     }
   }, [apiFeaturedPlaylists, playlistFilter, shuffleIndex]);
