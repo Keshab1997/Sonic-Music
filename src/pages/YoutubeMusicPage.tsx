@@ -1,18 +1,33 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, X, Play, Pause, Plus, Loader2, Music2, MoreVertical, ListPlus, PlaySquare } from "lucide-react";
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { Search, X, Play, Pause, Plus, Loader2, Music2, MoreVertical, ListPlus, PlaySquare, RefreshCw, TrendingUp, Clock, Flame, Headphones, Radio, Shuffle, Heart } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { Track } from "@/data/playlist";
+import { toast } from "sonner";
 
 const YT_API = "/api/youtube-search";
 const YT_STREAM_API = "/api/yt-stream";
 const DEBOUNCE_MS = 450;
-const streamCache = new Map<string, string>(); // videoId → audioUrl cache
-const categoryCache = new Map<string, Track[]>(); // query → tracks cache
+
+// Enhanced cache with LRU-like behavior and size limits
+const MAX_CACHE_SIZE = 200;
+const streamCache = new Map<string, { url: string; timestamp: number }>();
+const searchCache = new Map<string, { tracks: Track[]; timestamp: number }>();
+const sectionCache = new Map<string, { tracks: Track[]; timestamp: number }>();
+
+// Cache cleanup helper
+const cleanupCache = <T,>(cache: Map<string, T>, maxSize: number) => {
+  if (cache.size > maxSize) {
+    const entries = Array.from(cache.entries());
+    entries.sort((a, b) => (a[1] as any).timestamp - (b[1] as any).timestamp);
+    const toDelete = entries.slice(0, cache.size - maxSize);
+    toDelete.forEach(([key]) => cache.delete(key));
+  }
+};
 
 // Suffix variants to get different results for same query
 const PAGE_SUFFIXES = [
-  "", " 2026", " new", " best", " hits", " top", " latest", " popular",
-  " official", " full", " hd", " audio", " live", " remix", " unplugged",
+  "", " 2026", " new", " best", " hits", "top", "latest", "popular",
+  "official", "full", "hd", "audio", "live", "remix", "unplugged",
 ];
 
 interface YTVideo {
@@ -23,7 +38,7 @@ interface YTVideo {
   thumbnail: string;
 }
 
-// Convert to youtube type first, then resolve to audio on play
+// Track converter (not a component, so no memo needed)
 const toTrack = (v: YTVideo, offset: number, i: number): Track => ({
   id: 70000 + offset + i,
   title: v.title,
@@ -36,41 +51,52 @@ const toTrack = (v: YTVideo, offset: number, i: number): Track => ({
   songId: v.videoId,
 });
 
-// Fetch direct audio URL from yt-stream API (silent fail — fallback to ReactPlayer)
+// Fetch direct audio URL from yt-stream API with improved caching
 const resolveAudioUrl = async (videoId: string): Promise<string | null> => {
-  if (streamCache.has(videoId)) return streamCache.get(videoId)!;
+  const cached = streamCache.get(videoId);
+  if (cached) {
+    // Return cached URL if less than 1 hour old
+    if (Date.now() - cached.timestamp < 3600000) {
+      return cached.url;
+    }
+    streamCache.delete(videoId);
+  }
   
   // Try backend API
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const timer = setTimeout(() => ctrl.abort(), 6000); // Reduced timeout
     const res = await fetch(`${YT_STREAM_API}?id=${videoId}`, { signal: ctrl.signal }).catch(() => null);
     clearTimeout(timer);
     if (res && res.ok) {
       const data = await res.json().catch(() => null);
       if (data?.audioUrl) {
-        streamCache.set(videoId, data.audioUrl);
+        streamCache.set(videoId, { url: data.audioUrl, timestamp: Date.now() });
+        cleanupCache(streamCache, MAX_CACHE_SIZE);
         return data.audioUrl;
       }
     }
   } catch { /* silent */ }
 
-  // If backend fails, return null to use ReactPlayer fallback
   return null;
 };
 
-// Batch-resolve audio URLs for a set of tracks, with concurrency limit
+// Batch-resolve audio URLs with improved concurrency control
 const batchResolveAudio = async (
   tracks: Track[],
   onResolved: (videoId: string, audioUrl: string) => void,
-  maxConcurrent = 3
+  maxConcurrent = 2 // Reduced from 3
 ) => {
   const pending = tracks.filter((t) => t.type === "youtube" && t.songId && !streamCache.has(t.songId));
+  if (pending.length === 0) return;
+  
   let idx = 0;
   
   const worker = async () => {
     while (idx < pending.length) {
-      const track = pending[idx++];
+      const currentIndex = idx++;
+      if (currentIndex >= pending.length) break;
+      const track = pending[currentIndex];
       const videoId = track.songId!;
       const audioUrl = await resolveAudioUrl(videoId);
       if (audioUrl) {
@@ -82,33 +108,44 @@ const batchResolveAudio = async (
   await Promise.all(Array.from({ length: Math.min(maxConcurrent, pending.length) }, () => worker()));
 };
 
-const CATEGORIES = [
-  { label: "Trending Hindi", emoji: "🔥", query: "top hindi songs 2026 trending" },
-  { label: "Bangla Hits", emoji: "🎵", query: "viral bangla song 2026" },
-  { label: "Bollywood", emoji: "🎬", query: "bollywood hits 2026" },
-  { label: "Bengali Romantic", emoji: "💕", query: "bengali romantic songs 2026" },
-  { label: "Hindi Lofi", emoji: "🌙", query: "hindi lofi chill music" },
-  { label: "Bengali Modern", emoji: "🎶", query: "bengali modern songs 2026" },
-  { label: "Indie Bengali", emoji: "🌿", query: "indie bengali songs fossils chandrabindoo" },
-  { label: "Bollywood Romantic", emoji: "❤️", query: "hindi romantic songs 2026" },
-  { label: "Party Hindi", emoji: "🎉", query: "bollywood party songs 2026" },
-  { label: "Sad Hindi", emoji: "😢", query: "hindi sad songs emotional" },
-  { label: "Old Hindi", emoji: "🏅", query: "old hindi classic songs 90s" },
-  { label: "Devotional", emoji: "🙏", query: "bengali devotional songs kirtan" },
-  { label: "Punjabi Hits", emoji: "🎤", query: "punjabi hits 2026" },
-  { label: "Bengali Old", emoji: "📻", query: "bengali classic old songs" },
+// Front page sections - stable reference
+interface FrontSection {
+  id: string;
+  label: string;
+  emoji: string;
+  icon: typeof Flame;
+  query: string;
+  color: string;
+}
+
+const FRONT_SECTIONS: FrontSection[] = [
+  { id: "trending", label: "Trending Now", emoji: "🔥", icon: Flame, query: "top trending songs 2026 hindi", color: "from-orange-500 to-red-500" },
+  { id: "bangla", label: "Bangla Hits", emoji: "🎵", icon: Music2, query: "viral bangla song 2026", color: "from-green-500 to-emerald-500" },
+  { id: "bollywood", label: "Bollywood Party", emoji: "🎬", icon: Play, query: "bollywood party songs 2026", color: "from-pink-500 to-rose-500" },
+  { id: "lofi", label: "Lofi & Chill", emoji: "🌙", icon: Headphones, query: "hindi lofi chill remix", color: "from-purple-500 to-indigo-500" },
+  { id: "romantic", label: "Romantic Melodies", emoji: "💕", icon: Heart, query: "hindi bengali romantic songs", color: "from-red-500 to-pink-500" },
+  { id: "oldclassics", label: "Old Classics", emoji: "📻", icon: Radio, query: "old hindi classic songs 70s 80s", color: "from-amber-500 to-yellow-500" },
+  { id: "indie", label: "Indie Bengali", emoji: "🌿", icon: Music2, query: "indie bengali band fossils chandrabindoo", color: "from-teal-500 to-cyan-500" },
+  { id: "devotional", label: "Devotional", emoji: "🙏", icon: Music2, query: "bengali devotional songs kirtan bhajan", color: "from-orange-400 to-amber-500" },
 ];
 
-const QUICK_PICKS = [
-  { label: "Arijit Live", emoji: "🎤", query: "arijit singh live concert" },
-  { label: "Bangla Viral", emoji: "🔥", query: "viral bangla song 2024 2025" },
-  { label: "Coke Studio", emoji: "🎙️", query: "coke studio india 2024" },
-  { label: "MTV Unplugged", emoji: "🎸", query: "mtv unplugged india hindi" },
-  { label: "Bengali Indie", emoji: "🌿", query: "fossils chandrabindoo bhoomi bengali band" },
-  { label: "Rabindra Sangeet", emoji: "📜", query: "rabindra sangeet best collection" },
-  { label: "Mithun Chakraborty", emoji: "🎬", query: "mithun superhit songs" },
-  { label: "Anupam Roy", emoji: "🎵", query: "anupam roy bengali hits" },
-];
+// Helper to get random suffix for variety
+const getRandomSuffix = () => {
+  const suffixes = ["", " 2026", " new", " best", " hits", " latest", " popular", " hd", " audio", " live", " remix"];
+  return suffixes[Math.floor(Math.random() * suffixes.length)];
+};
+
+// Shuffle array helper - optimized
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const len = array.length;
+  if (len <= 1) return [...array];
+  const shuffled = array.slice();
+  for (let i = len - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
 
 export default function YoutubeMusicPage() {
   const { playTrackList, currentTrack, isPlaying, addToQueue, playNext } = usePlayer();
@@ -117,139 +154,338 @@ export default function YoutubeMusicPage() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
-  const [currentQuery, setCurrentQuery] = useState(CATEGORIES[0].query);
+  const [activeCategory, setActiveCategory] = useState<typeof FRONT_SECTIONS[0] | null>(null);
+  const [currentQuery, setCurrentQuery] = useState("");
   const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
   const [menuTrack, setMenuTrack] = useState<Track | null>(null);
   const [resolvingIdx, setResolvingIdx] = useState<number | null>(null);
   // Track which videoIds have resolved native audio
   const [resolvedAudio, setResolvedAudio] = useState<Map<string, string>>(new Map());
+  
+  // Front page sections state
+  const [sectionTracks, setSectionTracks] = useState<Map<string, Track[]>>(new Map());
+  const [sectionsLoading, setSectionsLoading] = useState<Record<string, boolean>>({});
+  const [refreshing, setRefreshing] = useState(false);
+  const [viewMode, setViewMode] = useState<"home" | "category">("home");
+  
+  // Lazy loading state for sections
+  const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set());
+  const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set());
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const seenIds = useRef<Set<string>>(new Set());
+  const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const loadMoreRef = useRef<(() => void) | null>(null);
 
-  const fetchYT = useCallback(async (q: string, pageNum: number): Promise<Track[]> => {
-    const suffix = PAGE_SUFFIXES[pageNum % PAGE_SUFFIXES.length];
-    const finalQuery = pageNum === 0 ? q : `${q}${suffix}`;
+  // Memoized track playing check
+  const isTrackPlaying = useCallback((t: Track) => currentTrack?.src === t.src && isPlaying, [currentTrack?.src, isPlaying]);
+
+  // AbortController for cancelling previous search requests
+  const searchAbortRef = useRef<AbortController | null>(null);
+
+  // Fetch YT search results with caching and request cancellation
+  const fetchYT = useCallback(async (q: string, pageNum: number, useRandomSuffix = false): Promise<Track[]> => {
+    const cacheKey = `${q}_${pageNum}`;
+    const cached = searchCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 300000) { // 5 min cache
+      return cached.tracks;
+    }
+
+    // Cancel previous request if any
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+    }
+    searchAbortRef.current = new AbortController();
+
+    const suffix = pageNum === 0 ? (useRandomSuffix ? getRandomSuffix() : "") : PAGE_SUFFIXES[pageNum % PAGE_SUFFIXES.length];
+    const finalQuery = `${q}${suffix}`;
     try {
-      const res = await fetch(`${YT_API}?q=${encodeURIComponent(finalQuery)}`);
+      const res = await fetch(`${YT_API}?q=${encodeURIComponent(finalQuery)}`, {
+        signal: searchAbortRef.current.signal
+      });
       if (!res.ok) return [];
       const videos: YTVideo[] = await res.json();
-      // Deduplicate by videoId, skip shorts (< 60s)
-      const fresh = videos.filter((v) => !seenIds.current.has(v.videoId) && v.duration >= 60);
+      // Deduplicate by videoId (removed duration filter to show more results)
+      const fresh = videos.filter((v) => !seenIds.current.has(v.videoId));
       fresh.forEach((v) => seenIds.current.add(v.videoId));
-      return fresh.map((v, i) => toTrack(v, pageNum * 20, i));
-    } catch { return []; }
+      const resultTracks = fresh.map((v, i) => ({
+        id: 70000 + pageNum * 20 + i,
+        title: v.title,
+        artist: v.author || "YouTube",
+        album: "",
+        cover: v.thumbnail || "",
+        src: `https://www.youtube.com/watch?v=${v.videoId}`,
+        duration: v.duration || 0,
+        type: "youtube" as const,
+        songId: v.videoId,
+      }));
+      
+      searchCache.set(cacheKey, { tracks: resultTracks, timestamp: Date.now() });
+      cleanupCache(searchCache, MAX_CACHE_SIZE);
+      return resultTracks;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return []; // Request was cancelled, return empty
+      }
+      return [];
+    }
   }, []);
 
-  const loadInitial = useCallback(async (q: string) => {
+  // Fetch tracks for a single section - optimized
+  const fetchSectionTracks = useCallback(async (sectionId: string, query: string) => {
     // Check cache first
-    if (categoryCache.has(q)) {
-      const cached = categoryCache.get(q)!;
-      setTracks(cached);
-      setPage(1);
-      setHasMore(cached.length > 0);
-      setLoading(false);
-      // Still resolve audio for cached tracks
-      batchResolveAudio(cached, (videoId, audioUrl) => {
-        setResolvedAudio((prev) => new Map(prev).set(videoId, audioUrl));
-      });
+    const cached = sectionCache.get(sectionId);
+    if (cached && Date.now() - cached.timestamp < 600000) { // 10 min cache
+      setSectionTracks(prev => new Map(prev).set(sectionId, cached.tracks));
+      setLoadedSections(prev => new Set(prev).add(sectionId));
       return;
     }
+
+    setSectionsLoading(prev => ({ ...prev, [sectionId]: true }));
+    const sectionSeenIds = new Set<string>();
+    
+    try {
+      const suffix = getRandomSuffix();
+      const res = await fetch(`${YT_API}?q=${encodeURIComponent(query + suffix)}`);
+      if (!res.ok) {
+        setSectionsLoading(prev => ({ ...prev, [sectionId]: false }));
+        return;
+      }
+      const videos: YTVideo[] = await res.json();
+      const fresh = videos.filter((v) => !sectionSeenIds.has(v.videoId) && v.duration >= 60);
+      fresh.forEach((v) => sectionSeenIds.add(v.videoId));
+      const resultTracks = fresh.slice(0, 10).map((v, i) => ({
+        id: 70000 + i,
+        title: v.title,
+        artist: v.author || "YouTube",
+        album: "",
+        cover: v.thumbnail || "",
+        src: `https://www.youtube.com/watch?v=${v.videoId}`,
+        duration: v.duration || 0,
+        type: "youtube" as const,
+        songId: v.videoId,
+      }));
+      
+      // Cache the results
+      sectionCache.set(sectionId, { tracks: resultTracks, timestamp: Date.now() });
+      
+      // Use requestIdleCallback if available for non-critical update
+      const updateState = () => {
+        setSectionTracks(prev => new Map(prev).set(sectionId, resultTracks));
+        setLoadedSections(prev => new Set(prev).add(sectionId));
+      };
+      
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(updateState, { timeout: 2000 });
+      } else {
+        updateState();
+      }
+      
+      // Batch resolve audio in background (low priority)
+      setTimeout(() => {
+        batchResolveAudio(resultTracks, (videoId, audioUrl) => {
+          setResolvedAudio((prev) => new Map(prev).set(videoId, audioUrl));
+        });
+      }, 100);
+    } catch {
+      // Silent fail
+    }
+    setSectionsLoading(prev => ({ ...prev, [sectionId]: false }));
+  }, []);
+
+  // Load all front page sections - optimized with better batching
+  const loadFrontPage = useCallback(async (shuffle = true) => {
+    setRefreshing(true);
+    seenIds.current = new Set();
+    setSectionTracks(new Map());
+    setLoadedSections(new Set());
+    sectionCache.clear(); // Clear section cache for fresh data
+    
+    // Shuffle sections order for variety
+    const sections = shuffle ? shuffleArray(FRONT_SECTIONS) : FRONT_SECTIONS;
+    
+    // Fetch all sections in parallel (limit concurrency to 2)
+    const batchSize = 2;
+    for (let i = 0; i < sections.length; i += batchSize) {
+      const batch = sections.slice(i, i + batchSize);
+      await Promise.all(batch.map(section => fetchSectionTracks(section.id, section.query)));
+    }
+    
+    setRefreshing(false);
+    setInitialLoadComplete(true);
+  }, [fetchSectionTracks]);
+
+  // Lazy load sections using IntersectionObserver - optimized
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const sectionId = entry.target.getAttribute('data-section-id');
+            if (sectionId && !loadedSections.has(sectionId)) {
+              setVisibleSections(prev => new Set(prev).add(sectionId));
+              const section = FRONT_SECTIONS.find(s => s.id === sectionId);
+              if (section) {
+                fetchSectionTracks(sectionId, section.query);
+              }
+            }
+          }
+        });
+      },
+      { rootMargin: '300px', threshold: 0.01 }
+    );
+
+    // Observe all section containers
+    sectionRefs.current.forEach((el) => {
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [loadedSections, fetchSectionTracks]);
+
+  // Initial load - load sections progressively
+  useEffect(() => {
+    let cancelled = false;
+    const loadAllSections = async () => {
+      // Load sections in batches of 2 for better performance
+      const batchSize = 2;
+      for (let i = 0; i < FRONT_SECTIONS.length; i += batchSize) {
+        if (cancelled) return;
+        const batch = FRONT_SECTIONS.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(section => {
+            setVisibleSections(prev => new Set(prev).add(section.id));
+            return fetchSectionTracks(section.id, section.query);
+          })
+        );
+      }
+      if (!cancelled) setInitialLoadComplete(true);
+    };
+    loadAllSections();
+    return () => { cancelled = true; };
+  }, [fetchSectionTracks]);
+
+  // Load category view - unlimited results
+  const loadInitial = useCallback(async (q: string) => {
     seenIds.current = new Set();
     setLoading(true);
     setTracks([]);
     setPage(0);
-    setHasMore(true);
-    const result = await fetchYT(q, 0);
-    categoryCache.set(q, result); // Cache the results
+    const result = await fetchYT(q, 0, true);
     setTracks(result);
     setPage(1);
-    setHasMore(result.length > 0);
     setLoading(false);
-    // Batch-resolve audio URLs in background
     batchResolveAudio(result, (videoId, audioUrl) => {
       setResolvedAudio((prev) => new Map(prev).set(videoId, audioUrl));
     });
   }, [fetchYT]);
 
+  // Optimized loadMore with ref to avoid recreation - unlimited results
   const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
+    if (loadingMore || viewMode !== "category") return;
     setLoadingMore(true);
-    const result = await fetchYT(currentQuery, page);
-    if (result.length === 0) {
-      setHasMore(false);
-    } else {
-      setTracks((prev) => {
-        const updated = [...prev, ...result];
-        // Update cache with new results
-        categoryCache.set(currentQuery, updated);
-        return updated;
-      });
+    const result = await fetchYT(currentQuery, page, true);
+    // Always append results, never stop (unlimited)
+    if (result.length > 0) {
+      setTracks((prev) => [...prev, ...result]);
       setPage((p) => p + 1);
-      // Batch-resolve audio for new tracks
       batchResolveAudio(result, (videoId, audioUrl) => {
         setResolvedAudio((prev) => new Map(prev).set(videoId, audioUrl));
       });
+    } else {
+      // If no results, still increment page to try different suffixes
+      setPage((p) => p + 1);
     }
     setLoadingMore(false);
-  }, [loadingMore, hasMore, fetchYT, currentQuery, page]);
+  }, [loadingMore, fetchYT, currentQuery, page, viewMode]);
 
-  // Load default on mount
+  // Keep loadMore ref updated for IntersectionObserver
   useEffect(() => {
-    setCurrentQuery(CATEGORIES[0].query);
-    loadInitial(CATEGORIES[0].query);
-  }, []);
+    loadMoreRef.current = loadMore;
+  }, [loadMore]);
 
-  // Debounced search
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!query.trim()) return;
-    debounceRef.current = setTimeout(() => {
-      setCurrentQuery(query.trim());
-      loadInitial(query.trim());
-    }, DEBOUNCE_MS);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query]);
-
-  // Clear search → restore category (only if not already loaded)
+  // Debounced search - optimized
   const isFirstRender = useRef(true);
   useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    
+    // Skip first render
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
-    if (query === "" && currentQuery !== activeCategory.query) {
-      setCurrentQuery(activeCategory.query);
-      loadInitial(activeCategory.query);
+    
+    if (!query.trim()) {
+      // Clear search → go back to home view
+      setViewMode("home");
+      setActiveCategory(null);
+      setTracks([]);
+      return;
     }
-  }, [query]);
+    
+    debounceRef.current = setTimeout(() => {
+      const trimmedQuery = query.trim();
+      setCurrentQuery(trimmedQuery);
+      setViewMode("category");
+      setActiveCategory({
+        id: "search",
+        label: `Search: ${trimmedQuery}`,
+        emoji: "🔍",
+        icon: Music2,
+        query: trimmedQuery,
+        color: "from-blue-500 to-cyan-500"
+      } as typeof FRONT_SECTIONS[0]);
+      loadInitial(trimmedQuery);
+    }, DEBOUNCE_MS);
+    
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, loadInitial]);
 
-  // Intersection observer for infinite scroll
+  // Intersection observer for infinite scroll - optimized
   useEffect(() => {
     if (observerRef.current) observerRef.current.disconnect();
     observerRef.current = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) loadMore(); },
-      { threshold: 0.1 }
+      (entries) => {
+        if (entries[0].isIntersecting && loadMoreRef.current) {
+          loadMoreRef.current();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
     );
     if (bottomRef.current) observerRef.current.observe(bottomRef.current);
     return () => observerRef.current?.disconnect();
-  }, [loadMore]);
+  }, []);
 
-  const handleCategoryClick = (cat: typeof CATEGORIES[0]) => {
+  // Memoized handlers
+  const handleCategoryClick = useCallback((cat: typeof FRONT_SECTIONS[0]) => {
     setActiveCategory(cat);
+    setViewMode("category");
     setQuery("");
     setCurrentQuery(cat.query);
     loadInitial(cat.query);
-  };
+  }, [loadInitial]);
 
-  const isSearchMode = query.trim().length > 0;
-  const isTrackPlaying = (t: Track) => currentTrack?.src === t.src && isPlaying;
+  const handleBackToHome = useCallback(() => {
+    setViewMode("home");
+    setActiveCategory(null);
+    setQuery("");
+    setTracks([]);
+  }, []);
 
-  // Resolve YT track to audio URL then play
+  const handleRefresh = useCallback(() => {
+    if (viewMode === "home") {
+      loadFrontPage(true);
+      toast.success("Refreshing with new songs!");
+    } else {
+      loadInitial(currentQuery);
+      toast.success("Showing new songs!");
+    }
+  }, [viewMode, loadFrontPage, loadInitial, currentQuery]);
+
+  // Resolve YT track to audio URL then play - fixed duplicate setResolvingIdx
   const handlePlay = useCallback(async (clickedTrack: Track, allTracks: Track[], idx: number) => {
     const videoId = clickedTrack.songId;
     
@@ -281,255 +517,694 @@ export default function YoutubeMusicPage() {
       const playlist = allTracks.map((t, i) => i === idx ? youtubeTrack : t);
       playTrackList(playlist, idx);
     }
-    setResolvingIdx(null);
-    setResolvingIdx(null);
+    setResolvingIdx(null); // Fixed: removed duplicate call
   }, [playTrackList, resolvedAudio]);
+
+  // Memoized section data to prevent recalculation
+  const sectionDataMap = useMemo(() => {
+    const map = new Map<string, { tracks: Track[]; isLoading: boolean; isVisible: boolean; isLoaded: boolean }>();
+    FRONT_SECTIONS.forEach(section => {
+      map.set(section.id, {
+        tracks: sectionTracks.get(section.id) || [],
+        isLoading: sectionsLoading[section.id] || false,
+        isVisible: visibleSections.has(section.id),
+        isLoaded: loadedSections.has(section.id),
+      });
+    });
+    return map;
+  }, [sectionTracks, sectionsLoading, visibleSections, loadedSections]);
 
   return (
     <main className="flex-1 overflow-y-auto overflow-x-hidden pb-32 md:pb-28 bg-background">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border px-4 md:px-6 pt-4 pb-3">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-            <Play size={16} className="text-white ml-0.5" fill="white" />
-          </div>
-          <div>
-              <h1 className="text-sm md:text-lg font-bold text-foreground leading-tight">YouTube Music</h1>
-              <p className="text-[9px] md:text-[10px] text-muted-foreground">Stream from YouTube</p>
-          </div>
-        </div>
-        {/* Search Bar */}
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search songs, artists, albums..."
-            className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
-          />
-          {query && (
-            <button onClick={() => setQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X size={15} />
-            </button>
-          )}
-        </div>
-      </div>
+      <Header
+        query={query}
+        setQuery={setQuery}
+        handleRefresh={handleRefresh}
+        refreshing={refreshing}
+      />
 
-      <div className="px-4 md:px-6 pt-4">
-        {/* Category Pills */}
-        {!isSearchMode && (
-          <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-hide mb-4">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat.label}
-                onClick={() => handleCategoryClick(cat)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                  activeCategory.label === cat.label
-                    ? "bg-primary text-white shadow-lg shadow-primary/30"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                }`}
-              >
-                <span>{cat.emoji}</span>
-                <span>{cat.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
+      {/* Category View */}
+      {viewMode === "category" && activeCategory && (
+        <CategoryView
+          activeCategory={activeCategory}
+          tracks={tracks}
+          loading={loading}
+          loadingMore={loadingMore}
+          resolvingIdx={resolvingIdx}
+          isTrackPlaying={isTrackPlaying}
+          handlePlay={handlePlay}
+          handleBackToHome={handleBackToHome}
+          handleRefresh={handleRefresh}
+          addToQueue={addToQueue}
+          setMenuTrack={setMenuTrack}
+          bottomRef={bottomRef}
+        />
+      )}
 
-        {/* Section Title + Play All */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            {isSearchMode ? (
-              <>
-                <Search size={15} className="text-primary" />
-                <h2 className="text-xs md:text-sm font-bold text-foreground">"{query}"</h2>
-              </>
-            ) : (
-              <>
-                <span className="text-base">{activeCategory.emoji}</span>
-                <h2 className="text-xs md:text-sm font-bold text-foreground">{activeCategory.label}</h2>
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold">YT</span>
-              </>
-            )}
-          </div>
-          {tracks.length > 0 && (
-            <button
-              onClick={() => handlePlay(tracks[0], tracks, 0)}
-              className="flex items-center gap-1 md:gap-1.5 px-2.5 md:px-3 py-1 md:py-1.5 rounded-full bg-primary text-white text-[10px] md:text-xs font-medium hover:bg-primary/80 transition-colors"
-            >
-              <Play size={10} fill="currentColor" /> Play All
-            </button>
-          )}
-        </div>
-
-        {/* Initial Loading */}
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-12 md:py-16 gap-3">
-            <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/20 flex items-center justify-center">
-              <Loader2 size={16} className="text-primary animate-spin md:w-5 md:h-5" />
-            </div>
-            <p className="text-xs md:text-sm text-muted-foreground">Loading from YouTube...</p>
-          </div>
-        )}
-
-        {/* No results */}
-        {!loading && tracks.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 md:py-16 gap-3">
-            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-muted flex items-center justify-center">
-              <Search size={18} className="text-muted-foreground md:w-5 md:h-5" />
-            </div>
-            <p className="text-xs md:text-sm text-muted-foreground">No results found</p>
-          </div>
-        )}
-
-        {/* Track List */}
-        {!loading && tracks.length > 0 && (
-          <div className="space-y-1">
-            {tracks.map((track, i) => (
-              <div
-                key={track.src + i}
-                onClick={() => handlePlay(track, tracks, i)}
-                className={`flex items-center gap-2 md:gap-3 p-2 md:p-2.5 rounded-xl cursor-pointer transition-all group ${
-                  isTrackPlaying(track)
-                    ? "bg-primary/10 border border-primary/20"
-                    : resolvingIdx === i ? "bg-muted/40" : "hover:bg-muted/60"
-                }`}
-              >
-                <div className="relative flex-shrink-0">
-                  <img src={track.cover} alt="" width={56} height={56} loading="lazy" className="w-12 h-12 md:w-14 md:h-14 rounded-lg object-cover shadow-md" />
-                  <div className={`absolute inset-0 rounded-lg flex items-center justify-center transition-all ${
-                    isTrackPlaying(track) ? "bg-black/40" : resolvingIdx === i ? "bg-black/50" : "bg-black/0 group-hover:bg-black/40"
-                  }`}>
-                    {resolvingIdx === i ? (
-                      <Loader2 size={18} className="text-white animate-spin" />
-                    ) : isTrackPlaying(track) ? (
-                      <Pause size={18} className="text-white" />
-                    ) : (
-                      <Play size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity ml-0.5" />
-                    )}
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs md:text-sm font-medium truncate ${isTrackPlaying(track) ? "text-primary" : "text-foreground"}`}>
-                    {track.title}
-                  </p>
-                  <p className="text-[10px] md:text-[11px] text-muted-foreground truncate">{track.artist}</p>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    {track.duration > 0 && (
-                      <p className="text-[9px] md:text-[10px] text-muted-foreground/60">
-                        {Math.floor(track.duration / 60)}:{String(track.duration % 60).padStart(2, "0")}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
-                    className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-muted hover:bg-primary/20 flex items-center justify-center transition-colors md:opacity-0 md:group-hover:opacity-100"
-                    title="Add to queue"
-                  >
-                    <Plus size={12} className="text-muted-foreground md:w-3.5 md:h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setMenuTrack(track); }}
-                    className="w-7 h-7 md:w-8 md:h-8 rounded-full hover:bg-muted flex items-center justify-center transition-colors"
-                    title="More options"
-                  >
-                    <MoreVertical size={14} className="text-muted-foreground md:w-3.5 md:h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {/* Infinite scroll trigger */}
-            <div ref={bottomRef} className="py-2 flex justify-center">
-              {loadingMore && (
-                <div className="flex items-center gap-2 text-muted-foreground text-xs py-3">
-                  <Loader2 size={14} className="animate-spin text-primary" />
-                  <span>Loading more...</span>
-                </div>
-              )}
-              {!loadingMore && !hasMore && tracks.length > 0 && (
-                <p className="text-[11px] text-muted-foreground py-3">No more results</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Quick Picks — shown when no search */}
-        {!isSearchMode && !loading && (
-          <div className="mt-6 mb-4">
-            <h3 className="text-xs md:text-sm font-bold text-foreground mb-3 flex items-center gap-2">
-              <Music2 size={14} className="text-primary" /> Quick Picks
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-              {QUICK_PICKS.map((pick) => (
-                <button
-                  key={pick.label}
-                  onClick={() => handleCategoryClick({ label: pick.label, emoji: pick.emoji, query: pick.query })}
-                  className="flex items-center gap-2 md:gap-2.5 p-2.5 md:p-3 rounded-xl bg-muted hover:bg-muted/70 border border-border hover:border-primary/30 transition-all text-left"
-                >
-                  <span className="text-lg md:text-xl">{pick.emoji}</span>
-                  <div className="min-w-0">
-                    <p className="text-[11px] md:text-xs font-semibold text-foreground truncate">{pick.label}</p>
-                    <p className="text-[8px] md:text-[9px] text-muted-foreground">YouTube</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Home View - Beautiful Sections */}
+      {viewMode === "home" && (
+        <HomeView
+          sectionDataMap={sectionDataMap}
+          sectionRefs={sectionRefs}
+          handleCategoryClick={handleCategoryClick}
+          handlePlay={handlePlay}
+          isTrackPlaying={isTrackPlaying}
+          handleRefresh={handleRefresh}
+          refreshing={refreshing}
+        />
+      )}
 
       {/* Bottom Sheet Menu */}
       {menuTrack && (
-        <div className="fixed inset-0 z-50 flex items-end" onClick={() => setMenuTrack(null)}>
-          <div className="absolute inset-0 bg-black/50" />
-          <div
-            className="relative w-full bg-card rounded-t-2xl border-t border-border p-4 pb-8 animate-in slide-in-from-bottom duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Track info */}
-            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border">
-              <img src={menuTrack.cover} alt="" width={48} height={48} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">{menuTrack.title}</p>
-                <p className="text-xs text-muted-foreground truncate">{menuTrack.artist}</p>
-              </div>
-            </div>
-            {/* Actions */}
-            <div className="space-y-1">
-              <button
-                onClick={() => { handlePlay(menuTrack, tracks, tracks.findIndex(t => t.src === menuTrack.src)); setMenuTrack(null); }}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left"
-              >
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Play size={15} className="text-primary ml-0.5" />
-                </div>
-                <span className="text-sm font-medium text-foreground">Play Now</span>
-              </button>
-              <button
-                onClick={() => { addToQueue(menuTrack); setMenuTrack(null); }}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left"
-              >
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                  <ListPlus size={15} className="text-primary" />
-                </div>
-                <span className="text-sm font-medium text-foreground">Add to Queue</span>
-              </button>
-              <button
-                onClick={() => { playNext(menuTrack); setMenuTrack(null); }}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left"
-              >
-                <div className="w-8 h-8 rounded-full bg-green-600/20 flex items-center justify-center">
-                  <PlaySquare size={15} className="text-green-400" />
-                </div>
-                <span className="text-sm font-medium text-foreground">Play Next</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <BottomSheetMenu
+          menuTrack={menuTrack}
+          setMenuTrack={setMenuTrack}
+          handlePlay={handlePlay}
+          tracks={tracks}
+          addToQueue={addToQueue}
+          playNext={playNext}
+        />
       )}
     </main>
   );
 }
+
+// Memoized Header component
+const Header = memo(({
+  query,
+  setQuery,
+  handleRefresh,
+  refreshing
+}: {
+  query: string;
+  setQuery: (q: string) => void;
+  handleRefresh: () => void;
+  refreshing: boolean;
+}) => (
+  <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3">
+    <div className="flex items-center justify-between mb-2 sm:mb-3">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+          <Play size={14} className="text-white ml-0.5" fill="white" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-base sm:text-lg font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent leading-tight">YouTube Music</h1>
+          <p className="text-[10px] sm:text-[11px] text-muted-foreground">Discover • Stream • Enjoy</p>
+        </div>
+      </div>
+      <button
+        onClick={handleRefresh}
+        disabled={refreshing}
+        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-all touch-manipulation flex-shrink-0"
+        title="Refresh songs"
+      >
+        <RefreshCw size={16} className={`text-muted-foreground ${refreshing ? "animate-spin text-primary" : ""}`} />
+      </button>
+    </div>
+    {/* Search Bar */}
+    <div className="relative">
+      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search songs, artists, albums..."
+        className="w-full pl-9 pr-9 py-2.5 sm:py-3 rounded-xl bg-muted border border-border text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all min-h-[44px]"
+      />
+      {query && (
+        <button onClick={() => setQuery("")} className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground min-w-[44px] min-h-[44px] flex items-center justify-center">
+          <X size={16} />
+        </button>
+      )}
+    </div>
+  </div>
+));
+
+// Windowed Track List for performance with unlimited results
+const VISIBLE_COUNT = 50; // Number of items to render at once
+const BUFFER_COUNT = 20; // Buffer items above and below visible area
+
+const TrackListWindowed = memo(({
+  tracks,
+  isTrackPlaying,
+  resolvingIdx,
+  handlePlay,
+  addToQueue,
+  setMenuTrack,
+  bottomRef,
+  loadingMore,
+}: {
+  tracks: Track[];
+  isTrackPlaying: (t: Track) => boolean;
+  resolvingIdx: number | null;
+  handlePlay: (track: Track, allTracks: Track[], idx: number) => void;
+  addToQueue: (track: Track) => void;
+  setMenuTrack: (track: Track | null) => void;
+  bottomRef: React.RefObject<HTMLDivElement | null>;
+  loadingMore: boolean;
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
+  
+  // Estimate item height (64px min-h + spacing)
+  const ITEM_HEIGHT = 80;
+  
+  // Calculate visible range
+  const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - BUFFER_COUNT);
+  const endIndex = Math.min(tracks.length, startIndex + VISIBLE_COUNT + BUFFER_COUNT * 2);
+  
+  // Calculate total height for scrollbar
+  const totalHeight = tracks.length * ITEM_HEIGHT;
+  
+  // Calculate offset for visible items
+  const offsetY = startIndex * ITEM_HEIGHT;
+  
+  // Handle scroll
+  const handleScroll = useCallback(() => {
+    if (containerRef.current) {
+      setScrollTop(containerRef.current.scrollTop);
+      setContainerHeight(containerRef.current.clientHeight);
+    }
+  }, []);
+  
+  // Visible tracks
+  const visibleTracks = useMemo(() => {
+    return tracks.slice(startIndex, endIndex);
+  }, [tracks, startIndex, endIndex]);
+
+  return (
+    <div
+      ref={containerRef}
+      onScroll={handleScroll}
+      className="relative overflow-y-auto"
+      style={{ maxHeight: 'calc(100vh - 280px)' }}
+    >
+      {/* Spacer for total height */}
+      <div style={{ height: totalHeight, position: 'relative' }}>
+        {/* Visible items container */}
+        <div style={{ position: 'absolute', top: offsetY, left: 0, right: 0 }}>
+          <div className="space-y-1.5 sm:space-y-2">
+            {visibleTracks.map((track, i) => {
+              const actualIndex = startIndex + i;
+              return (
+                <TrackListItem
+                  key={track.songId || track.src}
+                  track={track}
+                  index={actualIndex}
+                  isPlaying={isTrackPlaying(track)}
+                  isResolving={resolvingIdx === actualIndex}
+                  onPlay={() => handlePlay(track, tracks, actualIndex)}
+                  onAddToQueue={() => addToQueue(track)}
+                  onMoreOptions={() => setMenuTrack(track)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      
+      {/* Infinite scroll trigger */}
+      <div ref={bottomRef as React.RefObject<HTMLDivElement>} className="py-3 sm:py-4 flex justify-center sticky bottom-0 bg-background">
+        {loadingMore && (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm sm:text-base py-3">
+            <Loader2 size={16} className="animate-spin text-primary" />
+            <span>Loading more...</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
+// Memoized Category View component - unlimited results
+const CategoryView = memo(({
+  activeCategory,
+  tracks,
+  loading,
+  loadingMore,
+  resolvingIdx,
+  isTrackPlaying,
+  handlePlay,
+  handleBackToHome,
+  handleRefresh,
+  addToQueue,
+  setMenuTrack,
+  bottomRef,
+}: {
+  activeCategory: typeof FRONT_SECTIONS[0];
+  tracks: Track[];
+  loading: boolean;
+  loadingMore: boolean;
+  resolvingIdx: number | null;
+  isTrackPlaying: (t: Track) => boolean;
+  handlePlay: (track: Track, allTracks: Track[], idx: number) => void;
+  handleBackToHome: () => void;
+  handleRefresh: () => void;
+  addToQueue: (track: Track) => void;
+  setMenuTrack: (track: Track | null) => void;
+  bottomRef: React.RefObject<HTMLDivElement | null>;
+}) => (
+  <div className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4">
+    {/* Back Button + Section Header */}
+    <div className="flex items-center gap-2 sm:gap-3 mb-4">
+      <button
+        onClick={handleBackToHome}
+        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-all touch-manipulation flex-shrink-0"
+      >
+        <svg className="w-5 h-5 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+      <div className={`flex-1 min-w-0 p-3 sm:p-4 rounded-xl bg-gradient-to-r ${activeCategory.color} text-white`}>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="text-xl sm:text-2xl">{activeCategory.emoji}</span>
+          <div className="min-w-0">
+            <h2 className="text-sm sm:text-base font-bold truncate">{activeCategory.label}</h2>
+            <p className="text-[10px] sm:text-xs opacity-80">Fresh from YouTube</p>
+          </div>
+        </div>
+      </div>
+      {tracks.length > 0 && (
+        <button
+          onClick={() => handlePlay(tracks[0], tracks, 0)}
+          className="flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-white text-gray-900 text-xs sm:text-sm font-bold hover:bg-white/90 transition-colors flex-shrink-0 min-h-[36px] touch-manipulation"
+        >
+          <Play size={12} fill="currentColor" /> <span className="hidden sm:inline">Play All</span>
+        </button>
+      )}
+    </div>
+
+    {/* Loading State */}
+    {loading && (
+      <div className="flex flex-col items-center justify-center py-12 sm:py-16 gap-3">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/20 flex items-center justify-center">
+          <Loader2 size={20} className="text-primary animate-spin" />
+        </div>
+        <p className="text-sm sm:text-base text-muted-foreground">Loading songs...</p>
+      </div>
+    )}
+
+    {/* Track List - Windowed rendering for performance */}
+    {!loading && tracks.length > 0 && (
+      <TrackListWindowed
+        tracks={tracks}
+        isTrackPlaying={isTrackPlaying}
+        resolvingIdx={resolvingIdx}
+        handlePlay={handlePlay}
+        addToQueue={addToQueue}
+        setMenuTrack={setMenuTrack}
+        bottomRef={bottomRef}
+        loadingMore={loadingMore}
+      />
+    )}
+
+    {!loading && tracks.length === 0 && (
+      <div className="flex flex-col items-center justify-center py-12 sm:py-16 gap-3">
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-muted flex items-center justify-center">
+          <Music2 size={20} className="text-muted-foreground" />
+        </div>
+        <p className="text-sm sm:text-base text-muted-foreground">No songs found</p>
+        <button
+          onClick={handleRefresh}
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-white text-sm font-medium hover:bg-primary/80 transition-colors touch-manipulation"
+        >
+          <RefreshCw size={14} /> Try Again
+        </button>
+      </div>
+    )}
+  </div>
+));
+
+// Memoized Home View component
+const HomeView = memo(({
+  sectionDataMap,
+  sectionRefs,
+  handleCategoryClick,
+  handlePlay,
+  isTrackPlaying,
+  handleRefresh,
+  refreshing,
+}: {
+  sectionDataMap: Map<string, { tracks: Track[]; isLoading: boolean; isVisible: boolean; isLoaded: boolean }>;
+  sectionRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
+  handleCategoryClick: (section: typeof FRONT_SECTIONS[0]) => void;
+  handlePlay: (track: Track, allTracks: Track[], idx: number) => void;
+  isTrackPlaying: (t: Track) => boolean;
+  handleRefresh: () => void;
+  refreshing: boolean;
+}) => (
+  <div className="px-0 sm:px-3 md:px-6 pt-3 sm:pt-4">
+    {/* Hero Banner */}
+    <div className="mx-3 sm:mx-0 mb-4 sm:mb-6 p-4 sm:p-6 rounded-2xl bg-gradient-to-br from-red-500 via-pink-500 to-purple-600 text-white relative overflow-hidden">
+      <div className="absolute inset-0 opacity-20">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full blur-3xl -translate-y-8 translate-x-8" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white rounded-full blur-3xl translate-y-6 -translate-x-6" />
+      </div>
+      <div className="relative z-10">
+        <div className="flex items-center gap-2 mb-2">
+          <TrendingUp size={18} />
+          <span className="text-xs sm:text-sm font-medium opacity-90">Updated Daily</span>
+        </div>
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-1 sm:mb-2">Discover New Music</h2>
+        <p className="text-xs sm:text-sm opacity-90 mb-3 sm:mb-4">Fresh songs from YouTube • New tracks every visit</p>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-white text-gray-900 text-xs sm:text-sm font-bold hover:bg-white/90 transition-colors touch-manipulation"
+        >
+          <Shuffle size={14} className={refreshing ? "animate-spin" : ""} />
+          {refreshing ? "Refreshing..." : "Shuffle & Refresh"}
+        </button>
+      </div>
+    </div>
+
+    {/* Section Tracks - Lazy Loaded */}
+    {FRONT_SECTIONS.map((section) => {
+      const sectionData = sectionDataMap.get(section.id);
+      if (!sectionData) return null;
+      
+      const { tracks: sectionTracks, isLoading, isVisible, isLoaded } = sectionData;
+      const Icon = section.icon;
+      
+      return (
+        <div
+          key={section.id}
+          className="mb-4 sm:mb-6"
+          ref={(el) => {
+            if (el) sectionRefs.current.set(section.id, el);
+          }}
+          data-section-id={section.id}
+        >
+          {/* Section Header */}
+          <div className="flex items-center justify-between px-3 sm:px-0 mb-2 sm:mb-3">
+            <button
+              onClick={() => handleCategoryClick(section)}
+              className="flex items-center gap-2 sm:gap-3 group"
+            >
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br ${section.color} flex items-center justify-center shadow-md group-hover:scale-105 transition-transform`}>
+                <Icon size={14} className="text-white" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-sm sm:text-base font-bold text-foreground group-hover:text-primary transition-colors">{section.label}</h3>
+                <p className="text-[9px] sm:text-[10px] text-muted-foreground">
+                  {isLoaded ? `${sectionTracks.length} songs` : 'Loading...'}
+                </p>
+              </div>
+            </button>
+            {sectionTracks.length > 0 && (
+              <button
+                onClick={() => handlePlay(sectionTracks[0], sectionTracks, 0)}
+                className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors touch-manipulation"
+              >
+                <Play size={10} fill="currentColor" /> <span className="hidden sm:inline">Play</span>
+              </button>
+            )}
+          </div>
+
+          {/* Horizontal Scroll Tracks */}
+          {!isVisible || isLoading ? (
+            <SectionSkeleton />
+          ) : sectionTracks.length > 0 ? (
+            <div className="flex gap-2 sm:gap-3 overflow-x-auto px-3 sm:px-0 pb-2 scrollbar-hide -mx-3 sm:mx-0">
+              {sectionTracks.map((track, i) => (
+                <TrackCard
+                  key={track.songId || i}
+                  track={track}
+                  index={i}
+                  isPlaying={isTrackPlaying(track)}
+                  onPlay={() => handlePlay(track, sectionTracks, i)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-28 sm:h-32 rounded-xl bg-muted/50 mx-3 sm:mx-0">
+              <p className="text-xs text-muted-foreground">No songs available</p>
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+));
+
+// Memoized Bottom Sheet Menu component
+const BottomSheetMenu = memo(({
+  menuTrack,
+  setMenuTrack,
+  handlePlay,
+  tracks,
+  addToQueue,
+  playNext,
+}: {
+  menuTrack: Track;
+  setMenuTrack: (track: Track | null) => void;
+  handlePlay: (track: Track, allTracks: Track[], idx: number) => void;
+  tracks: Track[];
+  addToQueue: (track: Track) => void;
+  playNext: (track: Track) => void;
+}) => {
+  const trackIndex = tracks.findIndex(t => t.src === menuTrack.src);
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-end" onClick={() => setMenuTrack(null)}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative w-full pb-[128px]">
+        <div
+          className="w-full bg-zinc-900 rounded-t-2xl border-t border-zinc-700/50 p-4 pb-6 sm:pb-8 animate-in slide-in-from-bottom duration-300 max-h-[55vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+        {/* Handle bar */}
+        <div className="flex justify-center mb-4">
+          <div className="w-12 h-1.5 rounded-full bg-zinc-600" />
+        </div>
+        {/* Track info */}
+        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-zinc-700/50">
+          <img src={menuTrack.cover} alt="" width={56} height={56} className="w-14 h-14 rounded-lg object-cover flex-shrink-0 shadow-lg" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white truncate">{menuTrack.title}</p>
+            <p className="text-xs text-zinc-400 truncate mt-0.5">{menuTrack.artist}</p>
+          </div>
+        </div>
+        {/* Actions */}
+        <div className="space-y-1">
+          <button
+            onClick={() => { handlePlay(menuTrack, tracks, trackIndex >= 0 ? trackIndex : 0); setMenuTrack(null); }}
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-zinc-800 active:bg-zinc-700 transition-colors text-left min-h-[52px] touch-manipulation"
+          >
+            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+              <Play size={18} className="text-green-400 ml-0.5" />
+            </div>
+            <span className="text-sm font-medium text-white">Play Now</span>
+          </button>
+          <button
+            onClick={() => { addToQueue(menuTrack); setMenuTrack(null); }}
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-zinc-800 active:bg-zinc-700 transition-colors text-left min-h-[52px] touch-manipulation"
+          >
+            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <ListPlus size={18} className="text-blue-400" />
+            </div>
+            <span className="text-sm font-medium text-white">Add to Queue</span>
+          </button>
+          <button
+            onClick={() => { playNext(menuTrack); setMenuTrack(null); }}
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-zinc-800 active:bg-zinc-700 transition-colors text-left min-h-[52px] touch-manipulation"
+          >
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+              <PlaySquare size={18} className="text-purple-400" />
+            </div>
+            <span className="text-sm font-medium text-white">Play Next</span>
+          </button>
+        </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// Memoized Track List Item for category view
+interface TrackListItemProps {
+  track: Track;
+  index: number;
+  isPlaying: boolean;
+  isResolving: boolean;
+  onPlay: () => void;
+  onAddToQueue: () => void;
+  onMoreOptions: () => void;
+}
+
+const TrackListItem = memo(({
+  track,
+  isPlaying,
+  isResolving,
+  onPlay,
+  onAddToQueue,
+  onMoreOptions
+}: TrackListItemProps) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  
+  const formatDuration = useMemo(() => {
+    if (track.duration <= 0) return null;
+    const mins = Math.floor(track.duration / 60);
+    const secs = String(track.duration % 60).padStart(2, "0");
+    return `${mins}:${secs}`;
+  }, [track.duration]);
+
+  return (
+    <div
+      onClick={onPlay}
+      className={`flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl cursor-pointer transition-all group min-h-[64px] touch-manipulation ${
+        isPlaying
+          ? "bg-primary/10 border border-primary/20"
+          : isResolving ? "bg-muted/40" : "hover:bg-muted/60"
+      }`}
+    >
+      <div className="relative flex-shrink-0">
+        {!imageLoaded && !imageError && (
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-muted animate-pulse" />
+        )}
+        {imageError && (
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-muted flex items-center justify-center">
+            <Music2 size={20} className="text-muted-foreground/50" />
+          </div>
+        )}
+        <img
+          src={track.cover}
+          alt=""
+          width={56}
+          height={56}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setImageLoaded(true)}
+          onError={() => setImageError(true)}
+          className={`w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover shadow-md ${
+            imageLoaded ? "opacity-100" : "opacity-0 absolute inset-0"
+          }`}
+        />
+        <div className={`absolute inset-0 rounded-lg flex items-center justify-center transition-all ${
+          isPlaying ? "bg-black/40" : isResolving ? "bg-black/50" : "bg-black/0 group-hover:bg-black/40"
+        }`}>
+          {isResolving ? (
+            <Loader2 size={20} className="text-white animate-spin" />
+          ) : isPlaying ? (
+            <Pause size={20} className="text-white" />
+          ) : (
+            <Play size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity ml-0.5" />
+          )}
+        </div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm sm:text-base font-medium truncate leading-tight ${isPlaying ? "text-primary" : "text-foreground"}`}>
+          {track.title}
+        </p>
+        <p className="text-xs sm:text-sm text-muted-foreground truncate mt-0.5">{track.artist}</p>
+        {formatDuration && (
+          <p className="text-[10px] sm:text-xs text-muted-foreground/60 mt-1">
+            {formatDuration}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+        <button
+          onClick={(e) => { e.stopPropagation(); onAddToQueue(); }}
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-muted hover:bg-primary/20 flex items-center justify-center transition-colors touch-manipulation"
+          title="Add to queue"
+        >
+          <Plus size={16} className="text-muted-foreground" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onMoreOptions(); }}
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-muted flex items-center justify-center transition-colors touch-manipulation"
+          title="More options"
+        >
+          <MoreVertical size={16} className="text-muted-foreground" />
+        </button>
+      </div>
+    </div>
+  );
+});
+
+// Memoized Section Skeleton for better performance
+const SectionSkeleton = memo(() => (
+  <div className="flex gap-2 sm:gap-3 overflow-x-auto px-3 sm:px-0 pb-2 scrollbar-hide -mx-3 sm:mx-0">
+    {Array.from({ length: 5 }).map((_, i) => (
+      <div key={i} className="flex-shrink-0 w-28 sm:w-32 animate-pulse">
+        <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-xl bg-gradient-to-br from-muted to-muted/50 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
+        </div>
+        <div className="h-3 w-24 rounded-full bg-muted/60 mt-2" />
+        <div className="h-2 w-16 rounded-full bg-muted/40 mt-1.5" />
+      </div>
+    ))}
+  </div>
+));
+
+// Memoized Track Card component for performance
+interface TrackCardProps {
+  track: Track;
+  index: number;
+  isPlaying: boolean;
+  onPlay: () => void;
+}
+
+const TrackCard = memo(({ track, index, isPlaying, onPlay }: TrackCardProps) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  return (
+    <button
+      onClick={onPlay}
+      className={`flex-shrink-0 w-28 sm:w-32 group touch-manipulation ${
+        isPlaying ? "scale-95" : "hover:scale-105"
+      } transition-transform`}
+    >
+      <div className="relative">
+        {/* Image placeholder */}
+        {!imageLoaded && !imageError && (
+          <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-xl bg-gradient-to-br from-muted to-muted/50 animate-pulse" />
+        )}
+        {imageError && (
+          <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-xl bg-muted flex items-center justify-center">
+            <Music2 size={24} className="text-muted-foreground/50" />
+          </div>
+        )}
+        <img
+          src={track.cover}
+          alt=""
+          width={128}
+          height={128}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setImageLoaded(true)}
+          onError={() => setImageError(true)}
+          className={`w-28 h-28 sm:w-32 sm:h-32 rounded-xl object-cover shadow-md transition-opacity duration-300 ${
+            imageLoaded ? "opacity-100" : "opacity-0 absolute inset-0"
+          }`}
+        />
+        <div className={`absolute inset-0 rounded-xl flex items-center justify-center transition-all ${
+          isPlaying ? "bg-black/40" : "bg-black/0 group-hover:bg-black/40"
+        }`}>
+          {isPlaying ? (
+            <Pause size={20} className="text-white" />
+          ) : (
+            <Play size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="white" />
+          )}
+        </div>
+        {isPlaying && (
+          <div className="absolute bottom-1 left-1 right-1 flex items-end justify-center gap-0.5">
+            <div className="w-0.5 h-3 bg-primary rounded-full animate-pulse" style={{ animationDelay: "0ms" }} />
+            <div className="w-0.5 h-4 bg-primary rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
+            <div className="w-0.5 h-2 bg-primary rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
+          </div>
+        )}
+      </div>
+      <div className="mt-1.5 sm:mt-2 px-0.5">
+        <p className={`text-xs font-medium truncate leading-tight ${isPlaying ? "text-primary" : "text-foreground"}`}>
+          {track.title}
+        </p>
+        <p className="text-[9px] sm:text-[10px] text-muted-foreground truncate mt-0.5">{track.artist}</p>
+      </div>
+    </button>
+  );
+});

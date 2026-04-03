@@ -12,7 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const yts = (await import("yt-search")).default;
     const result = await yts({ query, category: "music" });
-    const videos = result.videos.slice(0, 20).map((v) => ({
+    const videos = result.videos.slice(0, 50).map((v: any) => ({
       videoId: v.videoId,
       title: v.title,
       author: v.author.name,
