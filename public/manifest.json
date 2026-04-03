@@ -1,12 +1,13 @@
 {
-  "name": "Sonic Bloom Player",
-  "short_name": "Sonic Bloom",
+  "name": "Pulse Music Player",
+  "short_name": "Pulse",
   "description": "Premium music player with synced lyrics, equalizer, and multi-language support",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "background_color": "hsl(240, 6%, 7%)",
+  "theme_color": "hsl(240, 6%, 7%)",
   "orientation": "any",
+  "categories": ["music", "entertainment"],
   "icons": [
     {
       "src": "/icon-192.png",

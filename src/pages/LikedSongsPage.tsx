@@ -16,14 +16,14 @@ export const LikedSongsPage = () => {
     <div className="flex-1 overflow-y-auto pb-32 md:pb-24">
       {/* Header */}
       <div className="bg-gradient-to-b from-primary/20 to-background px-6 pt-8 pb-6">
-        <div className="flex items-end gap-6">
-          <div className="w-48 h-48 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-2xl">
-            <Heart size={80} className="text-primary-foreground" fill="currentColor" />
+        <div className="flex items-end gap-3 md:gap-6">
+          <div className="w-24 h-24 md:w-48 md:h-48 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-2xl">
+            <Heart size={32} className="text-primary-foreground md:w-20 md:h-20" fill="currentColor" />
           </div>
           <div className="flex-1 pb-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Playlist</p>
-            <h1 className="text-5xl font-bold text-foreground mb-4">Liked Songs</h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-[10px] md:text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 md:mb-2">Playlist</p>
+            <h1 className="text-2xl md:text-5xl font-bold text-foreground mb-2 md:mb-4">Liked Songs</h1>
+            <p className="text-xs md:text-sm text-muted-foreground">
               {favorites.length === 0 ? "No liked songs yet" : `${favorites.length} ${favorites.length === 1 ? 'song' : 'songs'}`}
             </p>
           </div>

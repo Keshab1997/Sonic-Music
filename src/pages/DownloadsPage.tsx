@@ -67,24 +67,24 @@ export const DownloadsPage = () => {
     <div className="flex-1 overflow-y-auto pb-32">
       <div className="px-4 md:px-6 py-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
-              <Download size={24} className="text-white" />
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center flex-shrink-0">
+              <Download size={20} className="text-white md:w-6 md:h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Downloads</h1>
-              <p className="text-sm text-muted-foreground">{downloads.length} songs available offline</p>
+              <h1 className="text-xl md:text-2xl font-bold text-foreground">Downloads</h1>
+              <p className="text-xs md:text-sm text-muted-foreground">{downloads.length} songs available offline</p>
             </div>
           </div>
           {downloads.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={downloadAllToDevice}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors flex items-center gap-2"
+                className="px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors flex items-center gap-1.5"
                 title="Download all to device"
               >
-                <HardDrive size={14} /> Save All to Device
+                <HardDrive size={12} className="md:w-4 md:h-4" /> <span className="hidden sm:inline">Save All to Device</span><span className="sm:hidden">Save All</span>
               </button>
               <button
                 onClick={() => {
@@ -96,13 +96,13 @@ export const DownloadsPage = () => {
                     setTimeout(() => setConfirmClear(false), 5000);
                   }
                 }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors ${
                   confirmClear
                     ? "bg-red-600 text-white hover:bg-red-700"
                     : "bg-muted text-muted-foreground hover:bg-accent"
                 }`}
               >
-                {confirmClear ? "Confirm Clear All" : "Clear All"}
+                {confirmClear ? "Confirm" : "Clear All"}
               </button>
             </div>
           )}

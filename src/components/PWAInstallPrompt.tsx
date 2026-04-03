@@ -19,10 +19,16 @@ export function usePWAInstall() {
       // Auto-show prompt after a short delay if not already shown
       setTimeout(() => {
         setShowPrompt(true);
-      }, 3000);
+      }, 5000);
     };
 
     window.addEventListener("beforeinstallprompt", handler);
+
+    // Check if already installed
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+    if (isStandalone) {
+      setIsInstallable(false);
+    }
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
@@ -58,48 +64,78 @@ interface PWAInstallPromptProps {
 
 export function PWAInstallPrompt({ onInstall, onDismiss }: PWAInstallPromptProps) {
   return (
-    <div className="fixed bottom-20 left-4 right-4 md:left-auto md:right-4 md:w-80 z-[100] animate-slide-up">
-      <div className="bg-zinc-900 border border-zinc-700/50 rounded-2xl shadow-2xl p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
-              <Smartphone size={20} className="text-white" />
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+        {/* Header with gradient */}
+        <div className="bg-gradient-to-r from-primary/20 to-primary/5 p-5 pb-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
+                <Smartphone size={22} className="text-primary-foreground" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Install Pulse</h3>
+                <p className="text-xs text-muted-foreground">Get the full app experience</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-white">Install Sonic Bloom</h3>
-              <p className="text-xs text-zinc-400">Get the app experience</p>
-            </div>
+            <button
+              onClick={onDismiss}
+              className="p-1.5 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X size={18} />
+            </button>
           </div>
-          <button
-            onClick={onDismiss}
-            className="p-1 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
-          >
-            <X size={16} />
-          </button>
         </div>
         
-        <ul className="text-xs text-zinc-400 space-y-1.5 mb-4">
-          <li className="flex items-center gap-2">
-            <span className="w-1 h-1 bg-green-500 rounded-full" />
-            Works offline
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="w-1 h-1 bg-green-500 rounded-full" />
-            Home screen access
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="w-1 h-1 bg-green-500 rounded-full" />
-            Faster loading
-          </li>
-        </ul>
-        
-        <button
-          onClick={onInstall}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-medium transition-colors"
-        >
-          <Download size={16} />
-          Install App
-        </button>
+        {/* Features list */}
+        <div className="p-5 pt-2">
+          <ul className="space-y-3 mb-5">
+            <li className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-green-500 text-sm">✓</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Works Offline</p>
+                <p className="text-xs text-muted-foreground">Listen to downloaded songs without internet</p>
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-blue-500 text-sm">✓</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Home Screen Access</p>
+                <p className="text-xs text-muted-foreground">Quick access from your device home screen</p>
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-purple-500 text-sm">✓</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Faster Loading</p>
+                <p className="text-xs text-muted-foreground">Optimized performance with caching</p>
+              </div>
+            </li>
+          </ul>
+          
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={onDismiss}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-muted text-foreground text-sm font-medium hover:bg-accent transition-colors"
+            >
+              Maybe Later
+            </button>
+            <button
+              onClick={onInstall}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+            >
+              <Download size={16} />
+              Install Now
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

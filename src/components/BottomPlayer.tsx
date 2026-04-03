@@ -41,7 +41,7 @@ import { Equalizer } from "@/components/Equalizer";
 import { SyncedLyrics } from "@/components/SyncedLyrics";
 import { parseLyrics } from "@/lib/lyricsParser";
 import { fetchLyrics } from "@/lib/lyricsFetcher";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 const formatTime = (s: number) => {
   const m = Math.floor(s / 60);
@@ -64,7 +64,7 @@ interface BottomPlayerProps {
   setShowPlaylist?: (show: boolean) => void;
 }
 
-export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: externalShowPlaylist, setShowPlaylist: externalSetShowPlaylist }: BottomPlayerProps = {}) => {
+export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer: _onShowEqualizer, showPlaylist: externalShowPlaylist, setShowPlaylist: externalSetShowPlaylist }: BottomPlayerProps = {}) => {
   const {
     currentTrack,
     isPlaying,
@@ -104,7 +104,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
 
   const { isFavorite, toggleFavorite } = useLocalData();
   const { playlists, createPlaylist, addToPlaylist } = usePlaylists();
-  const { downloadTrack, isDownloaded, isDownloading, getProgress } = useDownloads();
+  const { downloadTrack, isDownloaded, isDownloading } = useDownloads();
 
   const [openPanel, setOpenPanel] = useState<"queue" | "sleep" | "quality" | "speed" | null>(null);
   const [showLyrics, setShowLyrics] = useState(false);
@@ -114,7 +114,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [savedPlaylist, setSavedPlaylist] = useState(false);
   const [songMenu, setSongMenu] = useState<number | null>(null);
-  const [songMenuPlSubmenu, setSongMenuPlSubmenu] = useState(false);
+  const [_songMenuPlSubmenu, setSongMenuPlSubmenu] = useState(false);
   const [newPlName, setNewPlName] = useState("");
 
   const togglePanel = (panel: "queue" | "sleep" | "quality" | "speed") => {
@@ -122,10 +122,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
     setOpenPanel(prev => prev === panel ? null : panel);
   };
 
-  const closeAllPanels = () => {
-    setOpenPanel(null);
-    setShowMobileMenu(false);
-  };
+  // closeAllPanels removed - not needed
 
   // Use external state if provided, otherwise use internal state
   const showPlaylist = externalShowPlaylist !== undefined ? externalShowPlaylist : internalShowPlaylist;
@@ -136,16 +133,17 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
     const pl = createPlaylist(`Now Playing - ${new Date().toLocaleDateString()}`);
     tracks.forEach((track) => addToPlaylist(pl.id, track));
     setSavedPlaylist(true);
+    toast.success("Playlist Saved", {
+      description: `${tracks.length} songs saved to new playlist`,
+    });
     setTimeout(() => setSavedPlaylist(false), 2000);
   };
 
   const handleAddAllToQueue = () => {
     if (tracks.length === 0) return;
     tracks.forEach(track => addToQueue(track));
-    toast({
-      title: "Added to Queue",
+    toast.success("Added to Queue", {
       description: `${tracks.length} ${tracks.length === 1 ? 'song' : 'songs'} added to your queue`,
-      duration: 3000,
     });
   };
 
@@ -178,10 +176,8 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                       tracks.forEach((track, i) => {
                         setTimeout(() => downloadTrack(track), i * 200);
                       });
-                      toast({
-                        title: "Downloading Playlist",
+                      toast.info("Downloading Playlist", {
                         description: `${tracks.length} songs will be downloaded for offline playback`,
-                        duration: 3000,
                       });
                     }}
                     disabled={tracks.length === 0}
@@ -269,7 +265,14 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                       {track.duration ? formatTime(track.duration) : "--:--"}
                     </span>
                     <button
-                      onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(track);
+                        toast.success(liked ? "Removed from Liked" : "Added to Liked", {
+                          description: track.title,
+                          duration: 2000,
+                        });
+                      }}
                       className={`p-1.5 rounded-full transition-all ${
                         liked ? "text-red-500 hover:text-red-600 hover:scale-110" : "text-muted-foreground hover:text-red-500 hover:scale-110"
                       }`}
@@ -278,7 +281,16 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                       <Heart size={15} fill={liked ? "currentColor" : "none"} strokeWidth={2} />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isDownloaded(track.songId || track.src) && !isDownloading(track.songId || track.src)) {
+                          downloadTrack(track);
+                          toast.info("Download Started", {
+                            description: track.title,
+                            duration: 2000,
+                          });
+                        }
+                      }}
                       disabled={isDownloading(track.songId || track.src)}
                       className={`p-1.5 rounded-full transition-all ${
                         isDownloaded(track.songId || track.src)
@@ -311,14 +323,12 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                           <div className="absolute right-0 top-full mt-1 z-[60] w-44 glass-heavy border border-border rounded-lg shadow-2xl overflow-hidden">
                             {/* Queue actions */}
                             <button
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                playNext(track); 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                playNext(track);
                                 setSongMenu(null);
-                                toast({
-                                  title: "Added to Queue",
-                                  description: `${track.title} will play next`,
-                                  duration: 3000,
+                                toast.success("Playing Next", {
+                                  description: track.title,
                                 });
                               }}
                               className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] text-foreground hover:bg-accent transition-colors"
@@ -330,10 +340,8 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                                 e.stopPropagation();
                                 addToQueue(track);
                                 setSongMenu(null);
-                                toast({
-                                  title: "Added to Queue",
-                                  description: `${track.title} added to your queue`,
-                                  duration: 3000,
+                                toast.success("Added to Queue", {
+                                  description: track.title,
                                 });
                               }}
                               className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] text-foreground hover:bg-accent transition-colors"
@@ -345,10 +353,8 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                                 e.stopPropagation();
                                 downloadTrack(track);
                                 setSongMenu(null);
-                                toast({
-                                  title: isDownloaded(track.songId || track.src) ? "Already Downloaded" : "Downloading...",
-                                  description: isDownloaded(track.songId || track.src) ? `${track.title} is already downloaded` : `${track.title} is being downloaded`,
-                                  duration: 3000,
+                                toast.info(isDownloaded(track.songId || track.src) ? "Already Downloaded" : "Download Started", {
+                                  description: track.title,
                                 });
                               }}
                               disabled={isDownloading(track.songId || track.src)}
@@ -407,7 +413,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
 
       {/* Queue Panel */}
       {openPanel === "queue" && (
-        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 z-[101] md:z-50 w-[calc(100vw-1.5rem)] max-w-80 max-h-[60vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-slide-up">
+        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 z-[102] md:z-50 w-[calc(100vw-1.5rem)] max-w-80 max-h-[60vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-slide-up">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
             <h3 className="text-sm font-bold text-foreground">Queue</h3>
             <div className="flex items-center gap-1.5">
@@ -464,7 +470,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
 
       {/* Sleep Timer Menu */}
       {openPanel === "sleep" && (
-        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-20 z-[101] md:z-50 w-52 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-20 z-[102] md:z-50 w-52 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <span className="text-sm font-bold text-foreground">Sleep Timer</span>
             <button onClick={() => setOpenPanel(null)} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
@@ -497,7 +503,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
 
       {/* Quality Menu */}
       {openPanel === "quality" && (
-        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-36 z-[101] md:z-50 w-48 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-36 z-[102] md:z-50 w-48 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <span className="text-sm font-bold text-foreground">Audio Quality</span>
             <button onClick={() => setOpenPanel(null)} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
@@ -523,7 +529,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
 
       {/* Playback Speed Menu */}
       {openPanel === "speed" && (
-        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-48 z-[101] md:z-50 w-44 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+        <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-48 z-[102] md:z-50 w-44 glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <span className="text-sm font-bold text-foreground">Playback Speed</span>
             <button onClick={() => setOpenPanel(null)} className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
@@ -828,8 +834,8 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
       {/* Mobile Menu Panel */}
       {showMobileMenu && (
         <>
-          <div className="fixed inset-0 z-40 md:hidden" onClick={() => setShowMobileMenu(false)} />
-          <div className="fixed bottom-[124px] right-3 z-[101] md:hidden w-56 max-h-[70vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up flex flex-col">
+          <div className="fixed inset-0 z-[100] md:hidden" onClick={() => setShowMobileMenu(false)} />
+          <div className="fixed bottom-[124px] right-3 z-[102] md:hidden w-56 max-h-[70vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up flex flex-col">
             {/* Main Actions */}
             <div className="p-1 overflow-y-auto flex-1">
               <button
@@ -1027,7 +1033,7 @@ const LyricsPanel = ({
   }, [rawLyrics, isSynced, duration]);
 
   return (
-    <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 z-[101] md:z-50 w-[calc(100vw-2rem)] max-w-[400px] h-[50vh] md:h-[60vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed bottom-[124px] md:bottom-20 left-1/2 -translate-x-1/2 z-[102] md:z-50 w-[calc(100vw-2rem)] max-w-[400px] h-[50vh] md:h-[60vh] glass-heavy border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col">
       <div className="flex items-center justify-between p-3 border-b border-border flex-shrink-0">
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-foreground truncate">{title} — Lyrics</h3>
