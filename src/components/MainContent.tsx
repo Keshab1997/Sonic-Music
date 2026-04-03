@@ -1636,7 +1636,26 @@ export const MainContent = () => {
           onClose={() => setShowFullHistory(false)}
         />
       )}
-      {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} />}
+      {showFullFeaturedPlaylists && (
+        <FullPlaylist
+          title="Featured Playlists"
+          icon="trending"
+          initialSongs={[]}
+          loadMore={async () => apiFeaturedPlaylists.map((p, i) => ({
+            id: 9000 + i,
+            title: p.title,
+            artist: p.subtitle,
+            album: "",
+            cover: p.image?.[0]?.link || "",
+            src: "",
+            duration: 0,
+            type: "audio" as const,
+            songId: p.id,
+          }))}
+          onClose={() => setShowFullFeaturedPlaylists(false)}
+        />
+      )}
+        {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} />}
     </main>
   );
 };
