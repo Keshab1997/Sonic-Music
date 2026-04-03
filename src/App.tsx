@@ -9,6 +9,7 @@ import { PlayerProvider } from "@/context/PlayerContext";
 import { DJMixerProvider } from "@/context/DJMixerContext";
 import { AppShell } from "@/components/AppShell";
 import { MainContent } from "@/components/MainContent";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Lazy load heavy routes — only download when navigated to
 const DJMixerPage = lazy(() => import("@/components/DJMixerPage").then(m => ({ default: m.DJMixerPage })));
@@ -36,41 +37,53 @@ const App = () => (
             <Routes>
               <Route path="/" element={
                 <AppShell>
-                  <MainContent />
+                  <ErrorBoundary>
+                    <MainContent />
+                  </ErrorBoundary>
                 </AppShell>
               } />
               <Route path="/search" element={
                 <AppShell>
-                  <Suspense fallback={<PageLoader />}>
-                    <SearchPage />
-                  </Suspense>
+                  <ErrorBoundary>
+                    <Suspense fallback={<PageLoader />}>
+                      <SearchPage />
+                    </Suspense>
+                  </ErrorBoundary>
                 </AppShell>
               } />
               <Route path="/dj" element={
                 <AppShell>
-                  <Suspense fallback={<PageLoader />}>
-                    <DJMixerPage />
-                  </Suspense>
+                  <ErrorBoundary>
+                    <Suspense fallback={<PageLoader />}>
+                      <DJMixerPage />
+                    </Suspense>
+                  </ErrorBoundary>
                 </AppShell>
               } />
               <Route path="/youtube" element={
                 <AppShell>
-                  <Suspense fallback={<PageLoader />}>
-                    <YoutubeMusicPage />
-                  </Suspense>
+                  <ErrorBoundary>
+                    <Suspense fallback={<PageLoader />}>
+                      <YoutubeMusicPage />
+                    </Suspense>
+                  </ErrorBoundary>
                 </AppShell>
               } />
               <Route path="/liked" element={
                 <AppShell>
-                  <Suspense fallback={<PageLoader />}>
-                    <LikedSongsPage />
-                  </Suspense>
+                  <ErrorBoundary>
+                    <Suspense fallback={<PageLoader />}>
+                      <LikedSongsPage />
+                    </Suspense>
+                  </ErrorBoundary>
                 </AppShell>
               } />
               <Route path="*" element={
-                <Suspense fallback={<PageLoader />}>
-                  <NotFound />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <NotFound />
+                  </Suspense>
+                </ErrorBoundary>
               } />
             </Routes>
           </DJMixerProvider>
