@@ -1,8 +1,14 @@
-import { useState } from "react";
-import { Download, Play, Trash2, Music, WifiOff, CheckCircle, AlertCircle, HardDrive } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Download, Play, Trash2, Music, WifiOff, CheckCircle, AlertCircle, HardDrive, AlertTriangle } from "lucide-react";
 import { useDownloads } from "@/hooks/useDownloads";
 import { usePlayer } from "@/context/PlayerContext";
 import { Track } from "@/data/playlist";
+import { toast } from "sonner";
+
+// Storage warning threshold (500MB)
+const STORAGE_WARNING_THRESHOLD = 500 * 1024 * 1024;
+// Maximum storage limit (800MB - IndexedDB typically allows ~1GB per origin)
+const STORAGE_MAX_LIMIT = 800 * 1024 * 1024;
 
 const formatDuration = (s: number) => {
   const m = Math.floor(s / 60);
@@ -14,6 +20,24 @@ export const DownloadsPage = () => {
   const { downloads, removeDownload, clearAllDownloads, getOfflineTrack, isDownloading, downloadProgress, downloadToDevice, downloadAllToDevice } = useDownloads();
   const { playTrackList } = usePlayer();
   const [confirmClear, setConfirmClear] = useState(false);
+  const [storageUsed, setStorageUsed] = useState(0);
+  const [storageWarning, setStorageWarning] = useState(false);
+  const [storageCritical, setStorageCritical] = useState(false);
+
+  // Calculate storage usage on mount and when downloads change
+  useEffect(() => {
+    const totalBytes = downloads.reduce((acc, d) => acc + d.audioData.byteLength, 0);
+    setStorageUsed(totalBytes);
+    setStorageWarning(totalBytes > STORAGE_WARNING_THRESHOLD);
+    setStorageCritical(totalBytes > STORAGE_MAX_LIMIT);
+    
+    if (totalBytes > STORAGE_MAX_LIMIT) {
+      toast.warning("Storage almost full!", {
+        description: "You've used most of your offline storage. Consider removing some downloads.",
+        duration: 5000,
+      });
+    }
+  }, [downloads]);
 
   const handlePlayAll = () => {
     if (downloads.length === 0) return;
@@ -184,6 +208,31 @@ export const DownloadsPage = () => {
           </div>
         )}
 
+        {/* Storage Warning Banner */}
+        {storageCritical && (
+          <div className="mt-4 p-4 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-3">
+            <AlertTriangle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-500">Storage Almost Full</p>
+              <p className="text-xs text-red-400/80 mt-1">
+                You've used {(storageUsed / (1024 * 1024)).toFixed(1)} MB of ~800 MB. Remove some downloads to free up space.
+              </p>
+            </div>
+          </div>
+        )}
+        
+        {storageWarning && !storageCritical && (
+          <div className="mt-4 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-start gap-3">
+            <AlertTriangle size={20} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-yellow-500">Storage Warning</p>
+              <p className="text-xs text-yellow-400/80 mt-1">
+                You've used {(storageUsed / (1024 * 1024)).toFixed(1)} MB. Consider removing some downloads.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Storage Info */}
         {downloads.length > 0 && (
           <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-border">
@@ -195,8 +244,22 @@ export const DownloadsPage = () => {
               {downloads.length} song{downloads.length !== 1 ? "s" : ""} downloaded
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Total size: ~{(downloads.reduce((acc, d) => acc + (d.audioData.byteLength / (1024 * 1024)), 0)).toFixed(1)} MB
+              Total size: ~{(storageUsed / (1024 * 1024)).toFixed(1)} MB
             </p>
+            {/* Storage Progress Bar */}
+            <div className="mt-3">
+              <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    storageCritical ? "bg-red-500" : storageWarning ? "bg-yellow-500" : "bg-green-500"
+                  }`}
+                  style={{ width: `${Math.min(100, (storageUsed / STORAGE_MAX_LIMIT) * 100)}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {(storageUsed / (1024 * 1024)).toFixed(1)} MB / ~{(STORAGE_MAX_LIMIT / (1024 * 1024)).toFixed(0)} MB ({((storageUsed / STORAGE_MAX_LIMIT) * 100).toFixed(0)}%)
+              </p>
+            </div>
           </div>
         )}
       </div>

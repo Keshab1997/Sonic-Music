@@ -1,6 +1,8 @@
 
-import { Play, Pause, SkipForward, X, Maximize2 } from "lucide-react";
+import { Play, Pause, SkipForward, X, Maximize2, ListPlus } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
+import { usePlaylists } from "@/hooks/usePlaylists";
+import { toast } from "sonner";
 
 interface MiniPlayerProps {
   onExpand: () => void;
@@ -8,7 +10,34 @@ interface MiniPlayerProps {
 }
 
 export const MiniPlayer = ({ onExpand, onClose }: MiniPlayerProps) => {
-  const { currentTrack, isPlaying, togglePlay, next, progress, duration } = usePlayer();
+  const { currentTrack, isPlaying, togglePlay, next, progress, duration, tracks, playTrackList } = usePlayer();
+  const { createPlaylist, addToPlaylist } = usePlaylists();
+
+  const handleNewPlaylist = () => {
+    if (tracks.length === 0) {
+      toast.info("No tracks to save", { description: "Play some songs first" });
+      return;
+    }
+
+    // Save current playlist with timestamp
+    const playlistName = `Playlist - ${new Date().toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
+    const newPl = createPlaylist(playlistName);
+    
+    // Add all current tracks to the new playlist
+    tracks.forEach((track) => addToPlaylist(newPl.id, track));
+    
+    toast.success("Playlist saved", {
+      description: `${tracks.length} songs saved to "${playlistName}"`,
+    });
+
+    // Clear current playlist and start fresh
+    playTrackList([], 0);
+  };
 
   if (!currentTrack) return null;
 
@@ -64,6 +93,13 @@ export const MiniPlayer = ({ onExpand, onClose }: MiniPlayerProps) => {
             className="p-2 text-muted-foreground hover:text-foreground active:scale-90 transition-all"
           >
             <SkipForward size={16} />
+          </button>
+          <button
+            onClick={handleNewPlaylist}
+            className="p-2 text-muted-foreground hover:text-green-400 active:scale-90 transition-all"
+            title="Save playlist & start new"
+          >
+            <ListPlus size={14} />
           </button>
           <button
             onClick={onExpand}

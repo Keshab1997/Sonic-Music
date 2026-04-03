@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Track } from "@/data/playlist";
 
 interface SaavnDownloadUrl {
@@ -23,20 +23,23 @@ interface SaavnSong {
 }
 
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
+const DEBOUNCE_MS = 400;
 
 export const useMusicSearch = () => {
   const [results, setResults] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const search = useCallback(async (query: string) => {
-    if (!query.trim()) return;
+  const executeSearch = useCallback(async (searchQuery: string) => {
+    if (!searchQuery.trim()) return;
     setLoading(true);
     setError(null);
     setResults([]);
 
     try {
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=20`);
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=1&limit=20`);
       if (!res.ok) throw new Error("Search failed");
 
       const data = await res.json();
@@ -77,7 +80,34 @@ export const useMusicSearch = () => {
     setLoading(false);
   }, []);
 
-  return { results, loading, error, search };
+  // Debounced search - automatically triggers when query changes
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    
+    if (!query.trim()) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(() => {
+      executeSearch(query);
+    }, DEBOUNCE_MS);
+
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, executeSearch]);
+
+  // Public search function - updates query state (triggers debounce)
+  const search = useCallback((searchQuery: string) => {
+    setQuery(searchQuery);
+  }, []);
+
+  // Immediate search without debounce (for explicit triggers)
+  const searchImmediate = useCallback(async (searchQuery: string) => {
+    await executeSearch(searchQuery);
+  }, [executeSearch]);
+
+  return { results, loading, error, search, searchImmediate, query, setQuery };
 };
 
 // Backward compatibility

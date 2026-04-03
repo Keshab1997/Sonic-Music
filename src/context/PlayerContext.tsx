@@ -2,6 +2,31 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Track, playlist } from "@/data/playlist";
 import ReactPlayer from "react-player";
+import {
+  DEFAULT_VOLUME,
+  DEFAULT_AUDIO_QUALITY,
+  STORAGE_KEY_QUALITY,
+  STORAGE_KEY_EQ,
+  STORAGE_KEY_QUEUE,
+  EQ_BASS_FREQUENCY,
+  EQ_MID_FREQUENCY,
+  EQ_TREBLE_FREQUENCY,
+  EQ_MID_Q_VALUE,
+  ANALYSER_FFT_SIZE,
+  TIME_UPDATE_INTERVAL_MS,
+  CROSSFADE_INTERVAL_MS,
+  CROSSFADE_STEPS_PER_SECOND,
+  PLAYBACK_START_DELAY_MS,
+  PLAYBACK_SHORT_DELAY_MS,
+  PLAYBACK_MEDIUM_DELAY_MS,
+  YOUTUBE_PLAY_CHECK_INTERVAL_MS,
+  YOUTUBE_RESUME_DELAY_MS,
+  YOUTUBE_UNSTARTED_DELAY_MS,
+  YOUTUBE_REPEAT_RESUME_DELAY_MS,
+  YOUTUBE_PLAYER_STATE,
+  SILENT_AUDIO_VOLUME,
+  PRELOAD_NEXT_TRACK_DELAY_MS,
+} from "@/lib/constants";
 
 // Silent audio data URI to keep audio session alive on mobile
 const SILENT_AUDIO = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
@@ -71,8 +96,8 @@ export const usePlayer = () => {
   return ctx;
 };
 
-const QUALITY_KEY = "sonic_quality";
-const EQ_KEY = "sonic_eq";
+const QUALITY_KEY = STORAGE_KEY_QUALITY;
+const EQ_KEY = STORAGE_KEY_EQ;
 
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [trackList, setTrackList] = useState<Track[]>(playlist);
@@ -80,7 +105,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolumeState] = useState(0.7);
+  const [volume, setVolumeState] = useState(DEFAULT_VOLUME);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<"off" | "all" | "one">("off");
 
@@ -104,7 +129,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const stored = localStorage.getItem(QUALITY_KEY);
       if (stored === "96kbps" || stored === "160kbps" || stored === "320kbps") return stored;
     } catch { /* ignore */ }
-    return "160kbps";
+    return DEFAULT_AUDIO_QUALITY;
   });
 
   // Sleep timer state
@@ -113,6 +138,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const sleepEndTimeRef = useRef<number | null>(null);
 
   const audioRef = useRef<HTMLAudioElement>(null!);
+  const crossfadeAudioRef = useRef<HTMLAudioElement | null>(null);
   const silentAudioRef = useRef<HTMLAudioElement | null>(null);
   const ytPlayerRef = useRef<ReactPlayer>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -171,22 +197,22 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // EQ filters: lowshelf @ 320Hz, peaking @ 1kHz, highshelf @ 3.2kHz
       const bassFilter = ctx.createBiquadFilter();
       bassFilter.type = "lowshelf";
-      bassFilter.frequency.value = 320;
+      bassFilter.frequency.value = EQ_BASS_FREQUENCY;
       bassFilter.gain.value = eqBass;
 
       const midFilter = ctx.createBiquadFilter();
       midFilter.type = "peaking";
-      midFilter.frequency.value = 1000;
-      midFilter.Q.value = 1;
+      midFilter.frequency.value = EQ_MID_FREQUENCY;
+      midFilter.Q.value = EQ_MID_Q_VALUE;
       midFilter.gain.value = eqMid;
 
       const trebleFilter = ctx.createBiquadFilter();
       trebleFilter.type = "highshelf";
-      trebleFilter.frequency.value = 3200;
+      trebleFilter.frequency.value = EQ_TREBLE_FREQUENCY;
       trebleFilter.gain.value = eqTreble;
 
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
+      analyser.fftSize = ANALYSER_FFT_SIZE;
 
       // Chain: source -> bass -> mid -> treble -> analyser -> destination
       source.connect(bassFilter);
@@ -219,7 +245,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         audioRef.current?.play().catch(() => {});
         setIsPlaying(true);
       }
-    }, 50);
+    }, PLAYBACK_SHORT_DELAY_MS);
   }, [setupAudioContext, currentTrack?.type]);
 
   // Queue operations
@@ -377,7 +403,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setProgress(0);
       setDuration(0);
       setIsPlaying(false);
-      setTimeout(() => setIsPlaying(true), 300);
+      setTimeout(() => setIsPlaying(true), PLAYBACK_START_DELAY_MS);
     } else {
       // Switching to audio — stop YouTube first
       setIsPlaying(false);
@@ -398,7 +424,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
         audioRef.current?.play().catch(() => {});
         setIsPlaying(true);
-      }, 300);
+      }, PLAYBACK_START_DELAY_MS);
     }
   }, [setupAudioContext, trackList]);
 
@@ -411,9 +437,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const track = tracks[index ?? 0];
     if (track?.type === "youtube") {
       audioRef.current?.pause();
-      setTimeout(() => setIsPlaying(true), 300);
+      setTimeout(() => setIsPlaying(true), PLAYBACK_START_DELAY_MS);
     } else {
-      setTimeout(() => playAudio(), 200);
+      setTimeout(() => playAudio(), PRELOAD_NEXT_TRACK_DELAY_MS);
     }
   }, [playAudio]);
 
@@ -462,7 +488,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return newList;
       });
       setProgress(0);
-      setTimeout(() => playAudio(), 100);
+      setTimeout(() => playAudio(), PLAYBACK_SHORT_DELAY_MS);
       return;
     }
 
@@ -495,7 +521,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (nextTrack?.type === "youtube") {
       setDuration(0);
       setIsPlaying(false);
-      setTimeout(() => setIsPlaying(true), 300);
+      setTimeout(() => setIsPlaying(true), PLAYBACK_START_DELAY_MS);
     } else {
       setIsPlaying(false);
       setupAudioContext();
@@ -503,7 +529,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setTimeout(() => {
         audioRef.current?.play().catch(() => {});
         setIsPlaying(true);
-      }, 100);
+      }, PLAYBACK_SHORT_DELAY_MS);
     }
   }, [currentIndex, shuffle, trackList, setupAudioContext, queue, playAudio]);
 
@@ -519,13 +545,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (prevTrack?.type === "youtube") {
       setDuration(0);
       setIsPlaying(false);
-      setTimeout(() => setIsPlaying(true), 300);
+      setTimeout(() => setIsPlaying(true), PLAYBACK_START_DELAY_MS);
     } else {
       setIsPlaying(false);
       setTimeout(() => {
         audioRef.current?.play().catch(() => {});
         setIsPlaying(true);
-      }, 100);
+      }, PLAYBACK_SHORT_DELAY_MS);
     }
   }, [currentIndex, trackList, currentTrack?.type]);
 
@@ -551,43 +577,126 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off"));
   }, []);
 
-  // Audio element event listeners
+  // Audio element event listeners with proper crossfade
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     // Debounce timeupdate to reduce re-renders
     let lastUpdate = 0;
     let crossfading = false;
+    let crossfadeInterval: ReturnType<typeof setInterval> | null = null;
+    
     const onTime = () => {
       const now = Date.now();
-      if (now - lastUpdate > 800) {
+      if (now - lastUpdate > TIME_UPDATE_INTERVAL_MS) {
         lastUpdate = now;
         setProgress(audio.currentTime);
       }
-      // Crossfade: fade out volume in last N seconds, then auto-advance
+      // Crossfade: fade out current while fading in next
       const cf = crossfadeRef.current;
       if (cf > 0 && audio.duration && !crossfading) {
         const remaining = audio.duration - audio.currentTime;
         if (remaining <= cf && remaining > 0.5) {
           crossfading = true;
-          const originalVolume = audio.volume;
-          const fadeStep = originalVolume / (cf * 4); // fade over cf seconds
-          const fadeInterval = setInterval(() => {
-            if (audio.volume > fadeStep) {
-              audio.volume -= fadeStep;
-            } else {
-              clearInterval(fadeInterval);
-              audio.volume = originalVolume; // restore for next track
-              crossfading = false;
-              next();
+          
+          // Calculate next track index
+          const nextIdx = (currentIndex + 1) % trackList.length;
+          const nextTrack = trackList[nextIdx];
+          
+          if (nextTrack && nextTrack.type !== "youtube") {
+            // Get next track src based on quality
+            let nextSrc = nextTrack.src;
+            if (nextTrack.audioUrls) {
+              nextSrc = nextTrack.audioUrls[quality] ||
+                        nextTrack.audioUrls["160kbps"] ||
+                        nextTrack.audioUrls["96kbps"] ||
+                        nextTrack.audioUrls["320kbps"] ||
+                        nextTrack.src;
             }
-          }, 250);
+            if (nextSrc.includes("soundhelix.com")) {
+              const path = new URL(nextSrc).pathname;
+              nextSrc = `/api/proxy-audio?path=${encodeURIComponent(path)}`;
+            }
+            
+            // Create crossfade audio element if not exists
+            if (!crossfadeAudioRef.current) {
+              crossfadeAudioRef.current = new Audio();
+              crossfadeAudioRef.current.volume = 0;
+              crossfadeAudioRef.current.preload = "auto";
+            }
+            
+            const crossfadeAudio = crossfadeAudioRef.current;
+            const originalVolume = audio.volume;
+            const fadeSteps = cf * 4; // 4 steps per second for smooth fade
+            const fadeStepSize = originalVolume / fadeSteps;
+            let fadeCount = 0;
+            
+            // Start playing next track at 0 volume
+            crossfadeAudio.src = nextSrc;
+            crossfadeAudio.currentTime = 0;
+            crossfadeAudio.volume = 0;
+            
+            crossfadeAudio.play().then(() => {
+              // Start crossfade: fade out current, fade in next
+              crossfadeInterval = setInterval(() => {
+                fadeCount++;
+                const currentVol = Math.max(0, originalVolume - (fadeStepSize * fadeCount));
+                const nextVol = Math.min(originalVolume, fadeStepSize * fadeCount);
+                
+                audio.volume = currentVol;
+                crossfadeAudio.volume = nextVol;
+                
+                if (fadeCount >= fadeSteps) {
+                  // Crossfade complete
+                  clearInterval(crossfadeInterval!);
+                  crossfadeInterval = null;
+                  crossfading = false;
+                  
+                  // Stop current track
+                  audio.pause();
+                  audio.src = "";
+                  
+                  // Move crossfade audio to main audio element
+                  audio.src = crossfadeAudio.src;
+                  audio.volume = originalVolume;
+                  audio.currentTime = crossfadeAudio.currentTime;
+                  audio.play().catch(() => {});
+                  
+                  // Clean up crossfade audio
+                  crossfadeAudio.src = "";
+                  crossfadeAudio.volume = 0;
+                  
+                  // Update state
+                  setCurrentIndex(nextIdx);
+                  setProgress(audio.currentTime);
+                }
+              }, 250);
+            }).catch(() => {
+              // Failed to play next track, skip crossfade
+              crossfading = false;
+              if (crossfadeInterval) {
+                clearInterval(crossfadeInterval);
+                crossfadeInterval = null;
+              }
+              audio.volume = originalVolume;
+              next();
+            });
+          } else {
+            // No crossfade possible (YouTube track or no next track), just advance
+            crossfading = false;
+            next();
+          }
         }
       }
     };
+    
     const onMeta = () => setDuration(audio.duration);
     const onEnd = () => {
       crossfading = false;
+      if (crossfadeInterval) {
+        clearInterval(crossfadeInterval);
+        crossfadeInterval = null;
+      }
       if (repeat === "one") {
         audio.currentTime = 0;
         audio.play();
@@ -595,13 +704,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         next();
       }
     };
+    
     const onError = (e: Event) => {
       console.error("Audio playback error:", e);
       crossfading = false;
-      // Auto-skip to next track on error (broken link, network issue, etc.)
+      if (crossfadeInterval) {
+        clearInterval(crossfadeInterval);
+        crossfadeInterval = null;
+      }
+      // Auto-skip to next track on error
       setIsPlaying(false);
       next();
     };
+    
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("loadedmetadata", onMeta);
     audio.addEventListener("ended", onEnd);
@@ -611,8 +726,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       audio.removeEventListener("loadedmetadata", onMeta);
       audio.removeEventListener("ended", onEnd);
       audio.removeEventListener("error", onError);
+      if (crossfadeInterval) {
+        clearInterval(crossfadeInterval);
+      }
     };
-  }, [next, repeat]);
+  }, [next, repeat, currentIndex, trackList, quality]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;

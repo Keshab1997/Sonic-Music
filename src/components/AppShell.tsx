@@ -6,6 +6,7 @@ import { MobileNav } from "@/components/MobileNav";
 import { BottomPlayer } from "@/components/BottomPlayer";
 import { MiniPlayer } from "@/components/MiniPlayer";
 import { ShortcutsPanel } from "@/components/ShortcutsPanel";
+import { PWAInstallPrompt, usePWAInstall } from "@/components/PWAInstallPrompt";
 import { usePlayer } from "@/context/PlayerContext";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useCoverGradient } from "@/hooks/useCoverGradient";
@@ -23,6 +24,7 @@ export const AppShell = ({ children }: AppShellProps) => {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showPlaylist, setShowPlaylist] = useState(false);
   const isOffline = useOffline();
+  const { isInstallable, showPrompt, handleInstall, dismiss: dismissPWA } = usePWAInstall();
 
   // MediaSession for lock screen / bluetooth controls
   useMediaSession({
@@ -84,6 +86,11 @@ export const AppShell = ({ children }: AppShellProps) => {
 
       {/* Keyboard shortcuts help */}
       {showShortcuts && <ShortcutsPanel onClose={handleCloseShortcuts} />}
+
+      {/* PWA Install Prompt */}
+      {isInstallable && showPrompt && (
+        <PWAInstallPrompt onInstall={handleInstall} onDismiss={dismissPWA} />
+      )}
     </div>
   );
 };

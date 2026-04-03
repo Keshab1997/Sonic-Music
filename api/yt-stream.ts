@@ -1,22 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-
-const INVIDIOUS_INSTANCES = [
-  "https://invidious.nerdvpn.de",
-  "https://inv.nadeko.net",
-  "https://invidious.flokinet.to",
-  "https://yt.artemislena.eu",
-  "https://invidious.privacyredirect.com",
-  "https://inv.tux.pizza",
-  "https://invidious.protokolla.fi",
-  "https://iv.datura.network",
-  "https://invidious.perennialte.ch",
-  "https://yewtu.be",
-  "https://invidious.lunar.icu",
-  "https://inv.in.projectsegfau.lt",
-];
+import { INVIDIOUS_INSTANCES, INVIDIOUS_REQUEST_TIMEOUT, INVIDIOUS_HEADERS } from "./lib/invidious";
+import { checkRateLimit, getRateLimitHeaders, defaultRateLimits } from "./lib/rate-limiter";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const allowedOrigin = process.env.ALLOWED_ORIGIN || "https://sonic-bloom-player.vercel.app";
+  res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate=7200");
@@ -25,22 +13,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
+  // Rate limiting
+  const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  const rateKey = `yt-stream:${clientIp}`;
+  const rateResult = checkRateLimit(rateKey, defaultRateLimits["/api/yt-stream"]);
+  
+  if (!rateResult.allowed) {
+    const headers = getRateLimitHeaders(rateResult.remaining, rateResult.resetTime);
+    Object.entries(headers).forEach(([key, value]) => res.setHeader(key, value));
+    return res.status(429).json({ error: "Too many requests. Please try again later." });
+  }
+  
+  const headers = getRateLimitHeaders(rateResult.remaining, rateResult.resetTime);
+  Object.entries(headers).forEach(([key, value]) => res.setHeader(key, value));
+
   const videoId = req.query.id as string;
   if (!videoId) return res.status(400).json({ error: "Missing id parameter" });
 
   const tryInstance = async (instance: string): Promise<{ audioUrl: string; source: string } | null> => {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => controller.abort(), INVIDIOUS_REQUEST_TIMEOUT);
       
       const invRes = await fetch(
         `${instance}/api/v1/videos/${videoId}?fields=adaptiveFormats`,
-        { 
+        {
           signal: controller.signal,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'application/json',
-          }
+          headers: INVIDIOUS_HEADERS,
         }
       );
       
@@ -65,7 +64,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
       }
-    } catch { /* empty */ }
+    } catch {
+      // Instance failed, will try next one
+    }
     return null;
   };
 
@@ -86,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  return res.status(503).json({ 
+  return res.status(503).json({
     error: "Could not extract audio from any source",
     fallback: true
   });
