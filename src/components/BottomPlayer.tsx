@@ -28,9 +28,13 @@ import {
   Save,
   Zap,
   Check,
+  Download,
+  CheckCircle,
+  Loader2,
 } from "lucide-react";
 import { usePlayer, AudioQuality } from "@/context/PlayerContext";
 import { useLocalData } from "@/hooks/useLocalData";
+import { useDownloads } from "@/hooks/useDownloads";
 import { usePlaylists } from "@/hooks/usePlaylists";
 import { FullScreenPlayer } from "@/components/FullScreenPlayer";
 import { Equalizer } from "@/components/Equalizer";
@@ -100,6 +104,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
 
   const { isFavorite, toggleFavorite } = useLocalData();
   const { playlists, createPlaylist, addToPlaylist } = usePlaylists();
+  const { downloadTrack, isDownloaded, isDownloading, getProgress } = useDownloads();
 
   const [openPanel, setOpenPanel] = useState<"queue" | "sleep" | "quality" | "speed" | null>(null);
   const [showLyrics, setShowLyrics] = useState(false);
@@ -167,6 +172,23 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                     title="Add all to queue"
                   >
                     <ListPlus size={13} /> Add to Queue
+                  </button>
+                  <button
+                    onClick={() => {
+                      tracks.forEach((track, i) => {
+                        setTimeout(() => downloadTrack(track), i * 200);
+                      });
+                      toast({
+                        title: "Downloading Playlist",
+                        description: `${tracks.length} songs will be downloaded for offline playback`,
+                        duration: 3000,
+                      });
+                    }}
+                    disabled={tracks.length === 0}
+                    className="px-3 py-1.5 text-xs rounded-full font-medium transition-all flex items-center gap-1.5 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 border border-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Download all for offline"
+                  >
+                    <Download size={13} /> Download All
                   </button>
                   <button
                     onClick={handleSavePlaylist}
@@ -249,11 +271,31 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
                       className={`p-1.5 rounded-full transition-all ${
-                        liked ? "text-red-500 hover:text-red-600 hover:scale-110" : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-red-500 hover:scale-110"
+                        liked ? "text-red-500 hover:text-red-600 hover:scale-110" : "text-muted-foreground hover:text-red-500 hover:scale-110"
                       }`}
                       title={liked ? "Remove from favorites" : "Add to favorites"}
                     >
                       <Heart size={15} fill={liked ? "currentColor" : "none"} strokeWidth={2} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
+                      disabled={isDownloading(track.songId || track.src)}
+                      className={`p-1.5 rounded-full transition-all ${
+                        isDownloaded(track.songId || track.src)
+                          ? "text-green-500 hover:text-green-600 hover:scale-110"
+                          : isDownloading(track.songId || track.src)
+                          ? "text-yellow-500"
+                          : "text-muted-foreground hover:text-blue-500 hover:scale-110"
+                      }`}
+                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : isDownloading(track.songId || track.src) ? "Downloading..." : "Download for offline"}
+                    >
+                      {isDownloading(track.songId || track.src) ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : isDownloaded(track.songId || track.src) ? (
+                        <CheckCircle size={15} />
+                      ) : (
+                        <Download size={15} />
+                      )}
                     </button>
                     <div className="relative">
                       <button
@@ -284,9 +326,9 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                               <ListPlus size={13} /> Play Next
                             </button>
                             <button
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                addToQueue(track); 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addToQueue(track);
                                 setSongMenu(null);
                                 toast({
                                   title: "Added to Queue",
@@ -297,6 +339,29 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                               className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] text-foreground hover:bg-accent transition-colors"
                             >
                               <ListMusic size={13} /> Add to Queue
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadTrack(track);
+                                setSongMenu(null);
+                                toast({
+                                  title: isDownloaded(track.songId || track.src) ? "Already Downloaded" : "Downloading...",
+                                  description: isDownloaded(track.songId || track.src) ? `${track.title} is already downloaded` : `${track.title} is being downloaded`,
+                                  duration: 3000,
+                                });
+                              }}
+                              disabled={isDownloading(track.songId || track.src)}
+                              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                            >
+                              {isDownloading(track.songId || track.src) ? (
+                                <Loader2 size={13} className="animate-spin" />
+                              ) : isDownloaded(track.songId || track.src) ? (
+                                <CheckCircle size={13} />
+                              ) : (
+                                <Download size={13} />
+                              )}
+                              {isDownloaded(track.songId || track.src) ? "Downloaded" : "Download"}
                             </button>
                             <div className="border-t border-border" />
                             {/* Playlist actions */}
@@ -525,6 +590,29 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
               </p>
             </div>
           </div>
+          {/* Download button in bottom player */}
+          {currentTrack.type !== "youtube" && (
+            <button
+              onClick={(e) => { e.stopPropagation(); downloadTrack(currentTrack); }}
+              disabled={isDownloaded(currentTrack.songId || currentTrack.src) || isDownloading(currentTrack.songId || currentTrack.src)}
+              className={`hidden md:flex p-2 rounded-full transition-all flex-shrink-0 ${
+                isDownloaded(currentTrack.songId || currentTrack.src)
+                  ? "text-green-500 bg-green-500/10"
+                  : isDownloading(currentTrack.songId || currentTrack.src)
+                  ? "text-yellow-500 bg-yellow-500/10"
+                  : "text-muted-foreground hover:text-green-500 hover:bg-green-500/10"
+              }`}
+              title={isDownloaded(currentTrack.songId || currentTrack.src) ? "Downloaded" : isDownloading(currentTrack.songId || currentTrack.src) ? "Downloading..." : "Download for offline"}
+            >
+              {isDownloading(currentTrack.songId || currentTrack.src) ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : isDownloaded(currentTrack.songId || currentTrack.src) ? (
+                <CheckCircle size={16} />
+              ) : (
+                <Download size={16} />
+              )}
+            </button>
+          )}
 
           {/* Controls center */}
           <div className="flex flex-col items-center gap-0.5 max-w-xl mx-auto">

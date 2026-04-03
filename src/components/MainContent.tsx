@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Play, ChevronRight, Music2, Sparkles, TrendingUp, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2, Search, Loader2, Plus } from "lucide-react";
+import { Play, ChevronRight, Music2, Sparkles, TrendingUp, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2, Search, Loader2, Plus, Download, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { usePlayer } from "@/context/PlayerContext";
 import { useHomeData } from "@/hooks/useHomeData";
@@ -34,6 +34,7 @@ import {
   MusicLabel,
 } from "@/data/homeData";
 import { useArtistFavorites } from "@/hooks/useArtistFavorites";
+import { useDownloads } from "@/hooks/useDownloads";
 
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 
@@ -106,6 +107,7 @@ export const MainContent = () => {
   const trendingInitialized = useRef(false);
   const newReleasesInitialized = useRef(false);
   const { favorites: artistFavorites } = useArtistFavorites();
+  const { downloadTrack, isDownloaded, isDownloading, getProgress } = useDownloads();
 
   // New personalized sections
   const [bengaliHits, setBengaliHits] = useState<Track[]>([]);
@@ -888,6 +890,27 @@ export const MainContent = () => {
                     >
                       <Plus size={12} className="text-white" />
                     </button>
+                    {/* Download button */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
+                      disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
+                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                        isDownloaded(track.songId || track.src)
+                          ? "bg-green-600/80"
+                          : isDownloading(track.songId || track.src)
+                          ? "bg-yellow-600/80"
+                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
+                      }`}
+                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : "Download for offline"}
+                    >
+                      {isDownloading(track.songId || track.src) ? (
+                        <Loader2 size={10} className="text-white animate-spin" />
+                      ) : isDownloaded(track.songId || track.src) ? (
+                        <CheckCircle size={10} className="text-white" />
+                      ) : (
+                        <Download size={10} className="text-white" />
+                      )}
+                    </button>
                     <span className="absolute top-1.5 left-1.5 text-[9px] md:text-[10px] font-bold text-white bg-black/50 px-1.5 py-0.5 rounded">
                       #{i + 1}
                     </span>
@@ -957,6 +980,26 @@ export const MainContent = () => {
                     >
                       <Plus size={12} className="text-white" />
                     </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
+                      disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
+                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                        isDownloaded(track.songId || track.src)
+                          ? "bg-green-600/80"
+                          : isDownloading(track.songId || track.src)
+                          ? "bg-yellow-600/80"
+                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
+                      }`}
+                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : "Download for offline"}
+                    >
+                      {isDownloading(track.songId || track.src) ? (
+                        <Loader2 size={10} className="text-white animate-spin" />
+                      ) : isDownloaded(track.songId || track.src) ? (
+                        <CheckCircle size={10} className="text-white" />
+                      ) : (
+                        <Download size={10} className="text-white" />
+                      )}
+                    </button>
                     <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-green-600/80 px-1.5 py-0.5 rounded">
                       NEW
                     </span>
@@ -1010,6 +1053,26 @@ export const MainContent = () => {
                         )}
                       </div>
                     </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadTrack(entry.track); }}
+                      disabled={isDownloaded(entry.track.songId || entry.track.src) || isDownloading(entry.track.songId || entry.track.src)}
+                      className={`absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                        isDownloaded(entry.track.songId || entry.track.src)
+                          ? "bg-green-600/80"
+                          : isDownloading(entry.track.songId || entry.track.src)
+                          ? "bg-yellow-600/80"
+                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
+                      }`}
+                      title={isDownloaded(entry.track.songId || entry.track.src) ? "Downloaded" : "Download for offline"}
+                    >
+                      {isDownloading(entry.track.songId || entry.track.src) ? (
+                        <Loader2 size={8} className="text-white animate-spin" />
+                      ) : isDownloaded(entry.track.songId || entry.track.src) ? (
+                        <CheckCircle size={8} className="text-white" />
+                      ) : (
+                        <Download size={8} className="text-white" />
+                      )}
+                    </button>
                   </div>
                   <p className="text-[10px] md:text-[11px] font-medium text-foreground truncate">{entry.track.title}</p>
                   <p className="text-[8px] md:text-[9px] text-muted-foreground truncate">{entry.track.artist}</p>
@@ -1042,6 +1105,26 @@ export const MainContent = () => {
                     <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 rounded-b-lg overflow-hidden">
                       <div className="h-full bg-primary rounded-b-lg" style={{ width: `${Math.random() * 60 + 20}%` }} />
                     </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadTrack(entry.track); }}
+                      disabled={isDownloaded(entry.track.songId || entry.track.src) || isDownloading(entry.track.songId || entry.track.src)}
+                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                        isDownloaded(entry.track.songId || entry.track.src)
+                          ? "bg-green-600/80"
+                          : isDownloading(entry.track.songId || entry.track.src)
+                          ? "bg-yellow-600/80"
+                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
+                      }`}
+                      title={isDownloaded(entry.track.songId || entry.track.src) ? "Downloaded" : "Download for offline"}
+                    >
+                      {isDownloading(entry.track.songId || entry.track.src) ? (
+                        <Loader2 size={10} className="text-white animate-spin" />
+                      ) : isDownloaded(entry.track.songId || entry.track.src) ? (
+                        <CheckCircle size={10} className="text-white" />
+                      ) : (
+                        <Download size={10} className="text-white" />
+                      )}
+                    </button>
                   </div>
                   <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{entry.track.title}</p>
                   <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{entry.track.artist}</p>
@@ -1369,7 +1452,28 @@ export const MainContent = () => {
                       title="Add to queue"
                     >
                       <Plus size={12} className="text-white" />
-                    </button>                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
+                      disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
+                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                        isDownloaded(track.songId || track.src)
+                          ? "bg-green-600/80"
+                          : isDownloading(track.songId || track.src)
+                          ? "bg-yellow-600/80"
+                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
+                      }`}
+                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : "Download for offline"}
+                    >
+                      {isDownloading(track.songId || track.src) ? (
+                        <Loader2 size={10} className="text-white animate-spin" />
+                      ) : isDownloaded(track.songId || track.src) ? (
+                        <CheckCircle size={10} className="text-white" />
+                      ) : (
+                        <Download size={10} className="text-white" />
+                      )}
+                    </button>
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
                         <Play size={14} className="text-primary-foreground ml-0.5" />
                       </div>
@@ -1403,6 +1507,26 @@ export const MainContent = () => {
                   <div className="relative mb-1.5 md:mb-2">
                     <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
                     <button onClick={(e) => { e.stopPropagation(); addToQueue(track); }} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all" title="Add to queue"><Plus size={12} className="text-white" /></button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
+                      disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
+                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                        isDownloaded(track.songId || track.src)
+                          ? "bg-green-600/80"
+                          : isDownloading(track.songId || track.src)
+                          ? "bg-yellow-600/80"
+                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
+                      }`}
+                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : "Download for offline"}
+                    >
+                      {isDownloading(track.songId || track.src) ? (
+                        <Loader2 size={10} className="text-white animate-spin" />
+                      ) : isDownloaded(track.songId || track.src) ? (
+                        <CheckCircle size={10} className="text-white" />
+                      ) : (
+                        <Download size={10} className="text-white" />
+                      )}
+                    </button>
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
                       <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
                         <Play size={14} className="text-primary-foreground ml-0.5" />
@@ -1548,6 +1672,27 @@ export const MainContent = () => {
                       title="Add to queue"
                     >
                       <Plus size={12} className="text-white" />
+                    </button>
+                    {/* Download button - now enabled for YouTube too */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
+                      disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
+                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                        isDownloaded(track.songId || track.src)
+                          ? "bg-green-600/80"
+                          : isDownloading(track.songId || track.src)
+                          ? "bg-yellow-600/80"
+                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
+                      }`}
+                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : "Download for offline"}
+                    >
+                      {isDownloading(track.songId || track.src) ? (
+                        <Loader2 size={10} className="text-white animate-spin" />
+                      ) : isDownloaded(track.songId || track.src) ? (
+                        <CheckCircle size={10} className="text-white" />
+                      ) : (
+                        <Download size={10} className="text-white" />
+                      )}
                     </button>
                   </div>
                   <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>

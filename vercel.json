@@ -3,8 +3,14 @@
     { "source": "/api/youtube-search", "destination": "/api/youtube-search" },
     { "source": "/api/yt-stream", "destination": "/api/yt-stream" },
     { "source": "/api/proxy-audio", "destination": "/api/proxy-audio" },
+    { "source": "/api/proxy-yt-download", "destination": "/api/proxy-yt-download" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
+  "functions": {
+    "api/proxy-yt-download.ts": {
+      "maxDuration": 300
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",
