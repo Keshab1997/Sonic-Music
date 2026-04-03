@@ -46,7 +46,34 @@ const getSongOfDayIndex = (max: number) => {
 
 export const MainContent = () => {
   const { currentTrack, isPlaying, playTrackList, playTrack, togglePlay, addToQueue } = usePlayer();
-  const { trendingSongs, newReleases, charts, loading: homeLoading } = useHomeData();
+  const { trendingSongs, newReleases, charts, featuredPlaylists: apiFeaturedPlaylists, loading: homeLoading } = useHomeData();
+  const [featuredPlaylists, setFeaturedPlaylists] = useState<typeof apiFeaturedPlaylists>([]);
+  const [playlistFilter, setPlaylistFilter] = useState<"all" | "hindi" | "bengali">("all");
+
+  // Track shuffle for infinite scroll
+  const [shuffleIndex, setShuffleIndex] = useState(0);
+
+  // Sync featured playlists from API and apply language filter + shuffle
+  useEffect(() => {
+    if (apiFeaturedPlaylists.length > 0) {
+      let filtered = [...apiFeaturedPlaylists];
+      if (playlistFilter === "hindi") {
+        filtered = filtered.filter(p => p.language === "hindi");
+      } else if (playlistFilter === "bengali") {
+        filtered = filtered.filter(p => p.language === "bengali");
+      }
+      // Apply shuffle based on shuffleIndex
+      const shuffled = filtered.sort(() => {
+        const seed = shuffleIndex * 1234;
+        return (seed % 17) / 17 - 0.5;
+      });
+      setFeaturedPlaylists(shuffled.slice(0, 10));
+    }
+  }, [apiFeaturedPlaylists, playlistFilter, shuffleIndex]);
+  
+  const handleShufflePlaylists = useCallback(() => {
+    setShuffleIndex(prev => prev + 1);
+  }, []);
   const { history, addToHistory, clearHistory } = useRecentlyPlayed();
   const { stats, recordPlay } = useListeningStats();
 
@@ -58,6 +85,7 @@ export const MainContent = () => {
   const [timeMachineEra, setTimeMachineEra] = useState<typeof eraCategories[0] | null>(null);
   const [moodPlaylist, setMoodPlaylist] = useState<MoodCategory | null>(null);
   const [showFullTrending, setShowFullTrending] = useState(false);
+  const [showFullFeaturedPlaylists, setShowFullFeaturedPlaylists] = useState(false);
   const [showFullNewReleases, setShowFullNewReleases] = useState(false);
   const [showFullHistory, setShowFullHistory] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -184,7 +212,7 @@ export const MainContent = () => {
     );
 
     // YouTube Trending
-    const ytQueries = ["trending music india 2026", "top hindi songs youtube 2026", "viral bengali songs 2026", "bollywood hits youtube"];
+    const ytQueries = ["top hindi songs 2026 trending", "viral bengali songs 2026"];
     const ytQ = ytQueries[Math.floor(Math.random() * ytQueries.length)];
     fetch(`/api/youtube-search?q=${encodeURIComponent(ytQ)}`)
       .then((r) => r.json())
@@ -556,8 +584,9 @@ export const MainContent = () => {
     setYtLoadingQuery(null);
   }, [playTrackList]);
 
-  const playLabelSongs = async (label: MusicLabel, isRefresh = false) => {
-    setLoadingLabel(label.name);
+  const playLabelSongs = async (label: MusicLabel | { name: string; searchQuery: string }, isRefresh = false) => {
+    const labelName = "name" in label ? label.name : "";
+    setLoadingLabel(labelName);
     try {
       const page = isRefresh ? Math.floor(Math.random() * 10) + 1 : 1;
       const res = await fetch(
@@ -842,7 +871,7 @@ export const MainContent = () => {
                 </button>
               </div>
               <button
-                onClick={() => setShowFullNewReleases(true)}
+                onClick={() => setShowFullFeaturedPlaylists(true)}
                 className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
               >
                 View All <ChevronRight size={12} />
@@ -1025,6 +1054,94 @@ export const MainContent = () => {
           </div>
         </section>
         </DeferredSection>
+
+        {/* Featured Playlists from JioSaavn */}
+        {featuredPlaylists.length > 0 && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <div className="flex items-center gap-2">
+                <Music2 size={16} className="text-primary" />
+                <h3 className="text-base md:text-lg font-bold text-foreground">Featured Playlists</h3>
+              </div>
+              <button
+                onClick={() => setShowFullTrending(true)}
+                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+              >
+                View All <ChevronRight size={12} />
+              </button>
+            </div>
+            <div className="flex gap-2 mb-3">
+              <button 
+                onClick={() => setPlaylistFilter("all")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${playlistFilter === "all" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}
+              >
+                All
+              </button>
+              <button 
+                onClick={() => setPlaylistFilter("hindi")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${playlistFilter === "hindi" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}
+              >
+                Hindi
+              </button>
+              <button 
+                onClick={() => setPlaylistFilter("bengali")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${playlistFilter === "bengali" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}
+              >
+                Bengali
+              </button>
+            </div>
+            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {featuredPlaylists.slice(0, 10).map((playlist) => (
+                <div
+                  key={playlist.id}
+                  className="flex-shrink-0 w-28 md:w-36 group"
+                >
+                  <div className="relative mb-1.5 md:mb-2">
+                    <img
+                      src={playlist.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || playlist.image?.[playlist.image.length - 1]?.link || ""}
+                      alt={playlist.title}
+                      loading="lazy"
+                      width={144}
+                      className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow"
+                    />
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
+                        <Play size={14} className="text-primary-foreground ml-0.5" onClick={() => loadingLabel !== playlist.id && playLabelSongs({ name: playlist.title, searchQuery: playlist.title, gradient: "", textColor: "" })} />
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); addToQueue({ id: Date.now(), title: playlist.title, artist: playlist.subtitle, album: "", cover: playlist.image?.[0]?.link || "", src: "", duration: 0, type: "audio" }); }}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                      title="Add to queue"
+                    >
+                      <Plus size={12} className="text-white" />
+                    </button>
+                  </div>
+                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{playlist.title}</p>
+                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{playlist.subtitle}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-center mt-2">
+              <button
+                onClick={handleShufflePlaylists}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-medium bg-muted hover:bg-accent rounded-full transition-colors"
+              >
+                <RefreshCw size={14} /> Shuffle All ({apiFeaturedPlaylists.length})
+              </button>
+            </div>
+          </section>
+        )}
+
+        {featuredPlaylists.length === 0 && !homeLoading && (
+          <section className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center gap-2 mb-2 md:mb-3">
+              <Music2 size={16} className="text-primary" />
+              <h3 className="text-base md:text-lg font-bold text-foreground">Featured Playlists</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">Loading playlists...</p>
+          </section>
+        )}
 
         {/* Saved Artists (Mobile) */}
         <DeferredSection>

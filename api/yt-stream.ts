@@ -59,13 +59,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             (a: { bitrate: number }, b: { bitrate: number }) => b.bitrate - a.bitrate
           )[0];
           
-          let audioUrl = best.url;
+          const audioUrl = best.url;
           if (audioUrl) {
             return { audioUrl, source: instance };
           }
         }
       }
-    } catch { }
+    } catch { /* empty */ }
     return null;
   };
 

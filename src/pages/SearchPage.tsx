@@ -42,7 +42,11 @@ const SongRow = ({
       <div
         onClick={() => {
           if (isActive) {
-            isPlaying ? pause() : playTrack(track);
+            if (isPlaying) {
+              pause();
+            } else {
+              playTrack(track);
+            }
           } else {
             playTrack(track);
           }

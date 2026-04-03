@@ -605,7 +605,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Silent audio loop to keep audio session alive on mobile (for YouTube background play)
   useEffect(() => {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextType = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioContextType();
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
     gainNode.gain.value = 0.001; // Nearly silent

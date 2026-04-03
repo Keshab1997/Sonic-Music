@@ -28,7 +28,11 @@ export const AlbumCard = ({ track, index }: AlbumCardProps) => {
         <button
           onClick={(e) => {
             e.stopPropagation();
-            isActive ? pause() : play(index);
+            if (isActive) {
+              pause();
+            } else {
+              play(index);
+            }
           }}
           className={`absolute bottom-2 right-2 w-12 h-12 rounded-full bg-primary flex items-center justify-center shadow-xl transition-all duration-300 ${
             isActive

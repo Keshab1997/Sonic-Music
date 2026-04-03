@@ -83,18 +83,20 @@ const batchResolveAudio = async (
 };
 
 const CATEGORIES = [
-  { label: "Trending", emoji: "🔥", query: "trending music india 2026" },
+  { label: "Trending Hindi", emoji: "🔥", query: "top hindi songs 2026 trending" },
   { label: "Bangla Hits", emoji: "🎵", query: "viral bangla song 2026" },
   { label: "Bollywood", emoji: "🎬", query: "bollywood hits 2026" },
-  { label: "Arijit Singh", emoji: "🎤", query: "arijit singh best songs" },
-  { label: "Lofi", emoji: "🌙", query: "hindi lofi chill music" },
-  { label: "Unplugged", emoji: "🎸", query: "bollywood unplugged acoustic" },
+  { label: "Bengali Romantic", emoji: "💕", query: "bengali romantic songs 2026" },
+  { label: "Hindi Lofi", emoji: "🌙", query: "hindi lofi chill music" },
+  { label: "Bengali Modern", emoji: "🎶", query: "bengali modern songs 2026" },
   { label: "Indie Bengali", emoji: "🌿", query: "indie bengali songs fossils chandrabindoo" },
-  { label: "Romantic", emoji: "💕", query: "hindi romantic songs 2026" },
-  { label: "Party", emoji: "🎉", query: "bollywood party songs 2026" },
-  { label: "Sad Songs", emoji: "😢", query: "hindi sad songs emotional" },
-  { label: "Old Gold", emoji: "🏅", query: "old hindi classic songs 90s" },
+  { label: "Bollywood Romantic", emoji: "❤️", query: "hindi romantic songs 2026" },
+  { label: "Party Hindi", emoji: "🎉", query: "bollywood party songs 2026" },
+  { label: "Sad Hindi", emoji: "😢", query: "hindi sad songs emotional" },
+  { label: "Old Hindi", emoji: "🏅", query: "old hindi classic songs 90s" },
   { label: "Devotional", emoji: "🙏", query: "bengali devotional songs kirtan" },
+  { label: "Punjabi Hits", emoji: "🎤", query: "punjabi hits 2026" },
+  { label: "Bengali Old", emoji: "📻", query: "bengali classic old songs" },
 ];
 
 const QUICK_PICKS = [
@@ -104,6 +106,8 @@ const QUICK_PICKS = [
   { label: "MTV Unplugged", emoji: "🎸", query: "mtv unplugged india hindi" },
   { label: "Bengali Indie", emoji: "🌿", query: "fossils chandrabindoo bhoomi bengali band" },
   { label: "Rabindra Sangeet", emoji: "📜", query: "rabindra sangeet best collection" },
+  { label: "Mithun Chakraborty", emoji: "🎬", query: "mithun superhit songs" },
+  { label: "Anupam Roy", emoji: "🎵", query: "anupam roy bengali hits" },
 ];
 
 export default function YoutubeMusicPage() {

@@ -35,6 +35,16 @@ interface ChartItem {
   image: { quality: string; link: string }[];
 }
 
+interface FeaturedPlaylist {
+  id: string;
+  title: string;
+  subtitle: string;
+  image: { quality: string; link: string }[];
+  type: string;
+  userId?: string;
+  language?: string;
+}
+
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 
 const getDailySeed = () => {
@@ -92,13 +102,14 @@ export const useHomeData = () => {
   const [trendingSongs, setTrendingSongs] = useState<Track[]>([]);
   const [newReleases, setNewReleases] = useState<Track[]>([]);
   const [charts, setCharts] = useState<ChartItem[]>([]);
+  const [featuredPlaylists, setFeaturedPlaylists] = useState<FeaturedPlaylist[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const controller = new AbortController();
     const fetchData = async () => {
       try {
-        const languages = ["hindi", "english", "tamil", "telugu", "punjabi"];
+        const languages = ["hindi", "bengali"];
         const fetchModule = (lang: string) =>
           fetch(`${API_BASE}/modules?language=${lang}`, { signal: controller.signal })
             .then((r) => (r.ok ? r.json() : null))
@@ -112,8 +123,12 @@ export const useHomeData = () => {
         const seenIds = new Set<string>();
 
         let chartsSet = false;
-        for (const data of results) {
+        const allFeaturedPlaylists: FeaturedPlaylist[] = [];
+
+        for (let i = 0; i < results.length; i++) {
+          const data = results[i];
           if (!data) continue;
+          const lang = languages[i];
           const mod = data.data || {};
 
           // Trending
@@ -144,7 +159,31 @@ export const useHomeData = () => {
               }))
             );
           }
+
+          // Featured Playlists from both languages (use 'playlists' field)
+          for (const fp of (mod.playlists || []) as FeaturedPlaylist[]) {
+            if (fp.id && fp.title) {
+              allFeaturedPlaylists.push({
+                id: fp.id,
+                title: fp.title,
+                subtitle: fp.subtitle || "",
+                image: fp.image,
+                type: fp.type || "playlist",
+                userId: fp.userId,
+                language: lang,
+              });
+            }
+          }
         }
+
+        // Deduplicate and set featured playlists (keep all, don't slice)
+        const seenPlaylistIds = new Set<string>();
+        const uniquePlaylists = allFeaturedPlaylists.filter(fp => {
+          if (seenPlaylistIds.has(fp.id)) return false;
+          seenPlaylistIds.add(fp.id);
+          return true;
+        });
+        setFeaturedPlaylists(uniquePlaylists);
 
         // Batch fetch song details (API limits ~50 per request, chunk if needed)
         const fetchSongs = async (ids: string[]): Promise<SaavnSong[]> => {
@@ -186,7 +225,7 @@ export const useHomeData = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const languages = ["hindi", "english", "tamil", "telugu", "punjabi"];
+      const languages = ["hindi", "bengali"];
       const results = await Promise.all(
         languages.map((lang) =>
           fetch(`${API_BASE}/modules?language=${lang}`)
@@ -198,9 +237,12 @@ export const useHomeData = () => {
       const allTrendingIds: string[] = [];
       const allNewReleaseIds: string[] = [];
       const seenIds = new Set<string>();
+      const allFeaturedPlaylists: FeaturedPlaylist[] = [];
 
-      for (const data of results) {
+      for (let i = 0; i < results.length; i++) {
+        const data = results[i];
         if (!data) continue;
+        const lang = languages[i];
         const mod = data.data || {};
         for (const s of (mod.trending?.songs || []) as SaavnModuleSong[]) {
           if (s.id && !seenIds.has(s.id)) { seenIds.add(s.id); allTrendingIds.push(s.id); }
@@ -208,7 +250,28 @@ export const useHomeData = () => {
         for (const a of (mod.albums || []) as SaavnModuleSong[]) {
           if (a.type === "song" && a.id && !seenIds.has(a.id)) { seenIds.add(a.id); allNewReleaseIds.push(a.id); }
         }
+        for (const fp of (mod.playlists || []) as FeaturedPlaylist[]) {
+          if (fp.id && fp.title) {
+            allFeaturedPlaylists.push({
+              id: fp.id,
+              title: fp.title,
+              subtitle: fp.subtitle || "",
+              image: fp.image,
+              type: fp.type || "playlist",
+              userId: fp.userId,
+              language: lang,
+            });
+          }
+        }
       }
+
+      const seenPlaylistIds = new Set<string>();
+      const uniquePlaylists = allFeaturedPlaylists.filter(fp => {
+        if (seenPlaylistIds.has(fp.id)) return false;
+        seenPlaylistIds.add(fp.id);
+        return true;
+      });
+      setFeaturedPlaylists(uniquePlaylists.slice(0, 10));
 
       const fetchSongs = async (ids: string[]): Promise<SaavnSong[]> => {
         if (ids.length === 0) return [];
@@ -229,6 +292,6 @@ export const useHomeData = () => {
     setLoading(false);
   }, []);
 
-  return { trendingSongs, newReleases, charts, loading, refresh };
+  return { trendingSongs, newReleases, charts, featuredPlaylists, loading, refresh };
 };
 
