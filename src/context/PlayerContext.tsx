@@ -589,13 +589,22 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         next();
       }
     };
+    const onError = (e: Event) => {
+      console.error("Audio playback error:", e);
+      crossfading = false;
+      // Auto-skip to next track on error (broken link, network issue, etc.)
+      setIsPlaying(false);
+      next();
+    };
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("loadedmetadata", onMeta);
     audio.addEventListener("ended", onEnd);
+    audio.addEventListener("error", onError);
     return () => {
       audio.removeEventListener("timeupdate", onTime);
       audio.removeEventListener("loadedmetadata", onMeta);
       audio.removeEventListener("ended", onEnd);
+      audio.removeEventListener("error", onError);
     };
   }, [next, repeat]);
 
@@ -894,20 +903,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }}
             onError={(error) => {
               console.error("YouTube player error:", error);
-              // Only skip to next after a retry fails — don't retry forever
-              const retryOnce = setTimeout(() => {
-                if (isPlaying && ytPlayerRef.current) {
-                  ytPlayerRef.current.getInternalPlayer()?.playVideo?.();
-                }
-              }, 1500);
-              // If still failing after 5s, skip track
-              setTimeout(() => {
-                clearTimeout(retryOnce);
-                if (isPlaying) {
-                  setIsPlaying(false);
-                  next();
-                }
-              }, 5000);
+              // Immediately skip to next track on error
+              setIsPlaying(false);
+              next();
             }}
           />
         </div>

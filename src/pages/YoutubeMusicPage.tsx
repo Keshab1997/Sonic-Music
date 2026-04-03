@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
-import { Search, X, Play, Pause, Plus, Loader2, Music2, MoreVertical, ListPlus, PlaySquare, RefreshCw, TrendingUp, Clock, Flame, Headphones, Radio, Shuffle, Heart } from "lucide-react";
+import { Search, X, Play, Pause, Plus, Loader2, Music2, MoreVertical, ListPlus, PlaySquare, RefreshCw, TrendingUp, Clock, Flame, Headphones, Radio, Shuffle, Heart, Trash2, Sparkles } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { Track } from "@/data/playlist";
 import { toast } from "sonner";
@@ -7,6 +7,27 @@ import { toast } from "sonner";
 const YT_API = "/api/youtube-search";
 const YT_STREAM_API = "/api/yt-stream";
 const DEBOUNCE_MS = 450;
+const RECENT_SEARCHES_KEY = "yt_recent_searches";
+const MAX_RECENT = 8;
+
+// Popular search suggestions for autocomplete
+const POPULAR_SEARCHES = [
+  "Arijit Singh", "Atif Aslam", "Pritam", "Vishal Mishra",
+  "Bangla new song 2026", "Hindi romantic songs", "Lofi remix",
+  "Bollywood hits", "Old classics", "Devotional songs"
+];
+
+// Quick category chips
+const SEARCH_CHIPS = [
+  { label: "🎵 Hindi", query: "hindi songs" },
+  { label: "🎶 Bangla", query: "bangla songs" },
+  { label: "🌙 Lofi", query: "lofi remix" },
+  { label: "💕 Romantic", query: "romantic songs" },
+  { label: "🔥 Trending", query: "trending songs 2026" },
+  { label: "🎸 Rock", query: "rock songs" },
+  { label: "🙏 Bhajan", query: "devotional bhajan" },
+  { label: "🎤 Pop", query: "pop songs" },
+];
 
 // Enhanced cache with LRU-like behavior and size limits
 const MAX_CACHE_SIZE = 200;
@@ -172,10 +193,20 @@ export default function YoutubeMusicPage() {
   const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set());
   const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set());
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  
+  // Search suggestions & recent searches
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+  const searchInputRef = useRef<HTMLInputElement>(null!);
+  const suggestionsRef = useRef<HTMLDivElement>(null!);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const seenIds = useRef<Set<string>>(new Set());
   const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const loadMoreRef = useRef<(() => void) | null>(null);
@@ -183,35 +214,21 @@ export default function YoutubeMusicPage() {
   // Memoized track playing check
   const isTrackPlaying = useCallback((t: Track) => currentTrack?.src === t.src && isPlaying, [currentTrack?.src, isPlaying]);
 
-  // AbortController for cancelling previous search requests
-  const searchAbortRef = useRef<AbortController | null>(null);
-
   // Fetch YT search results with caching and request cancellation
   const fetchYT = useCallback(async (q: string, pageNum: number, useRandomSuffix = false): Promise<Track[]> => {
-    const cacheKey = `${q}_${pageNum}`;
+    const suffix = PAGE_SUFFIXES[pageNum % PAGE_SUFFIXES.length];
+    const finalQuery = pageNum === 0 ? q : `${q}${suffix}`;
+    const cacheKey = `${finalQuery}_${pageNum}`;
     const cached = searchCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 300000) { // 5 min cache
+    if (cached && Date.now() - cached.timestamp < 300000) {
       return cached.tracks;
     }
 
-    // Cancel previous request if any
-    if (searchAbortRef.current) {
-      searchAbortRef.current.abort();
-    }
-    searchAbortRef.current = new AbortController();
-
-    const suffix = pageNum === 0 ? (useRandomSuffix ? getRandomSuffix() : "") : PAGE_SUFFIXES[pageNum % PAGE_SUFFIXES.length];
-    const finalQuery = `${q}${suffix}`;
     try {
-      const res = await fetch(`${YT_API}?q=${encodeURIComponent(finalQuery)}`, {
-        signal: searchAbortRef.current.signal
-      });
+      const res = await fetch(`${YT_API}?q=${encodeURIComponent(finalQuery)}&page=${pageNum}`);
       if (!res.ok) return [];
       const videos: YTVideo[] = await res.json();
-      // Deduplicate by videoId (removed duration filter to show more results)
-      const fresh = videos.filter((v) => !seenIds.current.has(v.videoId));
-      fresh.forEach((v) => seenIds.current.add(v.videoId));
-      const resultTracks = fresh.map((v, i) => ({
+      const resultTracks = videos.map((v, i) => ({
         id: 70000 + pageNum * 20 + i,
         title: v.title,
         artist: v.author || "YouTube",
@@ -222,14 +239,10 @@ export default function YoutubeMusicPage() {
         type: "youtube" as const,
         songId: v.videoId,
       }));
-      
       searchCache.set(cacheKey, { tracks: resultTracks, timestamp: Date.now() });
       cleanupCache(searchCache, MAX_CACHE_SIZE);
       return resultTracks;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        return []; // Request was cancelled, return empty
-      }
+    } catch {
       return [];
     }
   }, []);
@@ -255,9 +268,9 @@ export default function YoutubeMusicPage() {
         return;
       }
       const videos: YTVideo[] = await res.json();
-      const fresh = videos.filter((v) => !sectionSeenIds.has(v.videoId) && v.duration >= 60);
+      const fresh = videos.filter((v) => !sectionSeenIds.has(v.videoId));
       fresh.forEach((v) => sectionSeenIds.add(v.videoId));
-      const resultTracks = fresh.slice(0, 10).map((v, i) => ({
+      const resultTracks = fresh.slice(0, 15).map((v, i) => ({
         id: 70000 + i,
         title: v.title,
         artist: v.author || "YouTube",
@@ -368,13 +381,13 @@ export default function YoutubeMusicPage() {
     return () => { cancelled = true; };
   }, [fetchSectionTracks]);
 
-  // Load category view - unlimited results
+  // Load category view - fast single page load
   const loadInitial = useCallback(async (q: string) => {
     seenIds.current = new Set();
     setLoading(true);
     setTracks([]);
     setPage(0);
-    const result = await fetchYT(q, 0, true);
+    const result = await fetchYT(q, 0);
     setTracks(result);
     setPage(1);
     setLoading(false);
@@ -383,26 +396,28 @@ export default function YoutubeMusicPage() {
     });
   }, [fetchYT]);
 
-  // Optimized loadMore with ref to avoid recreation - unlimited results
+  // Load next 20 songs on button click
   const loadMore = useCallback(async () => {
     if (loadingMore || viewMode !== "category") return;
     setLoadingMore(true);
-    const result = await fetchYT(currentQuery, page, true);
-    // Always append results, never stop (unlimited)
+    const result = await fetchYT(currentQuery, page);
     if (result.length > 0) {
-      setTracks((prev) => [...prev, ...result]);
+      setTracks((prev) => {
+        const existingIds = new Set(prev.map(t => t.songId));
+        const fresh = result.filter(t => !existingIds.has(t.songId));
+        return [...prev, ...fresh];
+      });
       setPage((p) => p + 1);
       batchResolveAudio(result, (videoId, audioUrl) => {
         setResolvedAudio((prev) => new Map(prev).set(videoId, audioUrl));
       });
     } else {
-      // If no results, still increment page to try different suffixes
       setPage((p) => p + 1);
     }
     setLoadingMore(false);
   }, [loadingMore, fetchYT, currentQuery, page, viewMode]);
 
-  // Keep loadMore ref updated for IntersectionObserver
+  // Keep loadMore ref updated
   useEffect(() => {
     loadMoreRef.current = loadMore;
   }, [loadMore]);
@@ -444,20 +459,38 @@ export default function YoutubeMusicPage() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, loadInitial]);
 
-  // Intersection observer for infinite scroll - optimized
-  useEffect(() => {
-    if (observerRef.current) observerRef.current.disconnect();
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && loadMoreRef.current) {
-          loadMoreRef.current();
-        }
-      },
-      { threshold: 0.1, rootMargin: '100px' }
-    );
-    if (bottomRef.current) observerRef.current.observe(bottomRef.current);
-    return () => observerRef.current?.disconnect();
+  // Save recent search
+  const saveRecentSearch = useCallback((searchQuery: string) => {
+    if (!searchQuery.trim()) return;
+    setRecentSearches(prev => {
+      const filtered = prev.filter(s => s.toLowerCase() !== searchQuery.toLowerCase());
+      const updated = [searchQuery, ...filtered].slice(0, MAX_RECENT);
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+      return updated;
+    });
   }, []);
+
+  // Clear recent searches
+  const clearRecentSearches = useCallback(() => {
+    setRecentSearches([]);
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
+    toast.info("Search history cleared");
+  }, []);
+
+  // Handle suggestion click
+  const handleSuggestionClick = useCallback((suggestion: string) => {
+    setQuery(suggestion);
+    setShowSuggestions(false);
+    saveRecentSearch(suggestion);
+    searchInputRef.current?.focus();
+  }, [saveRecentSearch]);
+
+  // Handle chip click
+  const handleChipClick = useCallback((chipQuery: string) => {
+    setQuery(chipQuery);
+    setShowSuggestions(false);
+    saveRecentSearch(chipQuery);
+  }, [saveRecentSearch]);
 
   // Memoized handlers
   const handleCategoryClick = useCallback((cat: typeof FRONT_SECTIONS[0]) => {
@@ -465,6 +498,7 @@ export default function YoutubeMusicPage() {
     setViewMode("category");
     setQuery("");
     setCurrentQuery(cat.query);
+    setShowSuggestions(false);
     loadInitial(cat.query);
   }, [loadInitial]);
 
@@ -473,6 +507,7 @@ export default function YoutubeMusicPage() {
     setActiveCategory(null);
     setQuery("");
     setTracks([]);
+    setShowSuggestions(false);
   }, []);
 
   const handleRefresh = useCallback(() => {
@@ -484,6 +519,40 @@ export default function YoutubeMusicPage() {
       toast.success("Showing new songs!");
     }
   }, [viewMode, loadFrontPage, loadInitial, currentQuery]);
+
+  // Handle search input change with suggestions
+  const handleQueryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setQuery(value);
+    setShowSuggestions(value.length > 0 && viewMode === "home");
+  }, [viewMode]);
+
+  // Handle search submit
+  const handleSearchSubmit = useCallback(() => {
+    if (query.trim()) {
+      saveRecentSearch(query.trim());
+      setShowSuggestions(false);
+    }
+  }, [query, saveRecentSearch]);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node) &&
+          searchInputRef.current && !searchInputRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Filtered suggestions based on input
+  const filteredSuggestions = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    return POPULAR_SEARCHES.filter(s => s.toLowerCase().includes(q)).slice(0, 5);
+  }, [query]);
 
   // Resolve YT track to audio URL then play - fixed duplicate setResolvingIdx
   const handlePlay = useCallback(async (clickedTrack: Track, allTracks: Track[], idx: number) => {
@@ -540,8 +609,19 @@ export default function YoutubeMusicPage() {
       <Header
         query={query}
         setQuery={setQuery}
+        onQueryChange={handleQueryChange}
+        onSearchSubmit={handleSearchSubmit}
         handleRefresh={handleRefresh}
         refreshing={refreshing}
+        showSuggestions={showSuggestions}
+        setShowSuggestions={setShowSuggestions}
+        filteredSuggestions={filteredSuggestions}
+        onSuggestionClick={handleSuggestionClick}
+        recentSearches={recentSearches}
+        onRecentClick={handleSuggestionClick}
+        onClearRecent={clearRecentSearches}
+        searchInputRef={searchInputRef}
+        suggestionsRef={suggestionsRef}
       />
 
       {/* Category View */}
@@ -558,7 +638,7 @@ export default function YoutubeMusicPage() {
           handleRefresh={handleRefresh}
           addToQueue={addToQueue}
           setMenuTrack={setMenuTrack}
-          bottomRef={bottomRef}
+          onLoadMore={loadMore}
         />
       )}
 
@@ -590,17 +670,39 @@ export default function YoutubeMusicPage() {
   );
 }
 
-// Memoized Header component
+// Memoized Header component with search suggestions
 const Header = memo(({
   query,
   setQuery,
+  onQueryChange,
+  onSearchSubmit,
   handleRefresh,
-  refreshing
+  refreshing,
+  showSuggestions,
+  setShowSuggestions,
+  filteredSuggestions,
+  onSuggestionClick,
+  recentSearches,
+  onRecentClick,
+  onClearRecent,
+  searchInputRef,
+  suggestionsRef,
 }: {
   query: string;
   setQuery: (q: string) => void;
+  onQueryChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onSearchSubmit: () => void;
   handleRefresh: () => void;
   refreshing: boolean;
+  showSuggestions: boolean;
+  setShowSuggestions: (v: boolean) => void;
+  filteredSuggestions: string[];
+  onSuggestionClick: (s: string) => void;
+  recentSearches: string[];
+  onRecentClick: (s: string) => void;
+  onClearRecent: () => void;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
+  suggestionsRef: React.RefObject<HTMLDivElement | null>;
 }) => (
   <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3">
     <div className="flex items-center justify-between mb-2 sm:mb-3">
@@ -622,120 +724,96 @@ const Header = memo(({
         <RefreshCw size={16} className={`text-muted-foreground ${refreshing ? "animate-spin text-primary" : ""}`} />
       </button>
     </div>
-    {/* Search Bar */}
-    <div className="relative">
-      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+    {/* Search Bar with Suggestions */}
+    <div className="relative" ref={suggestionsRef}>
+      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
       <input
+        ref={searchInputRef}
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={onQueryChange}
+        onFocus={() => query.length > 0 && setShowSuggestions(true)}
+        onKeyDown={(e) => e.key === "Enter" && onSearchSubmit()}
         placeholder="Search songs, artists, albums..."
         className="w-full pl-9 pr-9 py-2.5 sm:py-3 rounded-xl bg-muted border border-border text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all min-h-[44px]"
       />
-      {query && (
-        <button onClick={() => setQuery("")} className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground min-w-[44px] min-h-[44px] flex items-center justify-center">
+      {query ? (
+        <button onClick={() => { setQuery(""); setShowSuggestions(false); }} className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground min-w-[44px] min-h-[44px] flex items-center justify-center">
           <X size={16} />
         </button>
+      ) : (
+        <button onClick={() => searchInputRef.current?.focus()} className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground min-w-[44px] min-h-[44px] flex items-center justify-center">
+          <Sparkles size={16} />
+        </button>
+      )}
+      
+      {/* Suggestions Dropdown */}
+      {showSuggestions && (query.length > 0 || recentSearches.length > 0) && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-700/50 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+          {/* Recent Searches */}
+          {query.length === 0 && recentSearches.length > 0 && (
+            <div className="p-2">
+              <div className="flex items-center justify-between px-2 py-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Recent Searches</span>
+                <button
+                  onClick={onClearRecent}
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 transition-colors"
+                >
+                  <Trash2 size={10} /> Clear
+                </button>
+              </div>
+              {recentSearches.slice(0, 5).map((search, i) => (
+                <button
+                  key={i}
+                  onClick={() => onRecentClick(search)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-800 active:bg-zinc-700 rounded-lg transition-colors text-left"
+                >
+                  <Clock size={14} className="text-muted-foreground flex-shrink-0" />
+                  <span className="text-sm text-foreground truncate">{search}</span>
+                </button>
+              ))}
+              <div className="h-px bg-zinc-700/50 my-1" />
+            </div>
+          )}
+          
+          {/* Search Suggestions */}
+          {query.length > 0 && filteredSuggestions.length > 0 && (
+            <div className="p-2">
+              <span className="text-xs text-muted-foreground font-medium px-2 py-1.5 block">Suggestions</span>
+              {filteredSuggestions.map((suggestion, i) => (
+                <button
+                  key={i}
+                  onClick={() => onSuggestionClick(suggestion)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-800 active:bg-zinc-700 rounded-lg transition-colors text-left"
+                >
+                  <Search size={14} className="text-muted-foreground flex-shrink-0" />
+                  <span className="text-sm text-foreground truncate">{suggestion}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {/* Quick Chips */}
+          {query.length === 0 && (
+            <div className="p-3">
+              <span className="text-xs text-muted-foreground font-medium block mb-2">Quick Search</span>
+              <div className="flex flex-wrap gap-1.5">
+                {SEARCH_CHIPS.map((chip, i) => (
+                  <button
+                    key={i}
+                    onClick={() => onRecentClick(chip.query)}
+                    className="px-3 py-1.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-xs text-foreground transition-colors touch-manipulation"
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   </div>
 ));
-
-// Windowed Track List for performance with unlimited results
-const VISIBLE_COUNT = 50; // Number of items to render at once
-const BUFFER_COUNT = 20; // Buffer items above and below visible area
-
-const TrackListWindowed = memo(({
-  tracks,
-  isTrackPlaying,
-  resolvingIdx,
-  handlePlay,
-  addToQueue,
-  setMenuTrack,
-  bottomRef,
-  loadingMore,
-}: {
-  tracks: Track[];
-  isTrackPlaying: (t: Track) => boolean;
-  resolvingIdx: number | null;
-  handlePlay: (track: Track, allTracks: Track[], idx: number) => void;
-  addToQueue: (track: Track) => void;
-  setMenuTrack: (track: Track | null) => void;
-  bottomRef: React.RefObject<HTMLDivElement | null>;
-  loadingMore: boolean;
-}) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [containerHeight, setContainerHeight] = useState(0);
-  
-  // Estimate item height (64px min-h + spacing)
-  const ITEM_HEIGHT = 80;
-  
-  // Calculate visible range
-  const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - BUFFER_COUNT);
-  const endIndex = Math.min(tracks.length, startIndex + VISIBLE_COUNT + BUFFER_COUNT * 2);
-  
-  // Calculate total height for scrollbar
-  const totalHeight = tracks.length * ITEM_HEIGHT;
-  
-  // Calculate offset for visible items
-  const offsetY = startIndex * ITEM_HEIGHT;
-  
-  // Handle scroll
-  const handleScroll = useCallback(() => {
-    if (containerRef.current) {
-      setScrollTop(containerRef.current.scrollTop);
-      setContainerHeight(containerRef.current.clientHeight);
-    }
-  }, []);
-  
-  // Visible tracks
-  const visibleTracks = useMemo(() => {
-    return tracks.slice(startIndex, endIndex);
-  }, [tracks, startIndex, endIndex]);
-
-  return (
-    <div
-      ref={containerRef}
-      onScroll={handleScroll}
-      className="relative overflow-y-auto"
-      style={{ maxHeight: 'calc(100vh - 280px)' }}
-    >
-      {/* Spacer for total height */}
-      <div style={{ height: totalHeight, position: 'relative' }}>
-        {/* Visible items container */}
-        <div style={{ position: 'absolute', top: offsetY, left: 0, right: 0 }}>
-          <div className="space-y-1.5 sm:space-y-2">
-            {visibleTracks.map((track, i) => {
-              const actualIndex = startIndex + i;
-              return (
-                <TrackListItem
-                  key={track.songId || track.src}
-                  track={track}
-                  index={actualIndex}
-                  isPlaying={isTrackPlaying(track)}
-                  isResolving={resolvingIdx === actualIndex}
-                  onPlay={() => handlePlay(track, tracks, actualIndex)}
-                  onAddToQueue={() => addToQueue(track)}
-                  onMoreOptions={() => setMenuTrack(track)}
-                />
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      
-      {/* Infinite scroll trigger */}
-      <div ref={bottomRef as React.RefObject<HTMLDivElement>} className="py-3 sm:py-4 flex justify-center sticky bottom-0 bg-background">
-        {loadingMore && (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm sm:text-base py-3">
-            <Loader2 size={16} className="animate-spin text-primary" />
-            <span>Loading more...</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-});
 
 // Memoized Category View component - unlimited results
 const CategoryView = memo(({
@@ -750,7 +828,7 @@ const CategoryView = memo(({
   handleRefresh,
   addToQueue,
   setMenuTrack,
-  bottomRef,
+  onLoadMore,
 }: {
   activeCategory: typeof FRONT_SECTIONS[0];
   tracks: Track[];
@@ -763,7 +841,7 @@ const CategoryView = memo(({
   handleRefresh: () => void;
   addToQueue: (track: Track) => void;
   setMenuTrack: (track: Track | null) => void;
-  bottomRef: React.RefObject<HTMLDivElement | null>;
+  onLoadMore: () => void;
 }) => (
   <div className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4">
     {/* Back Button + Section Header */}
@@ -805,29 +883,58 @@ const CategoryView = memo(({
       </div>
     )}
 
-    {/* Track List - Windowed rendering for performance */}
+    {/* Track List */}
     {!loading && tracks.length > 0 && (
-      <TrackListWindowed
-        tracks={tracks}
-        isTrackPlaying={isTrackPlaying}
-        resolvingIdx={resolvingIdx}
-        handlePlay={handlePlay}
-        addToQueue={addToQueue}
-        setMenuTrack={setMenuTrack}
-        bottomRef={bottomRef}
-        loadingMore={loadingMore}
-      />
+      <div className="space-y-1.5 sm:space-y-2">
+        {tracks.map((track, idx) => (
+          <TrackListItem
+            key={track.songId || track.src}
+            track={track}
+            index={idx}
+            isPlaying={isTrackPlaying(track)}
+            isResolving={resolvingIdx === idx}
+            onPlay={() => handlePlay(track, tracks, idx)}
+            onAddToQueue={() => addToQueue(track)}
+            onMoreOptions={() => setMenuTrack(track)}
+          />
+        ))}
+        {/* Load More Button */}
+        <div className="py-4 flex justify-center">
+          <button
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            className="flex items-center gap-2 px-6 py-3 rounded-full bg-muted hover:bg-muted/80 text-sm font-medium text-foreground transition-all disabled:opacity-60 touch-manipulation min-h-[44px]"
+          >
+            {loadingMore ? (
+              <><Loader2 size={16} className="animate-spin text-primary" /> Loading...</>
+            ) : (
+              <><RefreshCw size={16} className="text-primary" /> Load 20 More Songs</>
+            )}
+          </button>
+        </div>
+      </div>
     )}
 
+    {/* Improved Empty State */}
     {!loading && tracks.length === 0 && (
-      <div className="flex flex-col items-center justify-center py-12 sm:py-16 gap-3">
-        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-muted flex items-center justify-center">
-          <Music2 size={20} className="text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center py-12 sm:py-16 gap-4">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
+          <Music2 size={28} className="text-muted-foreground/70" />
         </div>
-        <p className="text-sm sm:text-base text-muted-foreground">No songs found</p>
+        <div className="text-center">
+          <p className="text-base sm:text-lg font-medium text-foreground mb-1">No songs found</p>
+          <p className="text-sm text-muted-foreground">Try searching for something else or browse categories</p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-2 mt-2">
+          {SEARCH_CHIPS.slice(0, 4).map((chip, i) => (
+            <span key={i} className="px-3 py-1.5 rounded-full bg-muted text-xs text-muted-foreground">
+              {chip.label}
+            </span>
+          ))}
+        </div>
         <button
           onClick={handleRefresh}
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-white text-sm font-medium hover:bg-primary/80 transition-colors touch-manipulation"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-white text-sm font-medium hover:bg-primary/80 transition-colors touch-manipulation mt-2"
         >
           <RefreshCw size={14} /> Try Again
         </button>
