@@ -109,7 +109,6 @@ export const MainContent = () => {
 
   // New personalized sections
   const [bengaliHits, setBengaliHits] = useState<Track[]>([]);
-  const [thrillerVibes, setThrillerVibes] = useState<Track[]>([]);
   const [forYouTracks, setForYouTracks] = useState<Track[]>([]);
   const [bengaliAlbums, setBengaliAlbums] = useState<{ name: string; cover: string; id: string }[]>([]);
   const [horrorPodcast, setHorrorPodcast] = useState<Track[]>([]);
@@ -120,6 +119,7 @@ export const MainContent = () => {
   const [actressSearch, setActressSearch] = useState("");
   const [showActressesModal, setShowActressesModal] = useState(false);
   const [showPlaylistsModal, setShowPlaylistsModal] = useState(false);
+  const [showFullSuspense, setShowFullSuspense] = useState(false);
 
   const DISPLAY_COUNT = 8;
   const DISPLAY_COUNT_MOBILE = 5;
@@ -167,12 +167,6 @@ export const MainContent = () => {
       ["bengali top hits", "bangla gaan arijit", "anupam roy bengali", "bengali modern songs", "bangla adhunik gaan", "kumar sanu bengali", "bengali romantic songs"],
       setBengaliHits, 7000, "bengali"
     );
-    // Thriller — multiple queries
-    fetchSection(
-      ["thriller suspense hindi", "dark moody bollywood", "horror bollywood songs", "mystery hindi songs", "bhayanak bollywood"],
-      setThrillerVibes, 8000, "hindi"
-    );
-
     // For You: use top artist from listening history or fallback
     const topArtist = Object.entries(stats.topArtists).sort((a, b) => b[1] - a[1])[0]?.[0];
     if (topArtist) {
@@ -215,11 +209,31 @@ export const MainContent = () => {
         }
       }).catch(() => {});
 
-    // Horror/Thriller Podcast-style (Bengali)
-    fetchSection(
-      ["bengali horror thriller songs", "bengali dark suspense", "bangla bhooter gaan", "bengali psychological thriller"],
-      setHorrorPodcast, 11000, "bengali"
-    );
+    // Sunday Suspense / Horror — YouTube
+    const suspenseYtQueries = [
+      "Sunday Suspense Mirchi Bangla",
+      "Sunday Suspense 2024",
+      "Sunday Suspense Saradindu",
+      "Sunday Suspense Feluda",
+      "Sunday Suspense Byomkesh",
+    ];
+    const suspenseQ = suspenseYtQueries[Math.floor(Math.random() * suspenseYtQueries.length)];
+    fetch(`/api/youtube-search?q=${encodeURIComponent(suspenseQ)}`)
+      .then((r) => r.json())
+      .then((videos: { videoId: string; title: string; author: string; duration: number; thumbnail: string }[]) => {
+        const tracks: Track[] = videos.slice(0, 10).map((v, i) => ({
+          id: 11000 + i,
+          title: v.title,
+          artist: v.author || "YouTube",
+          album: "",
+          cover: v.thumbnail || "",
+          src: `https://www.youtube.com/watch?v=${v.videoId}`,
+          duration: v.duration || 0,
+          type: "youtube" as const,
+          songId: v.videoId,
+        }));
+        setHorrorPodcast(tracks);
+      }).catch(() => {});
 
     // YouTube Trending
     const ytQueries = ["top hindi songs 2026 trending", "viral bengali songs 2026"];
@@ -336,10 +350,6 @@ export const MainContent = () => {
       refreshFromAPI(
         ["bengali top hits", "bangla gaan arijit", "anupam roy bengali", "bengali modern songs", "bangla adhunik gaan", "kumar sanu bengali", "bengali romantic songs"],
         setBengaliHits, 7000, "bengali"
-      );
-      refreshFromAPI(
-        ["thriller suspense hindi", "dark moody bollywood", "horror bollywood songs", "mystery hindi songs", "bhayanak bollywood"],
-        setThrillerVibes, 8000, "hindi"
       );
       refreshFromAPI(["bollywood romantic hits", "hindi love songs", "bollywood sad songs", "hindi acoustic"], setForYouTracks, 9000);
     }, AUTO_REFRESH_MS);
@@ -1377,46 +1387,6 @@ export const MainContent = () => {
         )}
         </DeferredSection>
 
-        {/* Thriller & Dark Vibes */}
-        <DeferredSection>
-        {thrillerVibes.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🎭</span>
-                <h3 className="text-base md:text-lg font-bold text-foreground">Dark & Thriller</h3>
-              </div>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {thrillerVibes.map((track, i) => (
-                <div key={track.src + i} onClick={() => playTrackList(thrillerVibes, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <button
-                      onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                      title="Add to queue"
-                    >
-                      <Plus size={12} className="text-white" />
-                    </button>
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
-                        <Play size={14} className="text-primary-foreground ml-0.5" />
-                      </div>
-                    </div>
-                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-red-900/80 px-1.5 py-0.5 rounded">
-                      THRILLER
-                    </span>
-                  </div>
-                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-        </DeferredSection>
-
         {/* For You — Personalized */}
         <DeferredSection>
         {forYouTracks.length > 0 && (
@@ -1449,7 +1419,7 @@ export const MainContent = () => {
         </DeferredSection>
 
 
-        {/* Sunday Suspense / Horror Thriller */}
+        {/* Sunday Suspense / Horror Thriller — YouTube */}
         <DeferredSection>
         {horrorPodcast.length > 0 && (
           <section className="mb-6 md:mb-8 animate-fade-in">
@@ -1457,22 +1427,27 @@ export const MainContent = () => {
               <div className="flex items-center gap-2">
                 <span className="text-base">🎙️</span>
                 <h3 className="text-base md:text-lg font-bold text-foreground">Sunday Suspense Vibes</h3>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-600/20 text-red-400 font-bold">YT</span>
               </div>
+              <button
+                onClick={() => setShowFullSuspense(true)}
+                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+              >
+                View All <ChevronRight size={12} />
+              </button>
             </div>
             <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {horrorPodcast.map((track, i) => (
                 <div key={track.src + i} onClick={() => playTrackList(horrorPodcast, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
                   <div className="relative mb-1.5 md:mb-2">
                     <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <button onClick={(e) => { e.stopPropagation(); addToQueue(track); }} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all" title="Add to queue"><Plus size={12} className="text-white" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); addToQueue(track); }} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all" title="Add to queue"><Plus size={12} className="text-white" /></button>
                     <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
-                        <Play size={14} className="text-primary-foreground ml-0.5" />
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
+                        <Play size={14} className="text-white ml-0.5" />
                       </div>
                     </div>
-                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-red-800/80 px-1.5 py-0.5 rounded">
-                      HORROR
-                    </span>
+                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-red-600/90 px-1.5 py-0.5 rounded">▶ YT</span>
                   </div>
                   <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
                   <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
@@ -1717,6 +1692,26 @@ export const MainContent = () => {
           icon="history"
           initialSongs={history.map((h) => h.track)}
           onClose={() => setShowFullHistory(false)}
+        />
+      )}
+      {showFullSuspense && (
+        <FullPlaylist
+          title="Sunday Suspense Vibes"
+          icon="trending"
+          initialSongs={horrorPodcast}
+          onRefresh={async () => {
+            const queries = ["Sunday Suspense Mirchi Bangla", "Sunday Suspense 2024", "Sunday Suspense Saradindu", "Sunday Suspense Feluda", "Sunday Suspense Byomkesh"];
+            const q = queries[Math.floor(Math.random() * queries.length)];
+            const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`).catch(() => null);
+            if (!res?.ok) return [];
+            const videos: { videoId: string; title: string; author: string; duration: number; thumbnail: string }[] = await res.json();
+            return videos.slice(0, 10).map((v, i) => ({
+              id: 11000 + i, title: v.title, artist: v.author || "YouTube", album: "",
+              cover: v.thumbnail || "", src: `https://www.youtube.com/watch?v=${v.videoId}`,
+              duration: v.duration || 0, type: "youtube" as const, songId: v.videoId,
+            }));
+          }}
+          onClose={() => setShowFullSuspense(false)}
         />
       )}
       {showFullFeaturedPlaylists && (

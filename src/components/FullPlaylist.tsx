@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { X, Play, Loader2, Music2, TrendingUp, Clock, Plus, ListPlus, ListMusic } from "lucide-react";
+import { X, Play, Loader2, Music2, TrendingUp, Clock, Plus, ListPlus, ListMusic, RefreshCw } from "lucide-react";
 import { Track } from "@/data/playlist";
 import { usePlayer } from "@/context/PlayerContext";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ interface FullPlaylistProps {
   icon: "trending" | "new" | "history";
   initialSongs: Track[];
   loadMore?: (page: number) => Promise<Track[]>;
+  onRefresh?: () => Promise<Track[]>;
   onClose: () => void;
 }
 
@@ -21,10 +22,11 @@ const formatDuration = (s: number) => {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 };
 
-export const FullPlaylist = ({ title, icon, initialSongs, loadMore, onClose }: FullPlaylistProps) => {
+export const FullPlaylist = ({ title, icon, initialSongs, loadMore, onRefresh, onClose }: FullPlaylistProps) => {
   const { playTrackList, currentTrack, isPlaying, addToQueue, playNext } = usePlayer();
   const [songs, setSongs] = useState<Track[]>(initialSongs);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(!!loadMore);
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
@@ -91,6 +93,14 @@ export const FullPlaylist = ({ title, icon, initialSongs, loadMore, onClose }: F
     }
   }, [playTrackList]);
 
+  const handleRefresh = async () => {
+    if (!onRefresh || refreshing) return;
+    setRefreshing(true);
+    const newSongs = await onRefresh().catch(() => []);
+    if (newSongs.length > 0) setSongs(newSongs);
+    setRefreshing(false);
+  };
+
   const iconMap = {
     trending: <TrendingUp size={16} className="text-primary" />,
     new: <Music2 size={16} className="text-primary" />,
@@ -113,6 +123,16 @@ export const FullPlaylist = ({ title, icon, initialSongs, loadMore, onClose }: F
             </span>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {onRefresh && (
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                title="Refresh playlist"
+              >
+                <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
+              </button>
+            )}
             {songs.length > 0 && (
               <>
                 <button

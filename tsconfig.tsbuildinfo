@@ -1,1 +1,1 @@
-{"fileNames":[],"fileInfos":[],"root":[],"options":{"allowJs":true,"noImplicitAny":false,"noUnusedLocals":false,"noUnusedParameters":false,"skipLibCheck":true,"strictNullChecks":false},"version":"5.8.3"}
+{"fileNames":[],"fileInfos":[],"root":[],"options":{"allowJs":true,"noImplicitAny":true,"noUnusedLocals":true,"noUnusedParameters":true,"skipLibCheck":true,"strict":true,"strictNullChecks":true},"version":"5.8.3"}

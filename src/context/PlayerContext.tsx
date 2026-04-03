@@ -381,6 +381,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } else {
       // Switching to audio — stop YouTube first
       setIsPlaying(false);
+      setProgress(0);
       setTrackList((prev) => {
         const idx = prev.findIndex((t) => t.src === track.src);
         if (idx !== -1) {
@@ -391,10 +392,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCurrentIndex(0);
         return newList;
       });
-      setProgress(0);
-      setTimeout(() => playAudio(), 200);
+      // Directly play audio after a delay — don't rely on playAudio() which checks currentTrack type
+      setTimeout(() => {
+        setupAudioContext();
+        if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
+        audioRef.current?.play().catch(() => {});
+        setIsPlaying(true);
+      }, 300);
     }
-  }, [playAudio, trackList]);
+  }, [setupAudioContext, trackList]);
 
   const playTrackList = useCallback((tracks: Track[], index?: number) => {
     setTrackList(tracks);
@@ -711,7 +717,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentTrack.type === "youtube") {
       audioRef.current?.pause();
     }
-  }, [currentTrack?.src, currentTrack?.type]);
+  }, [currentTrack?.src, currentTrack?.type, isPlaying]);
 
   // Reset when track changes
   useEffect(() => {
