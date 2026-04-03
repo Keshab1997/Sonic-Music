@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { X, Play, Loader2, Shuffle, RefreshCw } from "lucide-react";
 import { Track } from "@/data/playlist";
 import { usePlayer } from "@/context/PlayerContext";
@@ -72,7 +72,7 @@ export const ArtistDetail = ({ artistName, searchQuery, onClose }: ArtistDetailP
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
 
-  const fetchSongs = async () => {
+  const fetchSongs = useCallback(async () => {
     setLoading(true);
     try {
       // Use daily page number for variety
@@ -97,11 +97,11 @@ export const ArtistDetail = ({ artistName, searchQuery, onClose }: ArtistDetailP
       setSongs(dailyShuffle(tracks));
     } catch { /* ignore */ }
     setLoading(false);
-  };
+  }, [searchQuery]);
 
   useEffect(() => {
     fetchSongs();
-  }, [searchQuery]);
+  }, [fetchSongs]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">

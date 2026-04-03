@@ -20,6 +20,22 @@ interface ApiArtist {
   image: { quality: string; link: string }[];
 }
 
+// Popular artists for quick suggestions
+const popularArtists = [
+  "Arijit Singh",
+  "Shreya Ghoshal",
+  "Neha Kakkar",
+  "Sunidhi Chauhan",
+  "Atif Aslam",
+  "Darshan Raval",
+  "Anupam Roy",
+  "Diljit Dosanjh",
+  "Badshah",
+  "Jubin Nautiyal",
+  "Armaan Malik",
+  "Yo Yo Honey Singh",
+];
+
 export const ActressesModal = ({ onSelectArtist, onClose }: ActressesModalProps) => {
   const [search, setSearch] = useState("");
   const [artists, setArtists] = useState<(Artist & { artistId: string })[]>([]);
@@ -35,21 +51,6 @@ export const ActressesModal = ({ onSelectArtist, onClose }: ActressesModalProps)
   const INITIAL_LOAD = 10;
   const LOAD_MORE_COUNT = 10;
 
-  // Popular artists for quick suggestions
-  const popularArtists = [
-    "Arijit Singh",
-    "Shreya Ghoshal",
-    "Neha Kakkar",
-    "Sunidhi Chauhan",
-    "Atif Aslam",
-    "Darshan Raval",
-    "Anupam Roy",
-    "Diljit Dosanjh",
-    "Badshah",
-    "Jubin Nautiyal",
-    "Armaan Malik",
-    "Yo Yo Honey Singh",
-  ];
 
   const fetchArtists = useCallback(async (query: string) => {
     if (!query.trim()) {
@@ -99,7 +100,7 @@ export const ActressesModal = ({ onSelectArtist, onClose }: ActressesModalProps)
     // Show suggestions immediately for 2+ word searches
     const words = search.trim().split(/\s+/);
     if (words.length >= 2) {
-      const filtered = popularArtists.filter(s => 
+      const filtered = popularArtists.filter(s =>
         s.toLowerCase().includes(search.toLowerCase())
       );
       setSearchSuggestions(filtered);
