@@ -618,28 +618,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
-  // Silent audio loop to keep audio session alive on mobile (for YouTube background play)
+  // Silent audio loop to keep audio session + notification controls alive on mobile
   useEffect(() => {
-    const AudioContextType = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioContextType();
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    gainNode.gain.value = 0.001; // Nearly silent
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    oscillator.frequency.value = 0; // Inaudible frequency
-    oscillator.start();
-    
     const silent = new Audio(SILENT_AUDIO);
     silent.loop = true;
     silent.volume = 0.001;
     silentAudioRef.current = silent;
-    
-    return () => { 
-      silent.pause();
-      oscillator.stop();
-      ctx.close();
-    };
+    return () => { silent.pause(); };
   }, []);
 
   // Start/stop silent audio based on YouTube playback
