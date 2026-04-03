@@ -17,7 +17,7 @@ interface AppShellProps {
 }
 
 export const AppShell = ({ children }: AppShellProps) => {
-  const { currentTrack, isPlaying, togglePlay, next, prev, seek } = usePlayer();
+  const { currentTrack, isPlaying, progress, duration, togglePlay, next, prev, seek } = usePlayer();
   const { gradient } = useCoverGradient(currentTrack?.cover);
   const [showMiniPlayer, setShowMiniPlayer] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -28,6 +28,8 @@ export const AppShell = ({ children }: AppShellProps) => {
   useMediaSession({
     currentTrack,
     isPlaying,
+    progress,
+    duration,
     onPlay: togglePlay,
     onPause: togglePlay,
     onNext: next,

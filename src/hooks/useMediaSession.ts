@@ -5,6 +5,8 @@ import type { Track } from "@/data/playlist";
 interface UseMediaSessionProps {
   currentTrack: Track | null;
   isPlaying: boolean;
+  progress: number;
+  duration: number;
   onPlay: () => void;
   onPause: () => void;
   onNext: () => void;
@@ -13,12 +15,12 @@ interface UseMediaSessionProps {
 }
 
 export function useMediaSession({
-  currentTrack, isPlaying,
+  currentTrack, isPlaying, progress, duration,
   onPlay, onPause, onNext, onPrev, onSeek,
 }: UseMediaSessionProps) {
+  // Set metadata when track changes
   useEffect(() => {
-    if (!("mediaSession" in navigator)) return;
-    if (!currentTrack) return;
+    if (!("mediaSession" in navigator) || !currentTrack) return;
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentTrack.title,
@@ -41,14 +43,30 @@ export function useMediaSession({
     navigator.mediaSession.setActionHandler("seekto", (details) => {
       if (details.seekTime != null && onSeek) onSeek(details.seekTime);
     });
-    navigator.mediaSession.setActionHandler("seekbackward", () => {
-      if (onSeek) onSeek(Math.max(0, (navigator.mediaSession.playbackState === "playing" ? 0 : 0) - 10));
+    navigator.mediaSession.setActionHandler("seekbackward", (details) => {
+      if (onSeek) onSeek(Math.max(0, progress - (details.seekOffset ?? 10)));
     });
-    navigator.mediaSession.setActionHandler("seekforward", () => {
-      if (onSeek) onSeek(0 + 10);
+    navigator.mediaSession.setActionHandler("seekforward", (details) => {
+      if (onSeek) onSeek(Math.min(duration || Infinity, progress + (details.seekOffset ?? 10)));
     });
+  }, [currentTrack, onPlay, onPause, onNext, onPrev, onSeek, progress, duration]);
 
+  // Update playback state
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
     navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
-  }, [currentTrack, isPlaying, onPlay, onPause, onNext, onPrev, onSeek]);
+  }, [isPlaying]);
+
+  // Update position state (shows time on lock screen)
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || !duration) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration,
+        playbackRate: 1,
+        position: Math.min(progress, duration),
+      });
+    } catch { /* ignore */ }
+  }, [progress, duration]);
 }
 
