@@ -1,8 +1,11 @@
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Play, Loader2, Music2, TrendingUp, Clock, Plus, ListPlus, ListMusic } from "lucide-react";
 import { Track } from "@/data/playlist";
 import { usePlayer } from "@/context/PlayerContext";
+import { toast } from "sonner";
+
+const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 
 interface FullPlaylistProps {
   title: string;
@@ -48,6 +51,45 @@ export const FullPlaylist = ({ title, icon, initialSongs, loadMore, onClose }: F
     el.addEventListener("scroll", handleScroll);
     return () => el.removeEventListener("scroll", handleScroll);
   }, [loadingMore, hasMore, loadMore, page]);
+
+  const playJioSaavnPlaylist = useCallback(async (playlistId: string, playlistTitle: string, onCloseMenu: () => void) => {
+    toast.loading(`Loading ${playlistTitle}...`, { id: "playlist-load" });
+    try {
+      const res = await fetch(`${API_BASE}/playlists?id=${playlistId}`);
+      if (!res.ok) {
+        toast.error("Failed to load playlist", { id: "playlist-load" });
+        return;
+      }
+      const data = await res.json();
+      const playlistSongs = data.data?.songs || [];
+      const tracks: Track[] = playlistSongs
+        .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
+        .map((s: { downloadUrl: { quality: string; link: string }[]; name: string; primaryArtists: string; album?: { name?: string } | string; image: { quality: string; link: string }[]; duration: string | number; id: string }, i: number) => {
+          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+          const bestUrl = url160 || url96 || s.downloadUrl?.[0]?.link || "";
+          return {
+            id: 8000 + i,
+            title: s.name?.replace(/&quot;/g, '"').replace(/&amp;/g, "&") || "Unknown",
+            artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
+            src: bestUrl,
+            duration: parseInt(String(s.duration)) || 0,
+            type: "audio" as const,
+            songId: s.id,
+          } as Track;
+        });
+      if (tracks.length > 0) {
+        toast.success(`Playing ${playlistTitle} (${tracks.length} songs)`, { id: "playlist-load" });
+        playTrackList(tracks, 0);
+      } else {
+        toast.error("No songs found in playlist", { id: "playlist-load" });
+      }
+    } catch { 
+      toast.error("Failed to load playlist", { id: "playlist-load" });
+    }
+  }, [playTrackList]);
 
   const iconMap = {
     trending: <TrendingUp size={16} className="text-primary" />,
@@ -106,6 +148,8 @@ export const FullPlaylist = ({ title, icon, initialSongs, loadMore, onClose }: F
           {songs.map((track, i) => {
             const isActive = currentTrack?.src === track.src;
             const showMenu = activeMenu === i;
+            // Check if this is a playlist (src contains playlist ID)
+            const isPlaylist = track.src && track.duration === 0 && !track.src.startsWith("http");
             return (
               <div
                 key={`${track.src}-${i}`}
@@ -114,6 +158,11 @@ export const FullPlaylist = ({ title, icon, initialSongs, loadMore, onClose }: F
                 }`}
                 onClick={() => {
                   if (showMenu) { setActiveMenu(null); return; }
+                  if (isPlaylist) {
+                    // Load playlist songs
+                    playJioSaavnPlaylist(track.songId, track.title, () => setActiveMenu(null));
+                    return;
+                  }
                   playTrackList(songs, i);
                 }}
               >

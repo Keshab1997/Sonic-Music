@@ -1640,14 +1640,13 @@ export const MainContent = () => {
         <FullPlaylist
           title="Featured Playlists"
           icon="trending"
-          initialSongs={[]}
-          loadMore={async () => apiFeaturedPlaylists.map((p, i) => ({
+          initialSongs={apiFeaturedPlaylists.map((p, i) => ({
             id: 9000 + i,
             title: p.title,
             artist: p.subtitle,
-            album: "",
+            album: p.language || "",
             cover: p.image?.[0]?.link || "",
-            src: "",
+            src: p.id, // Store playlist ID in src for special handling
             duration: 0,
             type: "audio" as const,
             songId: p.id,
