@@ -10,6 +10,8 @@ import { AudioVisualizer } from "@/components/AudioVisualizer";
 import { ArtistDetail } from "@/components/ArtistDetail";
 import { ArtistPlaylist } from "@/components/ArtistPlaylist";
 import { ViewAllArtists } from "@/components/ViewAllArtists";
+import { ActressesModal } from "@/components/ActressesModal";
+import { PlaylistsModal } from "@/components/PlaylistsModal";
 import { TimeMachinePlaylist } from "@/components/TimeMachinePlaylist";
 import { MoodPlaylist } from "@/components/MoodPlaylist";
 import { FullPlaylist } from "@/components/FullPlaylist";
@@ -20,6 +22,8 @@ import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { Track } from "@/data/playlist";
 import {
   topArtists,
+  allArtists,
+  actresses,
   moodCategories,
   MoodCategory,
   eraCategories,
@@ -69,7 +73,7 @@ export const MainContent = () => {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
-      setFeaturedPlaylists(shuffled.slice(0, 10));
+      setFeaturedPlaylists(shuffled);
     }
   }, [apiFeaturedPlaylists, playlistFilter, shuffleIndex]);
   
@@ -112,6 +116,10 @@ export const MainContent = () => {
   const [topChartTracks, setTopChartTracks] = useState<Track[]>([]);
   const [ytTrending, setYtTrending] = useState<Track[]>([]);
   const [ytLoadingQuery, setYtLoadingQuery] = useState<string | null>(null);
+  const [actressPlaylist, setActressPlaylist] = useState<{ name: string; query: string } | null>(null);
+  const [actressSearch, setActressSearch] = useState("");
+  const [showActressesModal, setShowActressesModal] = useState(false);
+  const [showPlaylistsModal, setShowPlaylistsModal] = useState(false);
 
   const DISPLAY_COUNT = 8;
   const DISPLAY_COUNT_MOBILE = 5;
@@ -1104,12 +1112,21 @@ export const MainContent = () => {
                 <Music2 size={16} className="text-primary" />
                 <h3 className="text-base md:text-lg font-bold text-foreground">Featured Playlists</h3>
               </div>
-              <button
-                onClick={() => setShowFullTrending(true)}
-                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
-              >
-                View All <ChevronRight size={12} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowPlaylistsModal(true)}
+                  className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+                  title="Search playlists"
+                >
+                  <Search size={12} />
+                </button>
+                <button
+                  onClick={() => setShowFullTrending(true)}
+                  className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+                >
+                  View All <ChevronRight size={12} />
+                </button>
+              </div>
             </div>
             <div className="flex gap-2 mb-3">
               <button 
@@ -1131,8 +1148,8 @@ export const MainContent = () => {
                 Bengali
               </button>
             </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {featuredPlaylists.slice(0, 10).map((playlist) => (
+            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide" style={{ minHeight: '200px' }}>
+              {featuredPlaylists.length > 0 ? featuredPlaylists.map((playlist) => (
                 <div
                   key={playlist.id}
                   onClick={() => loadingLabel !== playlist.id && playJioSaavnPlaylist(playlist)}
@@ -1166,7 +1183,11 @@ export const MainContent = () => {
                   <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{playlist.title}</p>
                   <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{playlist.subtitle}</p>
                 </div>
-              ))}
+              )) : (
+                <div className="flex items-center justify-center w-full py-8">
+                  <p className="text-sm text-muted-foreground">No playlists available</p>
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-center mt-2">
               <button
@@ -1275,6 +1296,42 @@ export const MainContent = () => {
                   </div>
                 </div>
                 <p className="text-[10px] md:text-xs text-muted-foreground group-hover:text-foreground transition-colors text-center w-16 md:w-20 truncate">{artist.name}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+        </DeferredSection>
+
+        {/* Actresses - Singer All Time Hits */}
+        <DeferredSection>
+        <section className="mb-6 md:mb-8 animate-fade-in">
+          <div className="flex items-center justify-between mb-2 md:mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🎤</span>
+              <h3 className="text-base md:text-lg font-bold text-foreground">Actress & Singers</h3>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-pink-600/20 text-pink-400 font-bold">NEW</span>
+            </div>
+            <button
+              onClick={() => setShowActressesModal(true)}
+              className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+            >
+              View All <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 scrollbar-hide">
+            {actresses.slice(0, 10).map((actress) => (
+              <button
+                key={actress.name}
+                onClick={() => setActressPlaylist({ name: actress.name, query: actress.searchQuery })}
+                className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 group"
+              >
+                <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-pink-500 transition-all">
+                  <img src={actress.image} alt={actress.name} width={80} height={80} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+                <p className="text-[10px] md:text-xs text-muted-foreground group-hover:text-foreground transition-colors text-center w-16 md:w-20 truncate">{actress.name}</p>
               </button>
             ))}
           </div>
@@ -1606,6 +1663,32 @@ export const MainContent = () => {
           searchQuery={moodPlaylist.searchQuery}
           gradient={moodPlaylist.gradient}
           onClose={() => setMoodPlaylist(null)}
+        />
+      )}
+
+      {actressPlaylist && (
+        <ArtistPlaylist
+          artistName={actressPlaylist.name}
+          searchQuery={actressPlaylist.query}
+          onClose={() => setActressPlaylist(null)}
+        />
+      )}
+      {showActressesModal && (
+        <ActressesModal
+          onSelectArtist={(artist) => {
+            setShowActressesModal(false);
+            setActressPlaylist({ name: artist.name, query: artist.searchQuery });
+          }}
+          onClose={() => setShowActressesModal(false)}
+        />
+      )}
+      {showPlaylistsModal && (
+        <PlaylistsModal
+          onSelectPlaylist={(playlist) => {
+            setShowPlaylistsModal(false);
+            playJioSaavnPlaylist(playlist);
+          }}
+          onClose={() => setShowPlaylistsModal(false)}
         />
       )}
 

@@ -1,11 +1,13 @@
 
 import { useState, FormEvent, useCallback } from "react";
-import { Search, Play, Clock, Loader2, AlertCircle, Pause, Heart, X, Trash2, History, MoreHorizontal, ListPlus, PlaySquare, Plus } from "lucide-react";
+import { Search, Play, Clock, Loader2, AlertCircle, Pause, Heart, X, Trash2, History, MoreHorizontal, ListPlus, PlaySquare, Plus, ChevronRight } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useMusicSearch } from "@/hooks/useYouTubeSearch";
 import { useLocalData } from "@/hooks/useLocalData";
 import { usePlaylists } from "@/hooks/usePlaylists";
 import { Track } from "@/data/playlist";
+import { ActressesModal } from "@/components/ActressesModal";
+import { ArtistPlaylist } from "@/components/ArtistPlaylist";
 
 const formatDuration = (seconds: number) => {
   if (!seconds) return "--:--";
@@ -14,17 +16,19 @@ const formatDuration = (seconds: number) => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
-const SongRow = ({
-  track,
-  index,
-  isFavorite,
-  onToggleFavorite,
-}: {
-  track: Track;
-  index: number;
-  isFavorite: boolean;
-  onToggleFavorite: (track: Track) => void;
-}) => {
+const SongRow = (
+  {
+    track,
+    index,
+    isFavorite,
+    onToggleFavorite,
+  }: {
+    track: Track;
+    index: number;
+    isFavorite: boolean;
+    onToggleFavorite: (track: Track) => void;
+  }
+) => {
   const { playTrack, currentTrack, isPlaying, pause, playNext, addToQueue } = usePlayer();
   const { playlists, addToPlaylist, createPlaylist } = usePlaylists();
   const isActive = currentTrack?.src === track.src;
@@ -198,6 +202,8 @@ export const SearchPage = () => {
   const [ytResults, setYtResults] = useState<Track[]>([]);
   const [ytLoading, setYtLoading] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
+  const [showActressesModal, setShowActressesModal] = useState(false);
+  const [actressPlaylist, setActressPlaylist] = useState<{ name: string; query: string } | null>(null);
 
   const doYtSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
@@ -393,10 +399,44 @@ export const SearchPage = () => {
 
             {/* Initial state */}
             {!hasSearched && !currentLoading && searchHistory.length === 0 && (
-              <div className="text-center py-20">
-                <Search size={48} className="mx-auto text-muted-foreground/30 mb-4" />
-                <p className="text-muted-foreground">Search for any song to start playing</p>
-              </div>
+              <>
+                <div className="text-center py-12">
+                  <Search size={48} className="mx-auto text-muted-foreground/30 mb-4" />
+                  <p className="text-muted-foreground">Search for any song to start playing</p>
+                </div>
+
+                {/* Actress & Singers Section */}
+                <div className="mt-12 pt-8 border-t border-border">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🎤</span>
+                      <h3 className="text-lg font-bold text-foreground">Actress & Singers</h3>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-pink-600/20 text-pink-400 font-bold">NEW</span>
+                    </div>
+                    <button
+                      onClick={() => setShowActressesModal(true)}
+                      className="text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+                    >
+                      View All <ChevronRight size={12} />
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-4">Search and explore all artists</p>
+                  <button
+                    onClick={() => setShowActressesModal(true)}
+                    className="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-pink-600/20 to-pink-600/10 border border-pink-600/30 hover:border-pink-600/50 transition-all text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-pink-600/20 flex items-center justify-center">
+                        <Search size={16} className="text-pink-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Search Actress & Singers</p>
+                        <p className="text-xs text-muted-foreground">Find and explore all artists</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </>
             )}
 
             {/* Results */}
@@ -462,7 +502,24 @@ export const SearchPage = () => {
           </>
         )}
       </div>
+
+      {/* Modals */}
+      {showActressesModal && (
+        <ActressesModal
+          onSelectArtist={(artist) => {
+            setShowActressesModal(false);
+            setActressPlaylist({ name: artist.name, query: artist.searchQuery });
+          }}
+          onClose={() => setShowActressesModal(false)}
+        />
+      )}
+      {actressPlaylist && (
+        <ArtistPlaylist
+          artistName={actressPlaylist.name}
+          searchQuery={actressPlaylist.query}
+          onClose={() => setActressPlaylist(null)}
+        />
+      )}
     </main>
   );
 };
-

@@ -184,6 +184,21 @@ export const useHomeData = () => {
               });
             }
           }
+
+          // Also fetch from new playlists section if available
+          for (const fp of (mod.new_playlists || []) as FeaturedPlaylist[]) {
+            if (fp.id && fp.title) {
+              allFeaturedPlaylists.push({
+                id: fp.id,
+                title: fp.title,
+                subtitle: fp.subtitle || "",
+                image: fp.image,
+                type: fp.type || "playlist",
+                userId: fp.userId,
+                language: lang,
+              });
+            }
+          }
         }
 
         // Deduplicate and set featured playlists (keep all, don't slice)
@@ -273,6 +288,19 @@ export const useHomeData = () => {
             });
           }
         }
+        for (const fp of (mod.new_playlists || []) as FeaturedPlaylist[]) {
+          if (fp.id && fp.title) {
+            allFeaturedPlaylists.push({
+              id: fp.id,
+              title: fp.title,
+              subtitle: fp.subtitle || "",
+              image: fp.image,
+              type: fp.type || "playlist",
+              userId: fp.userId,
+              language: lang,
+            });
+          }
+        }
       }
 
       const seenPlaylistIds = new Set<string>();
@@ -281,7 +309,7 @@ export const useHomeData = () => {
         seenPlaylistIds.add(fp.id);
         return true;
       });
-      setFeaturedPlaylists(uniquePlaylists.slice(0, 10));
+      setFeaturedPlaylists(uniquePlaylists);
 
       const fetchSongs = async (ids: string[]): Promise<SaavnSong[]> => {
         if (ids.length === 0) return [];
