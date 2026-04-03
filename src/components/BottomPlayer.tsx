@@ -237,7 +237,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
                       )}
                     </div>
                     <div className="relative flex-shrink-0 cursor-pointer" onClick={() => playTrackList(tracks, i)}>
-                      <img src={track.cover} alt="" width={40} height={40} className={`w-10 h-10 rounded-md object-cover shadow-sm transition-all ${isCurrent ? "ring-2 ring-primary" : "group-hover:ring-1 group-hover:ring-primary/30"}`} />
+                      <img src={track.cover} alt="" width={40} height={40} loading="lazy" className={`w-10 h-10 rounded-md object-cover shadow-sm transition-all ${isCurrent ? "ring-2 ring-primary" : "group-hover:ring-1 group-hover:ring-primary/30"}`} />
                     </div>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => playTrackList(tracks, i)}>
                       <p className={`text-sm font-medium truncate transition-colors ${isCurrent ? "text-primary" : "text-foreground group-hover:text-primary"}`}>{track.title}</p>
@@ -370,7 +370,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer, showPlaylist: 
             ) : (
               queue.map((track, i) => (
                 <div key={`${track.src}-${i}`} onClick={() => { removeFromQueue(i); playTrack(track); }} className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-accent group cursor-pointer transition-colors">
-                  <img src={track.cover} alt="" width={36} height={36} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
+                  <img src={track.cover} alt="" width={36} height={36} loading="lazy" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-foreground truncate">{track.title}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>

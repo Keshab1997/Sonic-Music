@@ -1,6 +1,8 @@
 {
   "rewrites": [
     { "source": "/api/youtube-search", "destination": "/api/youtube-search" },
+    { "source": "/api/yt-stream", "destination": "/api/yt-stream" },
+    { "source": "/api/proxy-audio", "destination": "/api/proxy-audio" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -8,6 +10,30 @@
       "source": "/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
+    {
+      "source": "/assets/**",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/icon-192.png",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    },
+    {
+      "source": "/api/youtube-search",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=300, stale-while-revalidate=600" }
       ]
     }
   ]

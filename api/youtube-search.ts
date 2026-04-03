@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import yts from "yt-search";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -11,6 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const yts = (await import("yt-search")).default;
     const result = await yts({ query, category: "music" });
     const videos = result.videos.slice(0, 20).map((v) => ({
       videoId: v.videoId,
