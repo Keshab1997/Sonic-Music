@@ -1,13 +1,129 @@
-import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
 export const ProfileScreen: React.FC = () => {
   const { user, signOut } = useAuth();
   const navigation = useNavigation();
+  const [uploading, setUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    user?.user_metadata?.avatar_url || null
+  );
+
+  const pickImage = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your photos to upload a profile picture.');
+        return;
+      }
+
+      // Pick image
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your camera to take a photo.');
+        return;
+      }
+
+      // Take photo
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const uploadImage = async (uri: string) => {
+    try {
+      setUploading(true);
+
+      // Convert image to blob
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      // Create file name
+      const fileExt = uri.split('.').pop();
+      const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('profiles')
+        .upload(filePath, blob, {
+          contentType: `image/${fileExt}`,
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('profiles')
+        .getPublicUrl(filePath);
+
+      // Update user metadata
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { avatar_url: publicUrl }
+      });
+
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
+      Alert.alert('Success', 'Profile picture updated!');
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Upload Failed', error.message || 'Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const showImageOptions = () => {
+    Alert.alert(
+      'Profile Picture',
+      'Choose an option',
+      [
+        { text: 'Take Photo', onPress: takePhoto },
+        { text: 'Choose from Library', onPress: pickImage },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
 
   const handleSignOut = () => {
     Alert.alert(
@@ -58,14 +174,27 @@ export const ProfileScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Profile Header */}
         <View style={styles.profileHeader}>
-          <LinearGradient
-            colors={['#1DB954', '#1ed760']}
-            style={styles.avatar}
-          >
-            <Text style={styles.avatarText}>
-              {user.email?.charAt(0).toUpperCase() || 'U'}
-            </Text>
-          </LinearGradient>
+          <Pressable onPress={showImageOptions} style={styles.avatarContainer}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <LinearGradient
+                colors={['#1DB954', '#1ed760']}
+                style={styles.avatar}
+              >
+                <Text style={styles.avatarText}>
+                  {user.email?.charAt(0).toUpperCase() || 'U'}
+                </Text>
+              </LinearGradient>
+            )}
+            <View style={styles.cameraBtn}>
+              {uploading ? (
+                <View style={styles.uploadingIndicator} />
+              ) : (
+                <Ionicons name="camera" size={16} color="#fff" />
+              )}
+            </View>
+          </Pressable>
           <Text style={styles.email}>{user.email}</Text>
           {user.user_metadata?.full_name && (
             <Text style={styles.fullName}>{user.user_metadata.full_name}</Text>
@@ -194,8 +323,12 @@ const styles = StyleSheet.create({
   emptyBtnGradient: { height: 56, justifyContent: 'center', alignItems: 'center' },
   emptyBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
   profileHeader: { alignItems: 'center', paddingVertical: 40, paddingTop: 60 },
-  avatar: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 16, shadowColor: '#1DB954', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 10 },
+  avatarContainer: { position: 'relative', marginBottom: 16 },
+  avatar: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', shadowColor: '#1DB954', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 10 },
+  avatarImage: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#1a1a1a' },
   avatarText: { fontSize: 40, fontWeight: '800', color: '#fff' },
+  cameraBtn: { position: 'absolute', bottom: 0, right: 0, width: 36, height: 36, borderRadius: 18, backgroundColor: '#1DB954', justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#0a0a0a', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5 },
+  uploadingIndicator: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#fff', borderTopColor: 'transparent', transform: [{ rotate: '0deg' }] },
   email: { fontSize: 18, color: '#fff', fontWeight: '600', marginBottom: 4 },
   fullName: { fontSize: 15, color: 'rgba(255,255,255,0.6)' },
   section: { paddingHorizontal: 20, marginTop: 24 },

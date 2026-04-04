@@ -7,7 +7,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
+import { useDownloadsContext } from '../context/DownloadsContext';
 import { CachedImage } from '../components/CachedImage';
+import { Toast } from '../components/Toast';
 import { API_BASE } from '../data/constants';
 
 const { width } = Dimensions.get('window');
@@ -27,6 +29,13 @@ export const AlbumDetailScreen: React.FC = () => {
   const [songs, setSongs] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const { currentTrack, isPlaying, playTrackList, addToQueue } = usePlayer();
+  const { isDownloaded, isDownloading, downloadTrack, getDownloadProgress } = useDownloadsContext();
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error'; visible: boolean }>({ message: '', type: 'success', visible: false });
+
+  const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ message, type, visible: true });
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500);
+  }, []);
 
   useEffect(() => {
     fetchAlbumSongs();
@@ -114,6 +123,9 @@ export const AlbumDetailScreen: React.FC = () => {
 
   const renderItem = ({ item, index }: { item: Track; index: number }) => {
     const isCurrentTrack = currentTrack?.id === item.id;
+    const downloaded = isDownloaded(String(item.id));
+    const downloading = isDownloading(String(item.id));
+    const progress = getDownloadProgress(String(item.id));
     return (
       <TouchableOpacity
         style={[styles.songRow, isCurrentTrack && styles.songRowActive]}
@@ -130,10 +142,46 @@ export const AlbumDetailScreen: React.FC = () => {
             {item.title}
           </Text>
           <Text style={styles.songArtist} numberOfLines={1}>{item.artist}</Text>
+          {downloading && (
+            <View style={styles.downloadProgress}>
+              <View style={styles.downloadProgressTrack}>
+                <View style={[styles.downloadProgressFill, { width: `${progress}%` }]} />
+              </View>
+              <Text style={styles.downloadProgressText}>{progress}%</Text>
+            </View>
+          )}
+          {downloaded && (
+            <Text style={styles.downloadedBadge}>
+              <Ionicons name="checkmark-circle" size={12} color="#1DB954" /> Downloaded
+            </Text>
+          )}
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={() => addToQueue(item)} activeOpacity={0.7}>
-          <Ionicons name="add-circle-outline" size={24} color="#1DB954" />
-        </TouchableOpacity>
+        <View style={styles.songActions}>
+          <TouchableOpacity
+            style={styles.downloadBtn}
+            onPress={() => {
+              if (downloaded) {
+                showToast('Already downloaded', 'info');
+                return;
+              }
+              downloadTrack(item);
+              showToast('Downloading...', 'info');
+            }}
+            disabled={downloading}
+            activeOpacity={0.7}
+          >
+            {downloading ? (
+              <ActivityIndicator size="small" color="#1DB954" />
+            ) : downloaded ? (
+              <Ionicons name="checkmark-circle" size={20} color="#1DB954" />
+            ) : (
+              <Ionicons name="download-outline" size={20} color="#888" />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.addBtn} onPress={() => addToQueue(item)} activeOpacity={0.7}>
+            <Ionicons name="add-circle-outline" size={24} color="#1DB954" />
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -167,14 +215,51 @@ export const AlbumDetailScreen: React.FC = () => {
             <Text style={styles.albumName}>{albumName}</Text>
             {albumArtist && <Text style={styles.albumArtist}>{albumArtist}</Text>}
             <Text style={styles.songCount}>{songs.length} songs</Text>
-            <TouchableOpacity
-              style={styles.playAllBtn}
-              onPress={() => handlePlay(0)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="play" size={20} color="#000" />
-              <Text style={styles.playAllText}>Play All</Text>
-            </TouchableOpacity>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                style={styles.headerBtn}
+                onPress={() => {
+                  let count = 0;
+                  songs.forEach(track => {
+                    if (!isDownloaded(String(track.id))) {
+                      downloadTrack(track);
+                      count++;
+                    }
+                  });
+                  if (count > 0) {
+                    showToast(`Downloading ${count} songs`, 'info');
+                  } else {
+                    showToast('All songs already downloaded', 'info');
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="download" size={18} color="#1DB954" />
+                <Text style={styles.headerBtnText}>Download All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.headerBtn}
+                onPress={() => {
+                  songs.forEach(track => addToQueue(track));
+                  showToast(`Added ${songs.length} songs to queue`, 'success');
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="list" size={18} color="#1DB954" />
+                <Text style={styles.headerBtnText}>Add All to Queue</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.playAllBtn}
+                onPress={() => {
+                  handlePlay(0);
+                  showToast(`Playing ${songs.length} songs`, 'success');
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="play" size={20} color="#000" />
+                <Text style={styles.playAllText}>Play All</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Songs List */}
@@ -187,6 +272,9 @@ export const AlbumDetailScreen: React.FC = () => {
           />
         </>
       )}
+
+      {/* Toast Notification */}
+      <Toast message={toast.message} type={toast.type} visible={toast.visible} />
     </View>
   );
 };
@@ -208,9 +296,19 @@ const styles = StyleSheet.create({
   songRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
   songRowActive: { backgroundColor: '#0d1f0d', borderRadius: 8, paddingHorizontal: 8 },
   songImage: { width: 52, height: 52, borderRadius: 8, backgroundColor: '#1a1a1a' },
-  songInfo: { flex: 1 },
+  songInfo: { flex: 1, minWidth: 0 },
   songTitle: { fontSize: 14, color: '#fff', fontWeight: '600' },
   songTitleActive: { color: '#1DB954' },
   songArtist: { fontSize: 12, color: '#888', marginTop: 2 },
-  addBtn: { padding: 8 },
+  songActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  downloadBtn: { padding: 6 },
+  addBtn: { padding: 6 },
+  downloadProgress: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  downloadProgressTrack: { flex: 1, height: 3, backgroundColor: 'rgba(29,185,84,0.2)', borderRadius: 2 },
+  downloadProgressFill: { height: '100%', backgroundColor: '#1DB954', borderRadius: 2 },
+  downloadProgressText: { fontSize: 10, color: '#1DB954', width: 30 },
+  downloadedBadge: { fontSize: 10, color: '#1DB954', marginTop: 2 },
+  headerButtons: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginTop: 16 },
+  headerBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#1a1a1a', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#1DB954' },
+  headerBtnText: { fontSize: 12, color: '#1DB954', fontWeight: '600' },
 });
