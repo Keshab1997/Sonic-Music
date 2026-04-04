@@ -1,10 +1,11 @@
 import React, { useRef, useCallback, useState, useMemo, memo } from 'react';
 import {
   View, Text, Image, TouchableOpacity, Modal,
-  Dimensions, PanResponder, Animated, StyleSheet,
+  Dimensions, PanResponder, Animated, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayer } from '../context/PlayerContext';
+import { useDownloadsContext } from '../context/DownloadsContext';
 import { QueueManager } from './QueueManager';
 import { SleepTimerSheet } from './SleepTimerSheet';
 import { PlaybackSettingsSheet } from './PlaybackSettingsSheet';
@@ -88,6 +89,7 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
   const [sleepVisible, setSleepVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [eqVisible, setEqVisible] = useState(false);
+  const { isDownloaded, isDownloading, downloadTrack, getDownloadProgress } = useDownloadsContext();
 
   // Swipe down to close
   const translateY = useRef(new Animated.Value(0)).current;
@@ -153,23 +155,45 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
           />
         </View>
 
-        {/* Track Info + Like */}
+        {/* Track Info + Like + Download */}
         <View style={styles.infoRow}>
           <View style={styles.infoText}>
             <Text style={styles.trackTitle} numberOfLines={1}>{currentTrack.title}</Text>
             <Text style={styles.trackArtist} numberOfLines={1}>{currentTrack.artist}</Text>
           </View>
-          <TouchableOpacity
-            onPress={() => isCurrentTrackLiked ? unlikeCurrentTrack() : likeCurrentTrack()}
-            activeOpacity={0.7}
-            style={styles.likeBtn}
-          >
-            <Ionicons
-              name={isCurrentTrackLiked ? 'heart' : 'heart-outline'}
-              size={26}
-              color={isCurrentTrackLiked ? '#ef4444' : 'rgba(255,255,255,0.5)'}
-            />
-          </TouchableOpacity>
+          <View style={styles.infoActions}>
+            {/* Download Button */}
+            <TouchableOpacity
+              onPress={() => {
+                const trackId = String(currentTrack.id);
+                if (isDownloaded(trackId)) return;
+                downloadTrack(currentTrack);
+              }}
+              activeOpacity={0.7}
+              style={styles.downloadBtn}
+              disabled={isDownloaded(String(currentTrack.id)) || isDownloading(String(currentTrack.id))}
+            >
+              {isDownloading(String(currentTrack.id)) ? (
+                <ActivityIndicator size="small" color="#1DB954" />
+              ) : isDownloaded(String(currentTrack.id)) ? (
+                <Ionicons name="checkmark-circle" size={24} color="#1DB954" />
+              ) : (
+                <Ionicons name="download-outline" size={24} color="rgba(255,255,255,0.5)" />
+              )}
+            </TouchableOpacity>
+            {/* Like Button */}
+            <TouchableOpacity
+              onPress={() => isCurrentTrackLiked ? unlikeCurrentTrack() : likeCurrentTrack()}
+              activeOpacity={0.7}
+              style={styles.likeBtn}
+            >
+              <Ionicons
+                name={isCurrentTrackLiked ? 'heart' : 'heart-outline'}
+                size={26}
+                color={isCurrentTrackLiked ? '#ef4444' : 'rgba(255,255,255,0.5)'}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Progress Bar - memoized */}
@@ -302,6 +326,8 @@ const styles = StyleSheet.create({
   infoText: { flex: 1 },
   trackTitle: { fontSize: 20, color: '#fff', fontWeight: 'bold' },
   trackArtist: { fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
+  infoActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  downloadBtn: { padding: 8 },
   likeBtn: { padding: 8 },
   progressSection: { paddingHorizontal: 24, marginBottom: 16 },
   progressTrack: { height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2, position: 'relative' },

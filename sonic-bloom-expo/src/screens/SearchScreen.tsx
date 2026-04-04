@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
+import { useDownloadsContext } from '../context/DownloadsContext';
 import { Toast } from '../components/Toast';
 import {
   API_BASE, SEARCH_HISTORY_KEY, SEARCH_HISTORY_MAX, SONGS_PER_PAGE,
@@ -33,6 +34,7 @@ export const SearchScreen: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error'; visible: boolean }>({ message: '', type: 'success', visible: false });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { currentTrack, isPlaying, addToQueue, playTrackList } = usePlayer();
+  const { isDownloaded, isDownloading, downloadTrack, getDownloadProgress } = useDownloadsContext();
 
   const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type, visible: true });
@@ -470,6 +472,21 @@ export const SearchScreen: React.FC = () => {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.actionBtn}
+                      onPress={() => {
+                        results.forEach(track => {
+                          if (!isDownloaded(String(track.id))) {
+                            downloadTrack(track);
+                          }
+                        });
+                        showToast(`Downloading ${results.length} songs`, 'info');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="download" size={14} color="#1DB954" />
+                      <Text style={styles.actionBtnText}>Download All</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
                       onPress={async () => {
                         setLoading(true);
                         const randomPage = Math.floor(Math.random() * 10) + 1;
@@ -529,6 +546,9 @@ export const SearchScreen: React.FC = () => {
                 </View>
                 {results.map((item, index) => {
                   const isCurrentTrack = currentTrack?.id === item.id;
+                  const downloaded = isDownloaded(String(item.id));
+                  const downloading = isDownloading(String(item.id));
+                  const progress = getDownloadProgress(String(item.id));
                   return (
                     <TouchableOpacity
                       key={`${item.id}-${index}`}
@@ -555,10 +575,50 @@ export const SearchScreen: React.FC = () => {
                           {item.title}
                         </Text>
                         <Text style={styles.songArtist} numberOfLines={1}>{item.artist}</Text>
+                        {downloading && (
+                          <View style={styles.downloadProgress}>
+                            <View style={styles.downloadProgressTrack}>
+                              <View style={[styles.downloadProgressFill, { width: `${progress}%` }]} />
+                            </View>
+                            <Text style={styles.downloadProgressText}>{progress}%</Text>
+                          </View>
+                        )}
+                        {downloaded && (
+                          <Text style={styles.downloadedBadge}>
+                            <Ionicons name="checkmark-circle" size={12} color="#1DB954" /> Downloaded
+                          </Text>
+                        )}
                       </View>
-                      <TouchableOpacity style={styles.songAddBtn} onPress={() => addToQueue(item)} activeOpacity={0.7}>
-                        <Ionicons name="add-circle-outline" size={24} color="#1DB954" />
-                      </TouchableOpacity>
+                      <View style={styles.songActions}>
+                        <TouchableOpacity
+                          style={styles.downloadBtn}
+                          onPress={() => {
+                            if (downloaded) {
+                              showToast('Already downloaded', 'info');
+                            } else {
+                              downloadTrack(item);
+                              showToast('Downloading...', 'info');
+                            }
+                          }}
+                          disabled={downloading}
+                          activeOpacity={0.7}
+                        >
+                          {downloading ? (
+                            <ActivityIndicator size="small" color="#1DB954" />
+                          ) : downloaded ? (
+                            <Ionicons name="checkmark-circle" size={20} color="#1DB954" />
+                          ) : (
+                            <Ionicons name="download-outline" size={20} color="#888" />
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.songAddBtn}
+                          onPress={() => addToQueue(item)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="add-circle-outline" size={24} color="#1DB954" />
+                        </TouchableOpacity>
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -742,7 +802,14 @@ const styles = StyleSheet.create({
   songTitle: { fontSize: 14, color: '#fff', fontWeight: '600' },
   songTitleActive: { color: '#1DB954' },
   songArtist: { fontSize: 12, color: '#888', marginTop: 2 },
+  songActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  downloadBtn: { padding: 8 },
   songAddBtn: { padding: 8 },
+  downloadProgress: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  downloadProgressTrack: { flex: 1, height: 3, backgroundColor: 'rgba(29,185,84,0.2)', borderRadius: 2 },
+  downloadProgressFill: { height: '100%', backgroundColor: '#1DB954', borderRadius: 2 },
+  downloadProgressText: { fontSize: 10, color: '#1DB954', width: 30 },
+  downloadedBadge: { fontSize: 10, color: '#1DB954', marginTop: 2 },
   loadMoreBtn: { marginTop: 16, paddingVertical: 12, backgroundColor: '#1a1a1a', borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#1DB954' },
   loadMoreText: { fontSize: 14, color: '#1DB954', fontWeight: '600' },
   noMoreText: { textAlign: 'center', fontSize: 12, color: '#555', marginTop: 16, marginBottom: 8 },
