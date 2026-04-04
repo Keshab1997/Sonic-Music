@@ -1,0 +1,58 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "jsx": "react-native",
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": [
+    "App.tsx",
+    "index.ts",
+    "src/data/playlist.ts",
+    "src/data/homeData.ts",
+    "src/lib/constants.ts",
+    "src/lib/supabase.ts",
+    "src/lib/utils.ts",
+    "src/lib/transliterate.ts",
+    "src/lib/lyricsFetcher.ts",
+    "src/lib/lyricsParser.ts",
+    "src/context/PlayerContext.tsx",
+    "src/context/AuthContext.tsx",
+    "src/hooks/useSupabaseListeningHistory.ts",
+    "src/hooks/useSupabaseLikedSongs.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/components",
+    "src/pages",
+    "src/test",
+    "src/types",
+    "src/hooks/useDownloads.ts",
+    "src/hooks/useSupabasePlaylists.ts",
+    "src/hooks/useWakeLock.ts",
+    "src/hooks/useYouTubeSearch.ts",
+    "src/hooks/useKeyboardShortcuts.ts",
+    "src/hooks/useLocalData.ts",
+    "src/hooks/useMediaSession.ts",
+    "src/hooks/usePullToRefresh.ts",
+    "src/hooks/useListeningStats.ts",
+    "src/hooks/useTheme.ts",
+    "src/hooks/useRecentlyPlayed.ts",
+    "src/hooks/usePlaylists.ts",
+    "src/hooks/useOffline.ts",
+    "src/hooks/useHomeData.ts",
+    "src/hooks/useCoverGradient.ts",
+    "src/hooks/useArtistFavorites.ts",
+    "src/hooks/use-toast.ts",
+    "src/hooks/use-mobile.tsx",
+    "src/App.tsx",
+    "src/main.tsx",
+    "src/vite-env.d.ts",
+    "src/lib/orientationLock.ts"
+  ]
+}
