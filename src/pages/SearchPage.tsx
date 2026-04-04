@@ -1,13 +1,41 @@
 
-import { useState, FormEvent, useCallback } from "react";
-import { Search, Play, Clock, Loader2, AlertCircle, Pause, Heart, X, Trash2, History, MoreHorizontal, ListPlus, PlaySquare, Plus, ChevronRight } from "lucide-react";
+import { useState, FormEvent, useCallback, useEffect, useRef } from "react";
+import { Search, Play, Clock, Loader2, AlertCircle, Heart, X, History, ListPlus, PlaySquare, Plus, ChevronRight, Disc, Users, Music2, Shuffle, List } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
-import { useMusicSearch } from "@/hooks/useYouTubeSearch";
 import { useLocalData } from "@/hooks/useLocalData";
 import { usePlaylists } from "@/hooks/usePlaylists";
 import { Track } from "@/data/playlist";
 import { ActressesModal } from "@/components/ActressesModal";
 import { ArtistPlaylist } from "@/components/ArtistPlaylist";
+import { toast } from "sonner";
+
+const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
+const SEARCH_HISTORY_KEY = "sonic_search_history_web";
+const SEARCH_HISTORY_MAX = 10;
+const SONGS_PER_PAGE = 20;
+
+const TRENDING_SEARCHES = [
+  { title: "Arijit Singh Hits", query: "arijit singh top songs", color: "from-red-900/30 to-red-800/20" },
+  { title: "Bengali Modern", query: "modern bengali songs 2024", color: "from-green-900/30 to-green-800/20" },
+  { title: "Bollywood Romance", query: "bollywood romantic songs", color: "from-amber-900/30 to-amber-800/20" },
+  { title: "Lofi Chill", query: "lofi hindi songs chill", color: "from-blue-900/30 to-blue-800/20" },
+  { title: "Party Anthems", query: "bollywood party songs", color: "from-pink-900/30 to-pink-800/20" },
+  { title: "90s Nostalgia", query: "90s hindi songs hits", color: "from-purple-900/30 to-purple-800/20" },
+];
+
+const HINDI_ARTISTS = [
+  { name: "Arijit Singh", image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=200&h=200&fit=crop", query: "Arijit Singh hits" },
+  { name: "Shreya Ghoshal", image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=200&h=200&fit=crop", query: "Shreya Ghoshal songs" },
+  { name: "A.R. Rahman", image: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=200&h=200&fit=crop", query: "AR Rahman best songs" },
+  { name: "Kishore Kumar", image: "https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=200&h=200&fit=crop", query: "Kishore Kumar hits" },
+];
+
+const BENGALI_ARTISTS = [
+  { name: "Anupam Roy", image: "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=200&h=200&fit=crop", query: "Anupam Roy bengali songs" },
+  { name: "Rupankar", image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=200&h=200&fit=crop", query: "Rupankar bengali songs" },
+  { name: "Nachiketa", image: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&h=200&fit=crop", query: "Nachiketa bengali songs" },
+  { name: "Lopamudra Mitra", image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=200&h=200&fit=crop", query: "Lopamudra Mitra bengali songs" },
+];
 
 const formatDuration = (seconds: number) => {
   if (!seconds) return "--:--";
@@ -16,19 +44,17 @@ const formatDuration = (seconds: number) => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
-const SongRow = (
-  {
-    track,
-    index,
-    isFavorite,
-    onToggleFavorite,
-  }: {
-    track: Track;
-    index: number;
-    isFavorite: boolean;
-    onToggleFavorite: (track: Track) => void;
-  }
-) => {
+const SongRow = ({
+  track,
+  index,
+  isFavorite,
+  onToggleFavorite,
+}: {
+  track: Track;
+  index: number;
+  isFavorite: boolean;
+  onToggleFavorite: (track: Track) => void;
+}) => {
   const { playTrack, currentTrack, isPlaying, pause, playNext, addToQueue } = usePlayer();
   const { playlists, addToPlaylist, createPlaylist } = usePlaylists();
   const isActive = currentTrack?.src === track.src;
@@ -67,10 +93,10 @@ const SongRow = (
           )}
           {isCurrentlyPlaying && (
             <div className="absolute inset-0 rounded-md bg-black/40 flex items-center justify-center gap-0.5">
-              <span className="w-0.5 h-3 bg-white rounded-full animate-pulse-glow" />
-              <span className="w-0.5 h-4 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
-              <span className="w-0.5 h-2 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
-              <span className="w-0.5 h-3 bg-white rounded-full animate-pulse-glow" style={{ animationDelay: "0.45s" }} />
+              <span className="w-0.5 h-3 bg-white rounded-full animate-pulse" />
+              <span className="w-0.5 h-4 bg-white rounded-full animate-pulse" style={{ animationDelay: "0.15s" }} />
+              <span className="w-0.5 h-2 bg-white rounded-full animate-pulse" style={{ animationDelay: "0.3s" }} />
+              <span className="w-0.5 h-3 bg-white rounded-full animate-pulse" style={{ animationDelay: "0.45s" }} />
             </div>
           )}
         </div>
@@ -112,7 +138,7 @@ const SongRow = (
           }}
           className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors"
         >
-          <MoreHorizontal size={16} />
+          <List size={16} />
         </button>
 
         {showMenu && (
@@ -185,160 +211,404 @@ const SongRow = (
 
 const SearchPage = () => {
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<"search" | "favorites">("search");
-  const [searchSource, setSearchSource] = useState<"saavn" | "ytmusic">("saavn");
-  const { results, loading, error, search } = useMusicSearch();
-  const { playTrackList } = usePlayer();
-  const {
-    searchHistory,
-    favorites,
-    addToHistory,
-    clearHistory,
-    removeHistoryItem,
-    isFavorite,
-    toggleFavorite,
-  } = useLocalData();
-  const [hasSearched, setHasSearched] = useState(false);
-  const [ytResults, setYtResults] = useState<Track[]>([]);
-  const [ytLoading, setYtLoading] = useState(false);
-  const [ytError, setYtError] = useState<string | null>(null);
+  const [results, setResults] = useState<Track[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [activeFilter, setActiveFilter] = useState<"songs" | "artists" | "albums">("songs");
+  const [artistResults, setArtistResults] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalResults, setTotalResults] = useState(0);
+  const [albumSongs, setAlbumSongs] = useState<Track[]>([]);
+  const [selectedAlbum, setSelectedAlbum] = useState<{ id: string; name: string } | null>(null);
+  const [loadingAlbum, setLoadingAlbum] = useState(false);
+  const [rawAlbums, setRawAlbums] = useState<any[]>([]);
   const [showActressesModal, setShowActressesModal] = useState(false);
   const [actressPlaylist, setActressPlaylist] = useState<{ name: string; query: string } | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { currentTrack, isPlaying, addToQueue, playTrackList } = usePlayer();
 
-  const doYtSearch = useCallback(async (q: string) => {
-    if (!q.trim()) return;
-    setYtLoading(true);
-    setYtError(null);
-    setYtResults([]);
-    try {
-      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`);
-      if (!res.ok) throw new Error("Search failed");
-      const videos = await res.json();
-      const tracks: Track[] = videos.map((v: { videoId: string; title: string; author: string; duration: number; thumbnail: string }, i: number) => ({
-        id: 60000 + i,
-        title: v.title,
-        artist: v.author || "Unknown",
-        album: "",
-        cover: v.thumbnail || "",
-        src: `https://www.youtube.com/watch?v=${v.videoId}`,
-        duration: v.duration || 0,
-        type: "youtube" as const,
-        songId: v.videoId,
-      }));
-      setYtResults(tracks);
-    } catch {
-      setYtError("YouTube search failed. Try again.");
+  // Load search history on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(SEARCH_HISTORY_KEY);
+    if (stored) {
+      try {
+        setSearchHistory(JSON.parse(stored));
+      } catch {}
     }
-    setYtLoading(false);
   }, []);
 
-  const handleSearch = (e: FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-    setView("search");
-    setHasSearched(true);
-    addToHistory(query.trim());
-    if (searchSource === "ytmusic") {
-      doYtSearch(query);
-    } else {
-      search(query);
+  // Save search history
+  const saveToHistory = useCallback((q: string) => {
+    if (!q.trim()) return;
+    setSearchHistory((prev) => {
+      const updated = [q, ...prev.filter((h) => h !== q)].slice(0, SEARCH_HISTORY_MAX);
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    setSearchHistory([]);
+    localStorage.removeItem(SEARCH_HISTORY_KEY);
+  }, []);
+
+  // Fetch songs with pagination
+  const fetchSongs = useCallback(async (searchQuery: string, page: number, append = false) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=${SONGS_PER_PAGE}`
+      );
+      if (!res.ok) return { tracks: [], hasMore: false, total: 0 };
+      
+      const data = await res.json();
+      const songs = data.data?.results || [];
+      const total = data.data?.total || songs.length;
+
+      const offset = append ? results.length : 0;
+      const tracks: Track[] = songs
+        .map((s: any, i: number) => {
+          if (!s.downloadUrl?.length) return null;
+          const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+          const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+          const url320 = s.downloadUrl.find((d: any) => d.quality === "320kbps")?.link;
+          const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+          if (!bestUrl) return null;
+          return {
+            id: 80000 + offset + i,
+            title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+            artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: any) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
+            src: bestUrl,
+            duration: parseInt(String(s.duration)) || 0,
+            type: "audio" as const,
+            songId: s.id,
+          };
+        })
+        .filter((t: Track | null): t is Track => t !== null);
+
+      return { tracks, hasMore: songs.length >= SONGS_PER_PAGE, total };
+    } catch {
+      return { tracks: [], hasMore: false, total: 0 };
+    }
+  }, [results.length]);
+
+  // Debounced search
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) {
+      setResults([]);
+      setArtistResults([]);
+      setTotalResults(0);
+      setCurrentPage(1);
+      setHasMore(true);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      setCurrentPage(1);
+      if (activeFilter === "songs") {
+        const { tracks, hasMore, total } = await fetchSongs(query, 1);
+        setResults(tracks);
+        setHasMore(hasMore);
+        setTotalResults(total);
+        setArtistResults([]);
+      } else if (activeFilter === "artists") {
+        try {
+          const res = await fetch(`${API_BASE}/search/artists?query=${encodeURIComponent(query)}&page=1&limit=30`);
+          if (res.ok) {
+            const data = await res.json();
+            setArtistResults(data.data?.results || []);
+          }
+        } catch {}
+        setResults([]);
+        setTotalResults(0);
+      } else if (activeFilter === "albums") {
+        try {
+          const res = await fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(query)}&page=1&limit=30`);
+          if (res.ok) {
+            const data = await res.json();
+            const albums = data.data?.results || [];
+            setRawAlbums(albums);
+            const albumTracks: Track[] = albums.map((a: any, i: number) => {
+              const albumName = typeof a.name === 'string' ? a.name : a.name?.name || a.name?.id || "Unknown Album";
+              const artistName = typeof a.music === 'string' ? a.music : 
+                                 typeof a.primaryArtists === 'string' ? a.primaryArtists :
+                                 a.music?.name || a.primaryArtists?.name || a.primaryArtists?.id || "Unknown";
+              const coverUrl = Array.isArray(a.image) ? 
+                               (a.image[0]?.link || a.image[a.image.length - 1]?.link || "") : 
+                               (typeof a.image === 'string' ? a.image : "");
+              return {
+                id: 90000 + i,
+                title: albumName,
+                artist: artistName,
+                album: albumName,
+                cover: coverUrl,
+                src: "",
+                duration: 0,
+                type: "audio" as const,
+                songId: a.id,
+              };
+            });
+            setResults(albumTracks);
+            setTotalResults(albums.length);
+          }
+        } catch {}
+        setArtistResults([]);
+        setHasMore(false);
+      }
+      setLoading(false);
+    }, 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, activeFilter, fetchSongs]);
+
+  // Load more songs
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || activeFilter !== "songs") return;
+    setLoadingMore(true);
+    const nextPage = currentPage + 1;
+    const { tracks, hasMore: more } = await fetchSongs(query, nextPage, true);
+    setResults((prev) => [...prev, ...tracks]);
+    setHasMore(more);
+    setCurrentPage(nextPage);
+    setLoadingMore(false);
+  }, [loadingMore, hasMore, currentPage, query, activeFilter, fetchSongs]);
+
+  const handleSearch = (q: string) => {
+    setQuery(q);
+    saveToHistory(q);
+  };
+
+  const handleSearchPlay = async (track: Track) => {
+    playTrackList([track], 0);
+  };
+
+  const handleArtistPress = (artist: any) => {
+    const artistName = typeof artist.name === 'string' ? artist.name : artist.name?.id || artist.name?.name || 'Unknown Artist';
+    handleSearch(artistName);
+    setActiveFilter("songs");
+  };
+
+  const fetchAlbumSongs = useCallback(async (albumId: string, albumName: string) => {
+    setLoadingAlbum(true);
+    setSelectedAlbum({ id: albumId, name: albumName });
+    setAlbumSongs([]);
+    
+    try {
+      const res = await fetch(`${API_BASE}/albums?id=${albumId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const songs = data.data?.songs || [];
+        if (songs.length > 0) {
+          const tracks: Track[] = songs
+            .map((s: any, i: number) => {
+              if (!s.downloadUrl?.length) return null;
+              const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+              const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+              const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+              return {
+                id: 95000 + i,
+                title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+                artist: s.primaryArtists || "Unknown",
+                album: albumName,
+                cover: s.image?.find((img: any) => img.quality === "500x500")?.link || "",
+                src: bestUrl,
+                duration: parseInt(String(s.duration)) || 0,
+                type: "audio" as const,
+                songId: s.id,
+              };
+            })
+            .filter((t: Track | null): t is Track => t !== null);
+          setAlbumSongs(tracks);
+          setLoadingAlbum(false);
+          return;
+        }
+      }
+    } catch {}
+    
+    try {
+      const res = await fetch(`${API_BASE}/playlists?id=${albumId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const songs = data.data?.songs || [];
+        if (songs.length > 0) {
+          const tracks: Track[] = songs
+            .map((s: any, i: number) => {
+              if (!s.downloadUrl?.length) return null;
+              const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+              const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+              const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+              return {
+                id: 95000 + i,
+                title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+                artist: s.primaryArtists || "Unknown",
+                album: albumName,
+                cover: s.image?.find((img: any) => img.quality === "500x500")?.link || "",
+                src: bestUrl,
+                duration: parseInt(String(s.duration)) || 0,
+                type: "audio" as const,
+                songId: s.id,
+              };
+            })
+            .filter((t: Track | null): t is Track => t !== null);
+          setAlbumSongs(tracks);
+          setLoadingAlbum(false);
+          return;
+        }
+      }
+    } catch {}
+    
+    try {
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(albumName)}&page=1&limit=50`);
+      if (res.ok) {
+        const data = await res.json();
+        const songs = data.data?.results || [];
+        const tracks: Track[] = songs
+          .map((s: any, i: number) => {
+            if (!s.downloadUrl?.length) return null;
+            const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+            const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+            const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+            return {
+              id: 95000 + i,
+              title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+              artist: s.primaryArtists || "Unknown",
+              album: albumName,
+              cover: s.image?.find((img: any) => img.quality === "500x500")?.link || "",
+              src: bestUrl,
+              duration: parseInt(String(s.duration)) || 0,
+              type: "audio" as const,
+              songId: s.id,
+            };
+          })
+          .filter((t: Track | null): t is Track => t !== null);
+        setAlbumSongs(tracks);
+      }
+    } catch {}
+    setLoadingAlbum(false);
+  }, []);
+
+  const handleAlbumPress = (index: number) => {
+    const rawAlbum = rawAlbums[index];
+    if (rawAlbum && rawAlbum.id) {
+      const albumName = typeof rawAlbum.name === 'string' ? rawAlbum.name : rawAlbum.name?.name || rawAlbum.name?.id || "Unknown Album";
+      fetchAlbumSongs(rawAlbum.id, albumName);
     }
   };
 
-  const handleHistoryClick = (historyQuery: string) => {
-    setQuery(historyQuery);
-    setView("search");
-    setHasSearched(true);
-    addToHistory(historyQuery);
-    if (searchSource === "ytmusic") {
-      doYtSearch(historyQuery);
-    } else {
-      search(historyQuery);
-    }
+  const backToAlbums = () => {
+    setSelectedAlbum(null);
+    setAlbumSongs([]);
   };
 
-  const currentResults = searchSource === "ytmusic" ? ytResults : results;
-  const currentLoading = searchSource === "ytmusic" ? ytLoading : loading;
-  const currentError = searchSource === "ytmusic" ? ytError : error;
+  const FILTERS = [
+    { key: "songs" as const, label: "Songs", icon: Music2 },
+    { key: "artists" as const, label: "Artists", icon: Users },
+    { key: "albums" as const, label: "Albums", icon: Disc },
+  ];
 
   return (
     <main className="flex-1 overflow-y-auto overflow-x-hidden pb-28">
       <div className="px-4 md:px-6 pt-8">
-        <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={() => setView("search")}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              view === "search" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Search size={16} />
-              Search
-            </div>
-          </button>
-          <button
-            onClick={() => setView("favorites")}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              view === "favorites" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Heart size={16} />
-              Favorites ({favorites.length})
-            </div>
-          </button>
-        </div>
+        {/* Search Bar */}
+        <form onSubmit={(e) => { e.preventDefault(); }} className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search songs, artists, albums..."
+              className="w-full pl-10 pr-4 py-3 rounded-lg bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+            />
+            {query.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
+        </form>
 
-        {/* Search Tab */}
-        {view === "search" && (
+        {/* Filter Chips */}
+        {query.length > 0 && (
+          <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
+            {FILTERS.map((f) => {
+              const Icon = f.icon;
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setActiveFilter(f.key)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                    activeFilter === f.key
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon size={14} />
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Empty State - No Query */}
+        {!query ? (
           <>
-            <form onSubmit={handleSearch} className="flex gap-2 mb-4">
-              <div className="relative flex-1">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search for any song, artist, or album..."
-                  className="w-full pl-10 pr-4 py-3 rounded-lg bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                />
+            {/* Trending Searches */}
+            <div className="mt-8">
+              <h3 className="text-lg font-bold text-foreground mb-3">🔥 Trending Searches</h3>
+              <div className="flex flex-wrap gap-2">
+                {TRENDING_SEARCHES.map((t, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSearch(t.query)}
+                    className={`px-4 py-2.5 rounded-lg bg-gradient-to-r ${t.color} border border-border/50 hover:border-border transition-all`}
+                  >
+                    <span className="text-sm font-medium text-foreground">{t.title}</span>
+                  </button>
+                ))}
               </div>
-              <button
-                type="submit"
-                disabled={currentLoading || !query.trim()}
-                className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                {currentLoading ? <Loader2 size={18} className="animate-spin" /> : "Search"}
-              </button>
-            </form>
+            </div>
 
-            {/* Source Filter */}
-            <div className="flex items-center gap-2 mb-6">
-              <button
-                onClick={() => setSearchSource("saavn")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  searchSource === "saavn"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                JioSaavn
-              </button>
-              <button
-                onClick={() => setSearchSource("ytmusic")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  searchSource === "ytmusic"
-                    ? "bg-red-600 text-white"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                YTMusic
-              </button>
+            {/* Top Artists Grid */}
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold text-foreground">🎤 Top Artists</h3>
+                <button
+                  onClick={() => setShowActressesModal(true)}
+                  className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1"
+                >
+                  View All <ChevronRight size={12} />
+                </button>
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
+                {[...HINDI_ARTISTS, ...BENGALI_ARTISTS].slice(0, 8).map((artist, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSearch(artist.query)}
+                    className="flex flex-col items-center gap-1.5 group"
+                  >
+                    <img
+                      src={artist.image}
+                      alt={artist.name}
+                      className="w-full aspect-square rounded-full object-cover bg-muted group-hover:opacity-80 transition-opacity"
+                    />
+                    <span className="text-xs text-muted-foreground text-center line-clamp-1">{artist.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Search History */}
-            {!hasSearched && searchHistory.length > 0 && (
-              <div className="mb-8">
+            {searchHistory.length > 0 && (
+              <div className="mt-8">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                     <History size={14} />
@@ -352,19 +622,23 @@ const SearchPage = () => {
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {searchHistory.map((h) => (
+                  {searchHistory.map((h, i) => (
                     <div
-                      key={h}
-                      className="flex items-center gap-1 pl-3 pr-1 py-1 rounded-full bg-card border border-border hover:bg-accent transition-colors"
+                      key={i}
+                      className="flex items-center gap-1 pl-3 pr-1 py-1.5 rounded-full bg-card border border-border hover:bg-accent transition-colors"
                     >
                       <button
-                        onClick={() => handleHistoryClick(h)}
+                        onClick={() => handleSearch(h)}
                         className="text-sm text-foreground"
                       >
                         {h}
                       </button>
                       <button
-                        onClick={() => removeHistoryItem(h)}
+                        onClick={() => {
+                          const updated = searchHistory.filter((_, idx) => idx !== i);
+                          setSearchHistory(updated);
+                          localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated));
+                        }}
                         className="p-1 rounded-full hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
                       >
                         <X size={12} />
@@ -374,129 +648,213 @@ const SearchPage = () => {
                 </div>
               </div>
             )}
-
-            {/* Error */}
-            {currentError && (
-              <div className="flex items-center gap-2 p-4 rounded-lg bg-destructive/10 text-destructive mb-6">
-                <AlertCircle size={18} />
-                <p className="text-sm">{currentError}</p>
-              </div>
-            )}
-
-            {/* Loading */}
-            {currentLoading && (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 size={32} className="animate-spin text-primary" />
-              </div>
-            )}
-
-            {/* No results */}
-            {!currentLoading && hasSearched && currentResults.length === 0 && !currentError && (
-              <div className="text-center py-20">
-                <p className="text-muted-foreground">No results found for "{query}"</p>
-              </div>
-            )}
-
-            {/* Initial state */}
-            {!hasSearched && !currentLoading && searchHistory.length === 0 && (
-              <>
-                <div className="text-center py-12">
-                  <Search size={48} className="mx-auto text-muted-foreground/30 mb-4" />
-                  <p className="text-muted-foreground">Search for any song to start playing</p>
-                </div>
-
-                {/* Actress & Singers Section */}
-                <div className="mt-12 pt-8 border-t border-border">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">🎤</span>
-                      <h3 className="text-lg font-bold text-foreground">Actress & Singers</h3>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-pink-600/20 text-pink-400 font-bold">NEW</span>
-                    </div>
+          </>
+        ) : loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 size={32} className="animate-spin text-primary" />
+          </div>
+        ) : results.length === 0 && artistResults.length === 0 ? (
+          <div className="text-center py-20">
+            <Disc size={48} className="mx-auto text-muted-foreground/30 mb-3" />
+            <p className="text-muted-foreground">No results found for "{query}"</p>
+          </div>
+        ) : (
+          <>
+            {/* Songs Results */}
+            {activeFilter === "songs" && results.length > 0 && (
+              <div className="space-y-1">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {results.length} of {totalResults}+ results
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
-                      onClick={() => setShowActressesModal(true)}
-                      className="text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
+                      onClick={() => {
+                        results.forEach(track => addToQueue(track));
+                        toast.success(`Added ${results.length} songs to queue`);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-xs font-medium text-primary hover:bg-muted/80 transition-colors"
                     >
-                      View All <ChevronRight size={12} />
+                      <List size={12} />
+                      Add to Queue
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setLoading(true);
+                        const randomPage = Math.floor(Math.random() * 10) + 1;
+                        try {
+                          const res = await fetch(
+                            `${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=${randomPage}&limit=${SONGS_PER_PAGE}`
+                          );
+                          if (res.ok) {
+                            const data = await res.json();
+                            const songs = data.data?.results || [];
+                            const tracks: Track[] = songs
+                              .map((s: any, i: number) => {
+                                if (!s.downloadUrl?.length) return null;
+                                const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+                                const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+                                const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+                                return {
+                                  id: 80000 + i,
+                                  title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+                                  artist: s.primaryArtists || "Unknown",
+                                  album: typeof s.album === "string" ? s.album : s.album?.name || "",
+                                  cover: s.image?.find((img: any) => img.quality === "500x500")?.link || "",
+                                  src: bestUrl,
+                                  duration: parseInt(String(s.duration)) || 0,
+                                  type: "audio" as const,
+                                  songId: s.id,
+                                };
+                              })
+                              .filter((t: Track | null): t is Track => t !== null);
+                            setResults(tracks);
+                            setCurrentPage(1);
+                            setHasMore(true);
+                            toast.info(`Loaded ${tracks.length} new songs`);
+                          }
+                        } catch {
+                          toast.error("Failed to load more songs");
+                        }
+                        setLoading(false);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-xs font-medium text-primary hover:bg-muted/80 transition-colors"
+                    >
+                      <Shuffle size={12} />
+                      Next
+                    </button>
+                    <button
+                      onClick={() => {
+                        playTrackList(results, 0);
+                        toast.success(`Playing ${results.length} songs`);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/80 transition-colors"
+                    >
+                      <Play size={12} />
+                      Play All
                     </button>
                   </div>
-                  <p className="text-xs text-muted-foreground mb-4">Search and explore all artists</p>
-                  <button
-                    onClick={() => setShowActressesModal(true)}
-                    className="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-pink-600/20 to-pink-600/10 border border-pink-600/30 hover:border-pink-600/50 transition-all text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-pink-600/20 flex items-center justify-center">
-                        <Search size={16} className="text-pink-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">Search Actress & Singers</p>
-                        <p className="text-xs text-muted-foreground">Find and explore all artists</p>
-                      </div>
-                    </div>
-                  </button>
                 </div>
-              </>
-            )}
-
-            {/* Results */}
-            {currentResults.length > 0 && (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm text-muted-foreground">
-                    {currentResults.length} results for "{query}"
-                    {searchSource === "ytmusic" && <span className="text-red-500 ml-1">from YouTube</span>}
-                  </p>
-                  <button
-                    onClick={() => playTrackList(currentResults, 0)}
-                    className="text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                  >
-                    Play All
-                  </button>
-                </div>
-                {currentResults.map((track, i) => (
+                {results.map((track, i) => (
                   <SongRow
                     key={`${track.src}-${i}`}
                     track={track}
                     index={i}
-                    isFavorite={isFavorite(track.src)}
-                    onToggleFavorite={toggleFavorite}
+                    isFavorite={false}
+                    onToggleFavorite={() => {}}
                   />
                 ))}
+
+                {/* Load More Button */}
+                {hasMore && (
+                  <button
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="w-full mt-4 py-3 rounded-lg bg-muted border border-primary/30 text-primary font-medium hover:bg-muted/80 transition-colors disabled:opacity-50"
+                  >
+                    {loadingMore ? (
+                      <Loader2 size={18} className="animate-spin mx-auto" />
+                    ) : (
+                      "Load More Songs"
+                    )}
+                  </button>
+                )}
+                {!hasMore && results.length > 0 && (
+                  <p className="text-center text-xs text-muted-foreground mt-4 mb-2">No more results</p>
+                )}
               </div>
             )}
-          </>
-        )}
 
-        {/* Favorites Tab */}
-        {view === "favorites" && (
-          <>
-            {favorites.length === 0 ? (
-              <div className="text-center py-20">
-                <Heart size={48} className="mx-auto text-muted-foreground/30 mb-4" />
-                <p className="text-muted-foreground">No favorites yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Search and tap the heart icon to add favorites</p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm text-muted-foreground">{favorites.length} favorite songs</p>
-                  <button
-                    onClick={() => playTrackList(favorites, 0)}
-                    className="text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                  >
-                    Play All
-                  </button>
+            {/* Artists Results */}
+            {activeFilter === "artists" && artistResults.length > 0 && (
+              <div>
+                <h3 className="text-base font-bold text-foreground mb-3">Artists ({artistResults.length})</h3>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                  {artistResults.map((artist: any, i: number) => (
+                    <button
+                      key={i}
+                      onClick={() => handleArtistPress(artist)}
+                      className="flex flex-col items-center gap-1.5 group"
+                    >
+                      <img
+                        src={artist.image?.[0]?.link || ''}
+                        alt={artist.name}
+                        className="w-full aspect-square rounded-full object-cover bg-muted group-hover:opacity-80 transition-opacity"
+                      />
+                      <span className="text-xs text-muted-foreground text-center line-clamp-1">{artist.name}</span>
+                    </button>
+                  ))}
                 </div>
-                {favorites.map((track, i) => (
-                  <SongRow
-                    key={`fav-${track.src}-${i}`}
-                    track={track}
-                    index={i}
-                    isFavorite={true}
-                    onToggleFavorite={toggleFavorite}
-                  />
-                ))}
+              </div>
+            )}
+
+            {/* Albums Results / Album Songs View */}
+            {activeFilter === "albums" && (
+              <div>
+                {selectedAlbum && albumSongs.length > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between mb-3">
+                      <button
+                        onClick={backToAlbums}
+                        className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
+                      >
+                        <ChevronRight size={16} className="rotate-180" />
+                        Back to Albums
+                      </button>
+                      <button
+                        onClick={() => playTrackList(albumSongs, 0)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium"
+                      >
+                        <Play size={12} />
+                        Play All
+                      </button>
+                    </div>
+                    <h3 className="text-base font-bold text-foreground mb-1">{selectedAlbum.name}</h3>
+                    <p className="text-xs text-muted-foreground mb-3">{albumSongs.length} songs</p>
+                    {loadingAlbum ? (
+                      <div className="flex items-center justify-center py-10">
+                        <Loader2 size={24} className="animate-spin text-primary" />
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {albumSongs.map((track, i) => (
+                          <SongRow
+                            key={`${track.src}-${i}`}
+                            track={track}
+                            index={i}
+                            isFavorite={false}
+                            onToggleFavorite={() => {}}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : loadingAlbum ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 size={24} className="animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <>
+                    <h3 className="text-base font-bold text-foreground mb-3">Albums ({results.length})</h3>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                      {results.map((album, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleAlbumPress(i)}
+                          className="flex flex-col gap-1.5 group"
+                        >
+                          <img
+                            src={album.cover || ''}
+                            alt={album.title}
+                            className="w-full aspect-square rounded-lg object-cover bg-muted group-hover:opacity-80 transition-opacity"
+                          />
+                          <span className="text-xs text-muted-foreground line-clamp-1 font-medium">{album.title}</span>
+                          <span className="text-[10px] text-muted-foreground/70 line-clamp-1">{album.artist}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </>
