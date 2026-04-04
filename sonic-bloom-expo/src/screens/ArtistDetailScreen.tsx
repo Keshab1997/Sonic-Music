@@ -180,6 +180,16 @@ export const ArtistDetailScreen: React.FC = () => {
                 <Text style={styles.headerBtnText}>Download All</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                style={styles.headerBtn}
+                onPress={() => {
+                  songs.forEach(track => addToQueue(track));
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="list" size={18} color="#1DB954" />
+                <Text style={styles.headerBtnText}>Add All to Queue</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.playAllBtn}
                 onPress={() => handlePlay(0)}
                 activeOpacity={0.7}
