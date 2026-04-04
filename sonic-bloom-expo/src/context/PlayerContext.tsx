@@ -249,7 +249,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const playYoutube = useCallback((videoId: string) => {
     soundRef.current?.unloadAsync().catch(() => {});
     soundRef.current = null;
-    if (progressIntervalRef.current) { clearInterval(progressIntervalRef.current); progressIntervalRef.current = null; }
+    if (progressIntervalRef.current) { 
+      clearInterval(progressIntervalRef.current); 
+      progressIntervalRef.current = null; 
+    }
     isYoutubeRef.current = true;
     setYtVideoId(videoId);
     setYtPlaying(true);
@@ -259,27 +262,35 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (ytProgressRef.current) clearInterval(ytProgressRef.current);
     ytProgressRef.current = setInterval(async () => {
       if (ytPlayerRef.current) {
-        const cur = await ytPlayerRef.current.getCurrentTime().catch(() => 0);
-        const dur = await ytPlayerRef.current.getDuration().catch(() => 0);
-        setYtProgress(cur);
-        if (dur > 0) setYtDuration(dur);
+        try {
+          const cur = await ytPlayerRef.current.getCurrentTime();
+          const dur = await ytPlayerRef.current.getDuration();
+          setYtProgress(cur);
+          if (dur > 0) setYtDuration(dur);
+        } catch {}
       }
     }, 1000);
   }, []);
   playYoutubeRef.current = playYoutube;
 
-  // expo-av play
+  // expo-av play - optimized with better error handling
   const playSound = useCallback(async (src: string) => {
     try {
-      if (soundRef.current) { await soundRef.current.unloadAsync(); soundRef.current = null; }
-      if (progressIntervalRef.current) { clearInterval(progressIntervalRef.current); progressIntervalRef.current = null; }
+      if (soundRef.current) { 
+        await soundRef.current.unloadAsync().catch(() => {}); 
+        soundRef.current = null; 
+      }
+      if (progressIntervalRef.current) { 
+        clearInterval(progressIntervalRef.current); 
+        progressIntervalRef.current = null; 
+      }
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: src },
-        { shouldPlay: true, volume: volumeRef.current, rate: 1.0 },
+        { shouldPlay: true, volume: volumeRef.current, rate: 1.0, progressUpdateIntervalMillis: 500 },
         (status) => {
           if (!status.isLoaded) return;
-          setDuration(status.durationMillis ? status.durationMillis / 1000 : 0);
+          if (status.durationMillis) setDuration(status.durationMillis / 1000);
           setProgress(status.positionMillis / 1000);
           if (status.didJustFinish) {
             if (repeatRef.current === "one") {
@@ -311,14 +322,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       );
       soundRef.current = sound;
-      progressIntervalRef.current = setInterval(async () => {
-        if (soundRef.current) {
-          const s = await soundRef.current.getStatusAsync();
-          if (s.isLoaded) setProgress(s.positionMillis / 1000);
-        }
-      }, 500);
       setIsPlaying(true);
-    } catch {
+    } catch (err) {
+      console.error('Playback error:', err);
       const nextIdx = (currentIndexRef.current + 1) % trackListRef.current.length;
       setCurrentIndex(nextIdx);
       const nt = trackListRef.current[nextIdx];
@@ -367,15 +373,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const togglePlay = useCallback(async () => {
     if (isYoutubeRef.current) {
-      setYtPlaying(p => !p);
-      setIsPlaying(p => !p);
+      const newState = !ytPlaying;
+      setYtPlaying(newState);
+      setIsPlaying(newState);
     } else if (isPlaying) {
       await pause();
     } else {
-      if (soundRef.current) { await soundRef.current.playAsync(); setIsPlaying(true); }
-      else play();
+      if (soundRef.current) { 
+        await soundRef.current.playAsync().catch(() => {}); 
+        setIsPlaying(true); 
+      } else {
+        play();
+      }
     }
-  }, [isPlaying, pause, play]);
+  }, [isPlaying, pause, play, ytPlaying]);
 
   const next = useCallback(() => {
     const q = queueRef.current;
@@ -426,18 +437,23 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const seek = useCallback(async (time: number) => {
-    if (isYoutubeRef.current) { ytPlayerRef.current?.seekTo(time, true); setYtProgress(time); }
-    else if (soundRef.current) { await soundRef.current.setPositionAsync(time * 1000); setProgress(time); }
+    if (isYoutubeRef.current) { 
+      ytPlayerRef.current?.seekTo(time, true); 
+      setYtProgress(time); 
+    } else if (soundRef.current) { 
+      await soundRef.current.setPositionAsync(time * 1000).catch(() => {}); 
+      setProgress(time); 
+    }
   }, []);
 
   const setVolume = useCallback(async (v: number) => {
     setVolumeState(v);
-    if (soundRef.current) await soundRef.current.setVolumeAsync(v);
+    if (soundRef.current) await soundRef.current.setVolumeAsync(v).catch(() => {});
   }, []);
 
   const setPlaybackSpeed = useCallback(async (speed: number) => {
     setPlaybackSpeedState(speed);
-    if (soundRef.current) await soundRef.current.setRateAsync(speed, true);
+    if (soundRef.current) await soundRef.current.setRateAsync(speed, true).catch(() => {});
   }, []);
 
   const setQuality = useCallback((q: AudioQuality) => {

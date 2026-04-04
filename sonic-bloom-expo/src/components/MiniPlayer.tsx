@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePlayer } from '../context/PlayerContext';
 import { FullScreenPlayer } from './FullScreenPlayer';
 import { CachedImage } from './CachedImage';
+import { lightHaptic } from '../lib/haptics';
 
 interface MiniPlayerProps {
   onExpand?: () => void;
@@ -22,7 +23,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
       <TouchableOpacity
         style={styles.miniPlayer}
         activeOpacity={0.9}
-        onPress={() => { onExpand?.(); setFsVisible(true); }}
+        onPress={() => { onExpand?.(); setFsVisible(true); lightHaptic(); }}
       >
         {/* Progress bar at top of mini player */}
         <View style={styles.miniProgressTrack}>
@@ -42,13 +43,13 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
             {currentTrack.artist}
           </Text>
         </View>
-        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); prev(); }} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); prev(); lightHaptic(); }} activeOpacity={0.7}>
           <Ionicons name="play-skip-back" size={20} color="#fff" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); togglePlay(); }} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); togglePlay(); lightHaptic(); }} activeOpacity={0.7}>
           <Ionicons name={isPlaying ? "pause" : "play"} size={26} color="#1DB954" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); next(); }} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); next(); lightHaptic(); }} activeOpacity={0.7}>
           <Ionicons name="play-skip-forward" size={20} color="#fff" />
         </TouchableOpacity>
       </TouchableOpacity>
