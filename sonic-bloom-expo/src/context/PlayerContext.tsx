@@ -392,7 +392,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const prev = useCallback(async () => {
-    const pos = isYoutubeRef.current ? ytProgress : progress;
+    // Get current position from refs to avoid stale closure
+    let pos = 0;
+    if (isYoutubeRef.current) {
+      pos = ytProgress;
+    } else if (soundRef.current) {
+      const status = await soundRef.current.getStatusAsync().catch(() => null);
+      if (status && status.isLoaded) {
+        pos = status.positionMillis / 1000;
+      }
+    }
     if (pos > 3) {
       if (isYoutubeRef.current) { ytPlayerRef.current?.seekTo(0, true); setYtProgress(0); }
       else if (soundRef.current) { await soundRef.current.setPositionAsync(0); setProgress(0); }
@@ -405,7 +414,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setProgress(0);
     if (pt.type === "youtube" && pt.songId) { stopYoutubeRef.current(); playYoutubeRef.current(pt.songId); }
     else { stopYoutubeRef.current(); playSoundRef.current(getAudioSrcForTrack(pt, qualityRef.current)); }
-  }, [progress, ytProgress]);
+  }, []);
 
   const seek = useCallback(async (time: number) => {
     if (isYoutubeRef.current) { ytPlayerRef.current?.seekTo(time, true); setYtProgress(time); }

@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useState } from 'react';
+import React, { useRef, useCallback, useState, useMemo } from 'react';
 import {
   View, Text, Image, TouchableOpacity, Modal,
   Dimensions, PanResponder, Animated, StyleSheet,
@@ -60,44 +60,35 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
     translateY.setValue(0);
   }, [translateY]);
 
-  // Seek bar drag
+  // Seek bar drag - use useMemo to avoid recreating PanResponder
   const [seeking, setSeeking] = useState(false);
   const [seekValue, setSeekValue] = useState(0);
   const progressBarRef = useRef<View>(null);
-  const progressBarWidth = useRef(width - 48);
 
-  const handleProgressTouch = useCallback((pageX: number, barX: number) => {
-    const relX = Math.max(0, Math.min(pageX - barX, progressBarWidth.current));
-    const ratio = relX / progressBarWidth.current;
-    return ratio * duration;
-  }, [duration]);
-
-  const progressPanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (e) => {
-        setSeeking(true);
-        progressBarRef.current?.measure((_, __, ___, ____, pageX) => {
-          const val = handleProgressTouch(e.nativeEvent.pageX, pageX);
-          setSeekValue(val);
-        });
-      },
-      onPanResponderMove: (e) => {
-        progressBarRef.current?.measure((_, __, ___, ____, pageX) => {
-          const val = handleProgressTouch(e.nativeEvent.pageX, pageX);
-          setSeekValue(val);
-        });
-      },
-      onPanResponderRelease: (e) => {
-        progressBarRef.current?.measure((_, __, ___, ____, pageX) => {
-          const val = handleProgressTouch(e.nativeEvent.pageX, pageX);
-          seek(val);
-          setSeeking(false);
-        });
-      },
-    })
-  ).current;
+  const progressPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (e) => {
+      setSeeking(true);
+      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
+        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
+        setSeekValue((relX / (width - 48)) * duration);
+      });
+    },
+    onPanResponderMove: (e) => {
+      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
+        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
+        setSeekValue((relX / (width - 48)) * duration);
+      });
+    },
+    onPanResponderRelease: (e) => {
+      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
+        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
+        seek((relX / (width - 48)) * duration);
+        setSeeking(false);
+      });
+    },
+  }), [duration, seek]);
 
   if (!currentTrack) return null;
 
@@ -115,7 +106,7 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
     >
       <Animated.View style={[styles.container, { transform: [{ translateY }] }]} {...panResponder.panHandlers}>
         {/* Blurred Background */}
-        <Image source={{ uri: currentTrack.cover }} style={styles.bgImage} blurRadius={25} />
+        <Image source={{ uri: currentTrack.cover }} style={styles.bgImage} blurRadius={15} />
         <View style={styles.bgOverlay} />
 
         {/* Header */}
@@ -169,7 +160,6 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
             ref={progressBarRef}
             style={styles.progressTrack}
             {...progressPanResponder.panHandlers}
-            onLayout={(e) => { progressBarWidth.current = e.nativeEvent.layout.width; }}
           >
             <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
             <View style={[styles.progressThumb, { left: `${progressPercent}%` }]} />
