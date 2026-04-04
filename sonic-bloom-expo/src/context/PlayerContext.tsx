@@ -11,6 +11,7 @@ import {
   STORAGE_KEY_QUALITY,
   STORAGE_KEY_QUEUE,
 } from "@/lib/constants";
+import { useMediaSession } from "@/hooks/useMediaSession";
 
 const LIKED_SONGS_KEY = "sonic_liked_songs";
 const LIKED_TRACKS_FULL_KEY = "sonic_liked_tracks_full";
@@ -530,7 +531,33 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           />
         </View>
       )}
+
+      {/* Media Session for lock screen controls */}
+      <MediaSessionWrapper
+        track={currentTrack}
+        isPlaying={displayIsPlaying}
+        onPlay={play}
+        onPause={pause}
+        onNext={next}
+        onPrev={prev}
+        onSeek={seek}
+      />
+
       {children}
     </PlayerContext.Provider>
   );
+};
+
+// Wrapper component to use the media session hook
+const MediaSessionWrapper: React.FC<{
+  track: Track | null;
+  isPlaying: boolean;
+  onPlay: () => void;
+  onPause: () => void;
+  onNext: () => void;
+  onPrev: () => void;
+  onSeek: (time: number) => void;
+}> = ({ track, isPlaying, onPlay, onPause, onNext, onPrev, onSeek }) => {
+  useMediaSession({ track, isPlaying, onPlay, onPause, onNext, onPrev, onSeek });
+  return null;
 };
