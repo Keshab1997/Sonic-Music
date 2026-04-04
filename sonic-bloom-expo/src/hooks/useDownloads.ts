@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import { Track } from '../data/playlist';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 const DOWNLOADS_KEY = 'sonic_downloads';
 
@@ -12,15 +14,36 @@ export interface DownloadedTrack {
 }
 
 export const useDownloads = () => {
+  const { user } = useAuth();
   const [downloads, setDownloads] = useState<DownloadedTrack[]>([]);
   const [downloading, setDownloading] = useState<Record<string, number>>({});
 
   useEffect(() => {
     loadDownloads();
-  }, []);
+  }, [user]);
 
   const loadDownloads = async () => {
     try {
+      if (user) {
+        // Load from Supabase for logged-in users
+        const { data, error } = await supabase
+          .from('downloads')
+          .select('*')
+          .eq('user_id', user.id);
+        
+        if (!error && data) {
+          const mapped = data.map(d => ({
+            track: d.track_data,
+            localUri: d.local_uri,
+            downloadedAt: new Date(d.downloaded_at).getTime(),
+          }));
+          setDownloads(mapped);
+          await AsyncStorage.setItem(DOWNLOADS_KEY, JSON.stringify(mapped));
+          return;
+        }
+      }
+      
+      // Fallback to local storage
       const stored = await AsyncStorage.getItem(DOWNLOADS_KEY);
       if (stored) {
         setDownloads(JSON.parse(stored));
@@ -34,6 +57,23 @@ export const useDownloads = () => {
     try {
       await AsyncStorage.setItem(DOWNLOADS_KEY, JSON.stringify(newDownloads));
       setDownloads(newDownloads);
+      
+      // Sync to Supabase if user is logged in
+      if (user) {
+        const toSync = newDownloads.map(d => ({
+          user_id: user.id,
+          track_id: String(d.track.id),
+          track_data: d.track,
+          local_uri: d.localUri,
+          downloaded_at: new Date(d.downloadedAt).toISOString(),
+        }));
+        
+        // Delete old downloads and insert new ones
+        await supabase.from('downloads').delete().eq('user_id', user.id);
+        if (toSync.length > 0) {
+          await supabase.from('downloads').insert(toSync);
+        }
+      }
     } catch (e) {
       console.error('Failed to save downloads:', e);
     }

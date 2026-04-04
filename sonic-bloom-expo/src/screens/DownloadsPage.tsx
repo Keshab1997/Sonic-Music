@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePlayer } from '../context/PlayerContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
 import { CachedImage } from '../components/CachedImage';
+import { lightHaptic, mediumHaptic } from '../lib/haptics';
 
 export const DownloadsPage: React.FC = () => {
   const { downloads, deleteTrack, deleteAll } = useDownloadsContext();
@@ -16,7 +17,7 @@ export const DownloadsPage: React.FC = () => {
       'Are you sure you want to delete this downloaded song?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteTrack(trackId) },
+        { text: 'Delete', style: 'destructive', onPress: () => { deleteTrack(trackId); mediumHaptic(); } },
       ]
     );
   };
@@ -27,7 +28,7 @@ export const DownloadsPage: React.FC = () => {
       'Are you sure you want to delete all downloaded songs? This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete All', style: 'destructive', onPress: () => deleteAll() },
+        { text: 'Delete All', style: 'destructive', onPress: () => { deleteAll(); mediumHaptic(); } },
       ]
     );
   };
@@ -35,6 +36,7 @@ export const DownloadsPage: React.FC = () => {
   const handlePlay = (index: number) => {
     const tracks = downloads.map(d => d.track);
     playTrackList(tracks, index);
+    mediumHaptic();
   };
 
   const renderItem = ({ item, index }: { item: { track: any; localUri: string }; index: number }) => {
@@ -96,7 +98,7 @@ export const DownloadsPage: React.FC = () => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Downloads</Text>
         <Text style={styles.headerCount}>{downloads.length} songs</Text>
-        <TouchableOpacity onPress={handleDeleteAll} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => { handleDeleteAll(); lightHaptic(); }} activeOpacity={0.7}>
           <Text style={styles.deleteAllText}>Delete All</Text>
         </TouchableOpacity>
       </View>
@@ -112,7 +114,7 @@ export const DownloadsPage: React.FC = () => {
           onChangeText={setSearchQuery}
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+          <TouchableOpacity onPress={() => { setSearchQuery(''); lightHaptic(); }} activeOpacity={0.7}>
             <Ionicons name="close" size={18} color="#555" />
           </TouchableOpacity>
         )}
@@ -121,7 +123,7 @@ export const DownloadsPage: React.FC = () => {
       {/* Play All Button */}
       <TouchableOpacity
         style={styles.playAllBtn}
-        onPress={() => handlePlay(0)}
+        onPress={() => { handlePlay(0); mediumHaptic(); }}
         activeOpacity={0.7}
       >
         <Ionicons name="play" size={20} color="#fff" />

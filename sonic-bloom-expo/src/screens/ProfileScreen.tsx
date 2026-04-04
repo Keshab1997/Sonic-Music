@@ -6,9 +6,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import { useDownloadsContext } from '../context/DownloadsContext';
 
 export const ProfileScreen: React.FC = () => {
   const { user, signOut } = useAuth();
+  const { downloads } = useDownloadsContext();
   const navigation = useNavigation();
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
@@ -290,14 +292,17 @@ export const ProfileScreen: React.FC = () => {
             </View>
           </Pressable>
 
-          <Pressable style={styles.settingItem} onPress={() => Alert.alert('Downloads', 'No downloads yet')}>
+          <Pressable style={styles.settingItem} onPress={() => navigation.navigate('Downloads' as never)}>
             <View style={styles.settingLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons name="download-outline" size={20} color="#1DB954" />
               </View>
               <Text style={styles.settingText}>Downloads</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#555" />
+            <View style={styles.settingRight}>
+              <Text style={styles.settingValue}>{downloads.length}</Text>
+              <Ionicons name="chevron-forward" size={18} color="#555" />
+            </View>
           </Pressable>
 
           <Pressable style={styles.settingItem} onPress={() => Alert.alert('Notifications', 'Notification settings coming soon')}>
@@ -325,7 +330,11 @@ export const ProfileScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About</Text>
           
-          <Pressable style={styles.settingItem} onPress={() => Alert.alert('Sonic Bloom', 'Version 1.0.0\n\nCreated by Keshab Sarkar\n\nA premium music player with YouTube integration')}>
+          <Pressable style={styles.settingItem} onPress={() => Alert.alert(
+            '🎵 Sonic Bloom',
+            `Version 1.0.0\n\nA premium music streaming experience with YouTube integration, offline downloads, and advanced audio features.\n\n✨ Features:\n• YouTube Music Search\n• Offline Downloads\n• Audio Equalizer\n• Crossfade & Sleep Timer\n• Queue Management\n• Playback Speed Control\n\n👨‍💻 Created by Keshab Sarkar\n\n© ${new Date().getFullYear()} Sonic Bloom. All rights reserved.`,
+            [{ text: 'Close', style: 'cancel' }]
+          )}>
             <View style={styles.settingLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons name="information-circle-outline" size={20} color="#1DB954" />
@@ -353,7 +362,7 @@ export const ProfileScreen: React.FC = () => {
         </Pressable>
 
         {/* App Version */}
-        <Text style={styles.version}>Sonic Bloom v1.0.0</Text>
+        <Text style={styles.version}>Sonic Bloom v1.0.0 • © {new Date().getFullYear()}</Text>
       </ScrollView>
 
       {/* Edit Profile Modal */}
