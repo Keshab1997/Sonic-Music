@@ -196,13 +196,21 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => { qualityRef.current = quality; }, [quality]);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
 
-  // Setup audio mode
+  // Setup audio mode for background playback
   useEffect(() => {
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: true,
-    }).catch(() => {});
+    const setupAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch (e) {
+        console.error('Failed to set audio mode:', e);
+      }
+    };
+    setupAudio();
     return () => {
       soundRef.current?.unloadAsync();
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
