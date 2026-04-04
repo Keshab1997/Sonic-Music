@@ -2,6 +2,10 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { INVIDIOUS_INSTANCES, INVIDIOUS_REQUEST_TIMEOUT, INVIDIOUS_HEADERS } from "./lib/invidious.js";
 import { checkRateLimit, getRateLimitHeaders, defaultRateLimits } from "./lib/rate-limiter.js";
 
+// In-memory cache: query -> { results, expiresAt }
+const searchCache = new Map<string, { results: unknown[]; expiresAt: number }>();
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 interface YouTubeSearchResult {
   videoId: string;
   title: string;
@@ -15,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Cache-Control", "public, max-age=300, s-maxage=600");
+  res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400");
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
@@ -34,6 +38,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const query = req.query.q as string;
   if (!query) return res.status(400).json({ error: "Missing q parameter" });
+
+  // Check in-memory cache first
+  const cacheKey = query.toLowerCase().trim();
+  const cached = searchCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    res.setHeader("X-Cache", "HIT");
+    return res.status(200).json(cached.results);
+  }
 
   // Primary: YouTube Data API v3
   const ytApiKey = process.env.YOUTUBE_API_KEY;
@@ -67,6 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           duration: durationMap[i.id.videoId] || 0,
           thumbnail: i.snippet.thumbnails?.medium?.url || i.snippet.thumbnails?.default?.url || "",
         }));
+        searchCache.set(cacheKey, { results, expiresAt: Date.now() + CACHE_TTL_MS });
         return res.status(200).json(results);
       }
     } catch (err) {
@@ -87,13 +100,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!invRes.ok) return null;
       const data = await invRes.json().catch(() => null);
       if (!Array.isArray(data) || data.length === 0) return null;
-      return data.slice(0, 50).map((v: any) => ({
+      const results = data.slice(0, 50).map((v: any) => ({
         videoId: v.videoId,
         title: v.title,
         author: v.author || "Unknown",
         duration: v.lengthSeconds || 0,
         thumbnail: v.videoThumbnails?.[0]?.url || "",
       }));
+      searchCache.set(cacheKey, { results, expiresAt: Date.now() + CACHE_TTL_MS });
+      return results;
     } catch {
       return null;
     }
