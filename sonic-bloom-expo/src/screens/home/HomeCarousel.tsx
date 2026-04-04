@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { Track } from '../../data/playlist';
 import { CachedImage } from '../../components/CachedImage';
+import { lightHaptic } from '../../lib/haptics';
 
 const { width } = Dimensions.get('window');
 
@@ -38,7 +39,7 @@ export const HomeCarousel: React.FC<HomeCarouselProps> = ({ songs, carouselIndex
             <Text style={styles.carouselArtist} numberOfLines={1}>{song.artist}</Text>
             <TouchableOpacity
               style={styles.carouselPlayBtn}
-              onPress={() => onPlay(song, carouselSongs, i)}
+              onPress={() => { onPlay(song, carouselSongs, i); lightHaptic(); }}
               activeOpacity={0.7}
             >
               <Text style={styles.carouselPlayText}>▶ Play</Text>
@@ -49,7 +50,7 @@ export const HomeCarousel: React.FC<HomeCarouselProps> = ({ songs, carouselIndex
       {/* Left Arrow */}
       <TouchableOpacity
         style={[styles.carouselArrow, { left: 8 }]}
-        onPress={() => onCarouselChange((carouselIndex - 1 + carouselSongs.length) % carouselSongs.length)}
+        onPress={() => { onCarouselChange((carouselIndex - 1 + carouselSongs.length) % carouselSongs.length); lightHaptic(); }}
         activeOpacity={0.7}
       >
         <Ionicons name="chevron-back" size={18} color="#fff" />
@@ -57,7 +58,7 @@ export const HomeCarousel: React.FC<HomeCarouselProps> = ({ songs, carouselIndex
       {/* Right Arrow */}
       <TouchableOpacity
         style={[styles.carouselArrow, { right: 8 }]}
-        onPress={() => onCarouselChange((carouselIndex + 1) % carouselSongs.length)}
+        onPress={() => { onCarouselChange((carouselIndex + 1) % carouselSongs.length); lightHaptic(); }}
         activeOpacity={0.7}
       >
         <Ionicons name="chevron-forward" size={18} color="#fff" />
@@ -71,7 +72,7 @@ export const HomeCarousel: React.FC<HomeCarouselProps> = ({ songs, carouselIndex
               styles.carouselDot,
               { width: carouselIndex === i ? 16 : 6, backgroundColor: carouselIndex === i ? '#1DB954' : '#555' }
             ]}
-            onPress={() => onCarouselChange(i)}
+            onPress={() => { onCarouselChange(i); lightHaptic(); }}
             activeOpacity={0.7}
           />
         ))}

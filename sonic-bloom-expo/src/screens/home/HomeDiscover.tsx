@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MOODS, LABELS, ERAS, HINDI_ARTISTS, BENGALI_ARTISTS } from '../../data/constants';
 import { SectionHeader } from '../../components/SectionHeader';
 import { CachedImage } from '../../components/CachedImage';
+import { lightHaptic } from '../../lib/haptics';
 
 const { width } = Dimensions.get('window');
 
@@ -35,7 +36,7 @@ export const HomeDiscover: React.FC<HomeDiscoverProps> = ({
             <TouchableOpacity
               key={mood.name}
               style={[styles.moodBtn, { backgroundColor: mood.color }]}
-              onPress={() => onMoodPress(mood.name, mood.query, 40000 + MOODS.indexOf(mood) * 100)}
+              onPress={() => { onMoodPress(mood.name, mood.query, 40000 + MOODS.indexOf(mood) * 100); lightHaptic(); }}
               activeOpacity={0.8}
             >
               <Text style={styles.moodEmoji}>{mood.emoji}</Text>
@@ -53,7 +54,7 @@ export const HomeDiscover: React.FC<HomeDiscoverProps> = ({
             <TouchableOpacity
               key={label.name}
               style={[styles.labelBtn, { backgroundColor: label.color, opacity: loadingLabel === label.name ? 0.6 : 1 }]}
-              onPress={() => onLabelPlay(label)}
+              onPress={() => { onLabelPlay(label); lightHaptic(); }}
               disabled={loadingLabel === label.name}
               activeOpacity={0.8}
             >
@@ -87,7 +88,7 @@ export const HomeDiscover: React.FC<HomeDiscoverProps> = ({
             <TouchableOpacity
               key={artist.name}
               style={styles.artistItem}
-              onPress={() => onArtistPress(artist.name, artist.query, 50000 + HINDI_ARTISTS.indexOf(artist) * 100)}
+              onPress={() => { onArtistPress(artist.name, artist.query, 50000 + HINDI_ARTISTS.indexOf(artist) * 100); lightHaptic(); }}
               activeOpacity={0.7}
             >
               <View style={styles.artistImageWrap}>
@@ -111,7 +112,7 @@ export const HomeDiscover: React.FC<HomeDiscoverProps> = ({
             <TouchableOpacity
               key={artist.name}
               style={styles.artistItem}
-              onPress={() => onArtistPress(artist.name, artist.query, 55000 + BENGALI_ARTISTS.indexOf(artist) * 100)}
+              onPress={() => { onArtistPress(artist.name, artist.query, 55000 + BENGALI_ARTISTS.indexOf(artist) * 100); lightHaptic(); }}
               activeOpacity={0.7}
             >
               <View style={styles.artistImageWrap}>

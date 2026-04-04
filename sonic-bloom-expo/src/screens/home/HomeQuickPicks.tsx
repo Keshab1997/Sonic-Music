@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Track } from '../../data/playlist';
 import { TIME_GREETINGS, getTimeOfDay, formatDuration, getSongOfDayIndex } from '../../data/constants';
 import { SectionHeader } from '../../components/SectionHeader';
+import { lightHaptic } from '../../lib/haptics';
 
 const { width } = Dimensions.get('window');
 
@@ -35,7 +36,7 @@ export const HomeQuickPicks: React.FC<HomeQuickPicksProps> = ({
         </View>
         <TouchableOpacity
           style={styles.quickPlayCard}
-          onPress={() => onTimePlay(timeData.query)}
+          onPress={() => { onTimePlay(timeData.query); lightHaptic(); }}
           activeOpacity={0.7}
         >
           <View>
@@ -58,7 +59,7 @@ export const HomeQuickPicks: React.FC<HomeQuickPicksProps> = ({
           <SectionHeader title="Song of the Day" emoji="⭐" />
           <TouchableOpacity
             style={styles.sotdCard}
-            onPress={() => onSongPlay(songOfDay)}
+            onPress={() => { onSongPlay(songOfDay); lightHaptic(); }}
             activeOpacity={0.7}
           >
             <Image

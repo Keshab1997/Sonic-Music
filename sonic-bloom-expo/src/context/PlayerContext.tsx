@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { View } from "react-native";
+import { View, InteractionManager } from "react-native";
 import { Track, playlist } from "@/data/playlist";
 import { Audio } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -101,11 +101,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [playbackSpeed, setPlaybackSpeedState] = useState(1.0);
   const [crossfade, setCrossfadeState] = useState(0);
 
-  // expo-av
   const soundRef = useRef<Audio.Sound | null>(null);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // YouTube
   const ytPlayerRef = useRef<YoutubeIframeRef>(null);
   const [ytVideoId, setYtVideoId] = useState<string | null>(null);
   const [ytPlaying, setYtPlaying] = useState(false);
@@ -118,7 +116,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const displayDuration = isYoutubeRef.current ? ytDuration : duration;
   const displayIsPlaying = isYoutubeRef.current ? ytPlaying : isPlaying;
 
-  // Liked songs
   const [likedSongIds, setLikedSongIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     AsyncStorage.getItem(LIKED_SONGS_KEY).then(s => {
@@ -180,7 +177,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return true;
   }, []);
 
-  // Refs
   const trackListRef = useRef(trackList);
   const currentIndexRef = useRef(currentIndex);
   const queueRef = useRef(queue);
@@ -196,7 +192,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => { qualityRef.current = quality; }, [quality]);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
 
-  // Setup audio mode for background playback
   useEffect(() => {
     const setupAudio = async () => {
       try {
@@ -218,7 +213,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
-  // Load persisted state
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY_QUEUE).then(s => { if (s) setQueue(JSON.parse(s)); }).catch(() => {});
     AsyncStorage.getItem(STORAGE_KEY_QUALITY).then(s => {
@@ -230,12 +224,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     AsyncStorage.setItem(STORAGE_KEY_QUEUE, JSON.stringify(queue)).catch(() => {});
   }, [queue]);
 
-  // Stable refs for play functions — fixes stale closure in next/prev
   const playSoundRef = useRef<(src: string) => Promise<void>>(async () => {});
   const playYoutubeRef = useRef<(videoId: string) => void>(() => {});
   const stopYoutubeRef = useRef<() => void>(() => {});
 
-  // YouTube helpers
   const stopYoutube = useCallback(() => {
     setYtPlaying(false);
     setYtVideoId(null);
@@ -273,7 +265,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
   playYoutubeRef.current = playYoutube;
 
-  // expo-av play - optimized with better error handling
   const playSound = useCallback(async (src: string) => {
     try {
       if (soundRef.current) { 
@@ -287,7 +278,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: src },
-        { shouldPlay: true, volume: volumeRef.current, rate: 1.0, progressUpdateIntervalMillis: 500 },
+        { shouldPlay: true, volume: volumeRef.current, rate: 1.0, progressUpdateIntervalMillis: 1000 },
         (status) => {
           if (!status.isLoaded) return;
           if (status.durationMillis) setDuration(status.durationMillis / 1000);
@@ -371,23 +362,21 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsPlaying(false);
   }, []);
 
-  const togglePlay = useCallback(async () => {
+  const togglePlay = useCallback(() => {
     if (isYoutubeRef.current) {
       const newState = !ytPlaying;
       setYtPlaying(newState);
       setIsPlaying(newState);
     } else {
-      if (isPlaying) {
-        if (soundRef.current) await soundRef.current.pauseAsync().catch(() => {});
-        setIsPlaying(false);
-      } else {
-        if (soundRef.current) { 
-          await soundRef.current.playAsync().catch(() => {}); 
-          setIsPlaying(true); 
+      setIsPlaying(prev => !prev);
+      InteractionManager.runAfterInteractions(() => {
+        if (isPlaying) {
+          if (soundRef.current) soundRef.current.pauseAsync().catch(() => {});
         } else {
-          play();
+          if (soundRef.current) soundRef.current.playAsync().catch(() => {});
+          else play();
         }
-      }
+      });
     }
   }, [isPlaying, play, ytPlaying]);
 
@@ -415,7 +404,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const prev = useCallback(async () => {
-    // Get current position from refs to avoid stale closure
     let pos = 0;
     if (isYoutubeRef.current) {
       pos = ytProgress;
@@ -437,7 +425,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setProgress(0);
     if (pt.type === "youtube" && pt.songId) { stopYoutubeRef.current(); playYoutubeRef.current(pt.songId); }
     else { stopYoutubeRef.current(); playSoundRef.current(getAudioSrcForTrack(pt, qualityRef.current)); }
-  }, []);
+  }, [ytProgress]);
 
   const seek = useCallback(async (time: number) => {
     if (isYoutubeRef.current) { 
@@ -527,7 +515,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     addToListeningHistory: addToHistory,
   }), [
     trackList, currentTrack, currentIndex, displayIsPlaying, 
-    Math.floor(displayProgress), // Round to reduce re-renders
+    Math.floor(displayProgress),
     displayDuration,
     volume, shuffle, repeat, eqBass, eqMid, eqTreble, playbackSpeed, crossfade,
     queue.length, quality, sleepMinutes,
@@ -561,7 +549,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         </View>
       )}
 
-      {/* Media Session for lock screen controls */}
       <MediaSessionWrapper
         track={currentTrack}
         isPlaying={displayIsPlaying}
@@ -577,7 +564,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 };
 
-// Wrapper component to use the media session hook
 const MediaSessionWrapper: React.FC<{
   track: Track | null;
   isPlaying: boolean;

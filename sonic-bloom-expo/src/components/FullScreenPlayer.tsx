@@ -1,9 +1,11 @@
-import React, { useRef, useCallback, useState, memo } from 'react';
+import React, { useRef, useCallback, useState, memo, useEffect } from 'react';
 import {
-  View, Text, Image, TouchableOpacity, Modal,
+  View, Text, Image, Modal,
   Dimensions, PanResponder, Animated, StyleSheet, ActivityIndicator, Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { usePlayer } from '../context/PlayerContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
 import { QueueManager } from './QueueManager';
@@ -20,7 +22,6 @@ const formatTime = (s: number) => {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 };
 
-// Ultra-optimized progress bar - only updates every 1 second
 const ProgressBar = memo(({ progress, duration, onSeek }: { progress: number; duration: number; onSeek: (t: number) => void }) => {
   const progressBarRef = useRef<View>(null);
   const [seeking, setSeeking] = useState(false);
@@ -52,7 +53,13 @@ const ProgressBar = memo(({ progress, duration, onSeek }: { progress: number; du
         onTouchMove={(e) => handleTouch(e.nativeEvent.pageX, false)}
         onTouchEnd={(e) => handleTouch(e.nativeEvent.pageX, true)}
       >
-        <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+        <View style={styles.progressBg} />
+        <LinearGradient
+          colors={['#1DB954', '#1ed760']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.progressFill, { width: `${progressPercent}%` }]}
+        />
         <View style={[styles.progressThumb, { left: `${progressPercent}%` }]} />
       </Pressable>
       <View style={styles.timeRow}>
@@ -61,12 +68,8 @@ const ProgressBar = memo(({ progress, duration, onSeek }: { progress: number; du
       </View>
     </View>
   );
-}, (prev, next) => {
-  // Only update if progress changed by more than 1 second
-  return Math.abs(prev.progress - next.progress) < 1 && prev.duration === next.duration;
-});
+}, (prev, next) => Math.abs(prev.progress - next.progress) < 1 && prev.duration === next.duration);
 
-// Ultra-optimized volume slider
 const VolumeSlider = memo(({ volume, onVolumeChange }: { volume: number; onVolumeChange: (v: number) => void }) => {
   const volumeBarRef = useRef<View>(null);
   const [adjusting, setAdjusting] = useState(false);
@@ -90,8 +93,8 @@ const VolumeSlider = memo(({ volume, onVolumeChange }: { volume: number; onVolum
 
   return (
     <View style={styles.volumeRow}>
-      <Pressable onPress={() => onVolumeChange(0)}>
-        <Ionicons name={displayVolume === 0 ? "volume-mute" : "volume-low"} size={20} color="rgba(255,255,255,0.6)" />
+      <Pressable onPress={() => onVolumeChange(0)} style={styles.volumeIcon}>
+        <Ionicons name={displayVolume === 0 ? "volume-mute" : "volume-low"} size={22} color="rgba(255,255,255,0.7)" />
       </Pressable>
       <Pressable 
         ref={volumeBarRef}
@@ -100,11 +103,17 @@ const VolumeSlider = memo(({ volume, onVolumeChange }: { volume: number; onVolum
         onTouchMove={(e) => handleTouch(e.nativeEvent.pageX, false)}
         onTouchEnd={(e) => handleTouch(e.nativeEvent.pageX, true)}
       >
-        <View style={[styles.volumeFill, { width: `${displayVolume * 100}%` }]} />
+        <View style={styles.volumeBg} />
+        <LinearGradient
+          colors={['#fff', '#f0f0f0']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.volumeFill, { width: `${displayVolume * 100}%` }]}
+        />
         <View style={[styles.volumeThumb, { left: `${displayVolume * 100}%` }]} />
       </Pressable>
-      <Pressable onPress={() => onVolumeChange(1)}>
-        <Ionicons name="volume-high" size={20} color="rgba(255,255,255,0.6)" />
+      <Pressable onPress={() => onVolumeChange(1)} style={styles.volumeIcon}>
+        <Ionicons name="volume-high" size={22} color="rgba(255,255,255,0.7)" />
       </Pressable>
     </View>
   );
@@ -130,8 +139,9 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
   const [eqVisible, setEqVisible] = useState(false);
   const { isDownloaded, isDownloading, downloadTrack } = useDownloadsContext();
 
-  // Swipe down to close
   const translateY = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) => g.dy > 10 && Math.abs(g.dy) > Math.abs(g.dx),
@@ -147,6 +157,19 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
       },
     })
   ).current;
+
+  useEffect(() => {
+    if (isPlaying) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(scaleAnim, { toValue: 1.02, duration: 1000, useNativeDriver: true }),
+          Animated.timing(scaleAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      scaleAnim.setValue(1);
+    }
+  }, [isPlaying, scaleAnim]);
 
   if (!currentTrack) return null;
 
@@ -164,38 +187,49 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
       onRequestClose={onClose}
     >
       <Animated.View style={[styles.container, { transform: [{ translateY }] }]} {...panResponder.panHandlers}>
-        {/* Background */}
-        <Image source={{ uri: currentTrack.cover }} style={styles.bgImage} blurRadius={50} />
-        <View style={styles.bgOverlay} />
+        <Image source={{ uri: currentTrack.cover }} style={styles.bgImage} blurRadius={80} />
+        <LinearGradient
+          colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)', 'rgba(0,0,0,0.95)']}
+          style={styles.bgGradient}
+        />
 
-        {/* Header */}
-        <View style={styles.header}>
+        <BlurView intensity={20} tint="dark" style={styles.header}>
           <Pressable onPress={onClose} style={styles.headerBtn}>
             <Ionicons name="chevron-down" size={28} color="#fff" />
           </Pressable>
-          <Text style={styles.headerLabel}>NOW PLAYING</Text>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerLabel}>NOW PLAYING</Text>
+            <View style={styles.headerDot} />
+          </View>
           <Pressable onPress={() => setQueueVisible(true)} style={styles.headerBtn}>
-            <View>
-              <Ionicons name="list" size={22} color="rgba(255,255,255,0.7)" />
-              {queue.length > 0 && (
-                <View style={styles.queueBadge}>
-                  <Text style={styles.queueBadgeText}>{queue.length > 9 ? '9+' : queue.length}</Text>
-                </View>
-              )}
-            </View>
+            <Ionicons name="list" size={24} color="rgba(255,255,255,0.9)" />
+            {queue.length > 0 && (
+              <View style={styles.queueBadge}>
+                <Text style={styles.queueBadgeText}>{queue.length > 9 ? '9+' : queue.length}</Text>
+              </View>
+            )}
           </Pressable>
-        </View>
+        </BlurView>
 
-        {/* Album Art */}
         <View style={styles.artContainer}>
-          <Image
-            source={{ uri: currentTrack.cover }}
-            style={styles.albumArt}
-            resizeMode="cover"
-          />
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <View style={styles.artShadow} />
+            <Image
+              source={{ uri: currentTrack.cover }}
+              style={styles.albumArt}
+              resizeMode="cover"
+            />
+            {isPlaying && (
+              <View style={styles.playingIndicator}>
+                <View style={styles.playingBar} />
+                <View style={styles.playingBar} />
+                <View style={styles.playingBar} />
+                <View style={styles.playingBar} />
+              </View>
+            )}
+          </Animated.View>
         </View>
 
-        {/* Track Info */}
         <View style={styles.infoRow}>
           <View style={styles.infoText}>
             <Text style={styles.trackTitle} numberOfLines={1}>{currentTrack.title}</Text>
@@ -206,82 +240,71 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
               onPress={() => {
                 if (!downloaded && !downloading) downloadTrack(currentTrack);
               }}
-              style={styles.downloadBtn}
+              style={styles.actionBtn}
               disabled={downloaded || downloading}
             >
               {downloading ? (
                 <ActivityIndicator size="small" color="#1DB954" />
               ) : downloaded ? (
-                <Ionicons name="checkmark-circle" size={24} color="#1DB954" />
+                <Ionicons name="checkmark-circle" size={26} color="#1DB954" />
               ) : (
-                <Ionicons name="download-outline" size={24} color="rgba(255,255,255,0.5)" />
+                <Ionicons name="download-outline" size={26} color="rgba(255,255,255,0.6)" />
               )}
             </Pressable>
-            <Pressable onPress={() => isLiked ? unlikeCurrentTrack() : likeCurrentTrack()} style={styles.likeBtn}>
+            <Pressable onPress={() => isLiked ? unlikeCurrentTrack() : likeCurrentTrack()} style={styles.actionBtn}>
               <Ionicons
                 name={isLiked ? 'heart' : 'heart-outline'}
-                size={26}
-                color={isLiked ? '#ef4444' : 'rgba(255,255,255,0.5)'}
+                size={28}
+                color={isLiked ? '#ef4444' : 'rgba(255,255,255,0.6)'}
               />
             </Pressable>
           </View>
         </View>
 
-        {/* Progress Bar */}
         <ProgressBar progress={progress} duration={duration} onSeek={seek} />
-        
-        {/* Seek Buttons */}
-        <View style={styles.seekButtons}>
-          <Pressable onPress={() => seek(Math.max(0, progress - 10))} style={styles.seekBtn}>
-            <Ionicons name="play-back" size={20} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.seekText}>-10s</Text>
-          </Pressable>
-          <Pressable onPress={() => seek(Math.min(duration, progress + 10))} style={styles.seekBtn}>
-            <Text style={styles.seekText}>+10s</Text>
-            <Ionicons name="play-forward" size={20} color="rgba(255,255,255,0.7)" />
-          </Pressable>
-        </View>
 
-        {/* Controls */}
         <View style={styles.controls}>
           <Pressable onPress={toggleShuffle} style={styles.controlBtn}>
-            <Ionicons name="shuffle" size={22} color={shuffle ? '#1DB954' : 'rgba(255,255,255,0.4)'} />
+            <Ionicons name="shuffle" size={24} color={shuffle ? '#1DB954' : 'rgba(255,255,255,0.5)'} />
           </Pressable>
 
           <Pressable onPress={prev} style={styles.controlBtn}>
-            <Ionicons name="play-skip-back" size={32} color="#fff" />
+            <Ionicons name="play-skip-back" size={36} color="#fff" />
           </Pressable>
 
           <Pressable onPress={togglePlay} style={styles.playBtn}>
-            <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color="#000" style={isPlaying ? undefined : { marginLeft: 3 }} />
+            <LinearGradient
+              colors={['#fff', '#f5f5f5']}
+              style={styles.playBtnGradient}
+            >
+              <Ionicons name={isPlaying ? 'pause' : 'play'} size={36} color="#000" style={isPlaying ? undefined : { marginLeft: 4 }} />
+            </LinearGradient>
           </Pressable>
 
           <Pressable onPress={next} style={styles.controlBtn}>
-            <Ionicons name="play-skip-forward" size={32} color="#fff" />
+            <Ionicons name="play-skip-forward" size={36} color="#fff" />
           </Pressable>
 
           <Pressable onPress={toggleRepeat} style={styles.controlBtn}>
             <Ionicons
               name="repeat"
-              size={22}
-              color={repeat !== 'off' ? '#1DB954' : 'rgba(255,255,255,0.4)'}
+              size={24}
+              color={repeat !== 'off' ? '#1DB954' : 'rgba(255,255,255,0.5)'}
             />
             {repeat === 'one' && <View style={styles.repeatOneDot} />}
           </Pressable>
         </View>
 
-        {/* Volume Slider */}
         <VolumeSlider volume={volume} onVolumeChange={setVolume} />
 
-        {/* Toolbar */}
-        <View style={styles.toolbar}>
+        <BlurView intensity={20} tint="dark" style={styles.toolbar}>
           <Pressable
             style={[styles.toolbarBtn, sleepMinutes !== null && styles.toolbarBtnActive]}
             onPress={() => setSleepVisible(true)}
           >
-            <Ionicons name="moon" size={16} color={sleepMinutes !== null ? '#a78bfa' : 'rgba(255,255,255,0.4)'} />
+            <Ionicons name="moon" size={18} color={sleepMinutes !== null ? '#a78bfa' : 'rgba(255,255,255,0.5)'} />
             <Text style={[styles.toolbarLabel, sleepMinutes !== null && styles.toolbarLabelActive]}>
-              {sleepMinutes !== null ? 'Sleep On' : 'Sleep'}
+              Sleep
             </Text>
           </Pressable>
 
@@ -289,22 +312,22 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
             style={[styles.toolbarBtn, playbackSpeed !== 1 && styles.toolbarBtnBlue]}
             onPress={() => setSettingsVisible(true)}
           >
-            <Ionicons name="speedometer-outline" size={16} color={playbackSpeed !== 1 ? '#60a5fa' : 'rgba(255,255,255,0.4)'} />
+            <Ionicons name="speedometer-outline" size={18} color={playbackSpeed !== 1 ? '#60a5fa' : 'rgba(255,255,255,0.5)'} />
             <Text style={[styles.toolbarLabel, playbackSpeed !== 1 && styles.toolbarLabelBlue]}>
               {playbackSpeed}x
             </Text>
           </Pressable>
 
           <Pressable style={styles.toolbarBtn} onPress={() => setSettingsVisible(true)}>
-            <Ionicons name="musical-note-outline" size={16} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.toolbarLabel}>{quality.replace('kbps', '')} kbps</Text>
+            <Ionicons name="musical-note-outline" size={18} color="rgba(255,255,255,0.5)" />
+            <Text style={styles.toolbarLabel}>{quality.replace('kbps', '')}</Text>
           </Pressable>
 
           <Pressable style={styles.toolbarBtn} onPress={() => setEqVisible(true)}>
-            <Ionicons name="options-outline" size={16} color="rgba(255,255,255,0.4)" />
+            <Ionicons name="options-outline" size={18} color="rgba(255,255,255,0.5)" />
             <Text style={styles.toolbarLabel}>EQ</Text>
           </Pressable>
-        </View>
+        </BlurView>
 
         <View style={styles.dragHandle} />
 
@@ -318,46 +341,51 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
+  container: { flex: 1, backgroundColor: '#000' },
   bgImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-  bgOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, paddingTop: 50 },
+  bgGradient: { ...StyleSheet.absoluteFillObject },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
   headerBtn: { padding: 8 },
-  headerLabel: { fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: '600', letterSpacing: 2 },
-  queueBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#1DB954', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center' },
-  queueBadgeText: { fontSize: 9, color: '#000', fontWeight: '700' },
-  artContainer: { alignItems: 'center', paddingVertical: 32, flex: 1, justifyContent: 'center' },
-  albumArt: { width: width - 80, height: width - 80, borderRadius: 16, backgroundColor: '#1a1a1a' },
-  infoRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, marginBottom: 20 },
+  headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerLabel: { fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: '700', letterSpacing: 2 },
+  headerDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#1DB954' },
+  queueBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#1DB954', borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', shadowColor: '#1DB954', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 4 },
+  queueBadgeText: { fontSize: 10, color: '#000', fontWeight: '800' },
+  artContainer: { alignItems: 'center', paddingVertical: 40, flex: 1, justifyContent: 'center' },
+  artShadow: { position: 'absolute', width: width - 60, height: width - 60, borderRadius: 24, backgroundColor: '#1DB954', opacity: 0.15, top: 20, left: 0, right: 0, marginHorizontal: 'auto' },
+  albumArt: { width: width - 60, height: width - 60, borderRadius: 24, backgroundColor: '#1a1a1a', shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.6, shadowRadius: 30, elevation: 20 },
+  playingIndicator: { position: 'absolute', bottom: 20, right: 20, flexDirection: 'row', alignItems: 'flex-end', gap: 4, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
+  playingBar: { width: 3, height: 16, backgroundColor: '#1DB954', borderRadius: 2 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, marginBottom: 24 },
   infoText: { flex: 1 },
-  trackTitle: { fontSize: 22, color: '#fff', fontWeight: 'bold' },
-  trackArtist: { fontSize: 15, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
-  infoActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  downloadBtn: { padding: 8 },
-  likeBtn: { padding: 8 },
-  progressSection: { paddingHorizontal: 24, marginBottom: 8 },
-  progressTrack: { height: 40, backgroundColor: 'transparent', justifyContent: 'center' },
-  progressFill: { position: 'absolute', left: 0, height: 6, backgroundColor: '#1DB954', borderRadius: 3 },
-  progressThumb: { position: 'absolute', top: 17, width: 16, height: 16, backgroundColor: '#fff', borderRadius: 8, marginLeft: -8 },
-  timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
-  timeText: { fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: '500' },
-  seekButtons: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 40, marginBottom: 16 },
-  seekBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20, paddingHorizontal: 16 },
-  seekText: { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20, marginBottom: 24 },
+  trackTitle: { fontSize: 26, color: '#fff', fontWeight: '800', letterSpacing: -0.5 },
+  trackArtist: { fontSize: 16, color: 'rgba(255,255,255,0.65)', marginTop: 6, fontWeight: '500' },
+  infoActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  actionBtn: { padding: 8 },
+  progressSection: { paddingHorizontal: 28, marginBottom: 20 },
+  progressTrack: { height: 44, justifyContent: 'center', position: 'relative' },
+  progressBg: { position: 'absolute', left: 0, right: 0, height: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 3 },
+  progressFill: { position: 'absolute', left: 0, height: 6, borderRadius: 3 },
+  progressThumb: { position: 'absolute', top: 19, width: 16, height: 16, backgroundColor: '#fff', borderRadius: 8, marginLeft: -8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
+  timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  timeText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: '600' },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 28, paddingHorizontal: 20 },
   controlBtn: { padding: 12 },
-  playBtn: { width: 68, height: 68, borderRadius: 34, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
-  repeatOneDot: { position: 'absolute', top: 4, right: 4, width: 4, height: 4, backgroundColor: '#1DB954', borderRadius: 2 },
-  volumeRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, gap: 12, marginBottom: 16 },
-  volumeTrack: { flex: 1, height: 40, backgroundColor: 'transparent', justifyContent: 'center' },
-  volumeFill: { position: 'absolute', left: 0, height: 6, backgroundColor: '#fff', borderRadius: 3 },
-  volumeThumb: { position: 'absolute', top: 17, width: 12, height: 12, backgroundColor: '#fff', borderRadius: 6, marginLeft: -6 },
-  toolbar: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16, paddingVertical: 12 },
-  toolbarBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
-  toolbarBtnActive: { backgroundColor: 'rgba(167,139,250,0.15)' },
-  toolbarBtnBlue: { backgroundColor: 'rgba(96,165,250,0.15)' },
-  toolbarLabel: { fontSize: 11, color: 'rgba(255,255,255,0.5)' },
+  playBtn: { width: 76, height: 76, borderRadius: 38 },
+  playBtnGradient: { width: 76, height: 76, borderRadius: 38, justifyContent: 'center', alignItems: 'center', shadowColor: '#fff', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 12 },
+  repeatOneDot: { position: 'absolute', top: 8, right: 8, width: 5, height: 5, backgroundColor: '#1DB954', borderRadius: 3 },
+  volumeRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, gap: 16, marginBottom: 20 },
+  volumeIcon: { padding: 4 },
+  volumeTrack: { flex: 1, height: 44, justifyContent: 'center', position: 'relative' },
+  volumeBg: { position: 'absolute', left: 0, right: 0, height: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 3 },
+  volumeFill: { position: 'absolute', left: 0, height: 6, borderRadius: 3 },
+  volumeThumb: { position: 'absolute', top: 19, width: 16, height: 16, backgroundColor: '#fff', borderRadius: 8, marginLeft: -8, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 6 },
+  toolbar: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 20, paddingVertical: 16, marginHorizontal: 20, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  toolbarBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16 },
+  toolbarBtnActive: { backgroundColor: 'rgba(167,139,250,0.2)' },
+  toolbarBtnBlue: { backgroundColor: 'rgba(96,165,250,0.2)' },
+  toolbarLabel: { fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
   toolbarLabelActive: { color: '#a78bfa' },
   toolbarLabelBlue: { color: '#60a5fa' },
-  dragHandle: { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginTop: 8, marginBottom: 16 },
+  dragHandle: { width: 50, height: 5, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 3, alignSelf: 'center', marginTop: 16, marginBottom: 20 },
 });
