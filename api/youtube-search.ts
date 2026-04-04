@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { INVIDIOUS_INSTANCES, INVIDIOUS_REQUEST_TIMEOUT, INVIDIOUS_HEADERS } from "./lib/invidious";
-import { checkRateLimit, getRateLimitHeaders, defaultRateLimits } from "./lib/rate-limiter";
+import { INVIDIOUS_INSTANCES, INVIDIOUS_REQUEST_TIMEOUT, INVIDIOUS_HEADERS } from "./lib/invidious.js";
+import { checkRateLimit, getRateLimitHeaders, defaultRateLimits } from "./lib/rate-limiter.js";
 
 interface YouTubeSearchResult {
   videoId: string;
@@ -25,12 +25,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!rateResult.allowed) {
     const headers = getRateLimitHeaders(rateResult.remaining, rateResult.resetTime);
-    Object.entries(headers).forEach(([key, value]) => res.setHeader(key, value));
+    Object.entries(headers).forEach(([key, value]: [string, string]) => res.setHeader(key, value));
     return res.status(429).json({ error: "Too many requests. Please try again later." });
   }
 
   const headers = getRateLimitHeaders(rateResult.remaining, rateResult.resetTime);
-  Object.entries(headers).forEach(([key, value]) => res.setHeader(key, value));
+  Object.entries(headers).forEach(([key, value]: [string, string]) => res.setHeader(key, value));
 
   const query = req.query.q as string;
   if (!query) return res.status(400).json({ error: "Missing q parameter" });

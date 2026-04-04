@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { INVIDIOUS_INSTANCES, INVIDIOUS_REQUEST_TIMEOUT, INVIDIOUS_HEADERS } from "./lib/invidious";
-import { checkRateLimit, getRateLimitHeaders, defaultRateLimits } from "./lib/rate-limiter";
+import { INVIDIOUS_INSTANCES, INVIDIOUS_REQUEST_TIMEOUT, INVIDIOUS_HEADERS } from "./lib/invidious.js";
+import { checkRateLimit, getRateLimitHeaders, defaultRateLimits } from "./lib/rate-limiter.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const allowedOrigin = process.env.ALLOWED_ORIGIN || "https://sonic-bloom-player.vercel.app";
@@ -20,12 +20,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   
   if (!rateResult.allowed) {
     const headers = getRateLimitHeaders(rateResult.remaining, rateResult.resetTime);
-    Object.entries(headers).forEach(([key, value]) => res.setHeader(key, value));
+    Object.entries(headers).forEach(([key, value]: [string, string]) => res.setHeader(key, value));
     return res.status(429).json({ error: "Too many requests. Please try again later." });
   }
   
   const headers = getRateLimitHeaders(rateResult.remaining, rateResult.resetTime);
-  Object.entries(headers).forEach(([key, value]) => res.setHeader(key, value));
+  Object.entries(headers).forEach(([key, value]: [string, string]) => res.setHeader(key, value));
 
   const videoId = req.query.id as string;
   if (!videoId) return res.status(400).json({ error: "Missing id parameter" });
