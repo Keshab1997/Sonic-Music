@@ -35,6 +35,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const query = req.query.q as string;
   if (!query) return res.status(400).json({ error: "Missing q parameter" });
 
+  // Primary: YouTube Data API v3
+  const ytApiKey = process.env.YOUTUBE_API_KEY;
+  if (ytApiKey) {
+    try {
+      const searchRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=25&q=${encodeURIComponent(query)}&key=${ytApiKey}`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        const videoIds: string[] = searchData.items.map((i: any) => i.id.videoId);
+
+        // Fetch durations via videos endpoint
+        const detailRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds.join(",")}&key=${ytApiKey}`,
+          { headers: { Accept: "application/json" } }
+        );
+        const detailData = detailRes.ok ? await detailRes.json() : { items: [] };
+        const durationMap: Record<string, number> = {};
+        for (const item of detailData.items) {
+          const iso = item.contentDetails?.duration || "";
+          const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+          durationMap[item.id] = m ? (parseInt(m[1] || "0") * 3600 + parseInt(m[2] || "0") * 60 + parseInt(m[3] || "0")) : 0;
+        }
+
+        const results: YouTubeSearchResult[] = searchData.items.map((i: any) => ({
+          videoId: i.id.videoId,
+          title: i.snippet.title,
+          author: i.snippet.channelTitle,
+          duration: durationMap[i.id.videoId] || 0,
+          thumbnail: i.snippet.thumbnails?.medium?.url || i.snippet.thumbnails?.default?.url || "",
+        }));
+        return res.status(200).json(results);
+      }
+    } catch (err) {
+      console.error("YouTube API error:", err);
+    }
+  }
+
+  // Fallback: Invidious instances
   const tryInstance = async (instance: string): Promise<YouTubeSearchResult[] | null> => {
     try {
       const controller = new AbortController();
@@ -74,6 +114,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (result) return res.status(200).json(result);
   }
 
-  console.error(`All Invidious instances failed for query: ${query}`);
-  return res.status(200).json([]);
+  console.error(`All sources failed for query: ${query}`);
+  return res.status(500).json({ error: "Search unavailable. Please try again later." });
 }
