@@ -10,6 +10,7 @@ import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
 import { Toast } from '../components/Toast';
+import { lightHaptic, mediumHaptic } from '../lib/haptics';
 import {
   API_BASE, SEARCH_HISTORY_KEY, SEARCH_HISTORY_MAX, SONGS_PER_PAGE,
   TRENDING_SEARCHES, HINDI_ARTISTS, BENGALI_ARTISTS
@@ -187,16 +188,19 @@ export const SearchScreen: React.FC = () => {
   const handleSearch = (q: string) => {
     setQuery(q);
     saveToHistory(q);
+    lightHaptic();
   };
 
   const handleSearchPlay = async (track: Track) => {
     playTrackList([track], 0);
+    mediumHaptic();
   };
 
   const handleArtistPress = (artist: any) => {
     const artistName = typeof artist.name === 'string' ? artist.name : artist.name?.id || artist.name?.name || 'Unknown Artist';
     const artistImage = artist.image?.[0]?.link || '';
     (navigation as any).navigate('ArtistDetail', { artistName, artistImage });
+    mediumHaptic();
   };
 
   const fetchAlbumSongs = useCallback(async (albumId: string, albumName: string) => {
@@ -309,6 +313,7 @@ export const SearchScreen: React.FC = () => {
       const albumCover = rawAlbum.image?.[0]?.link || '';
       const albumArtist = typeof rawAlbum.music === 'string' ? rawAlbum.music : rawAlbum.primaryArtists || '';
       (navigation as any).navigate('AlbumDetail', { albumId: rawAlbum.id, albumName, albumCover, albumArtist });
+      mediumHaptic();
     }
   };
 

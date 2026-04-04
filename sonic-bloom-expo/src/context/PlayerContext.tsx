@@ -376,17 +376,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const newState = !ytPlaying;
       setYtPlaying(newState);
       setIsPlaying(newState);
-    } else if (isPlaying) {
-      await pause();
     } else {
-      if (soundRef.current) { 
-        await soundRef.current.playAsync().catch(() => {}); 
-        setIsPlaying(true); 
+      if (isPlaying) {
+        if (soundRef.current) await soundRef.current.pauseAsync().catch(() => {});
+        setIsPlaying(false);
       } else {
-        play();
+        if (soundRef.current) { 
+          await soundRef.current.playAsync().catch(() => {}); 
+          setIsPlaying(true); 
+        } else {
+          play();
+        }
       }
     }
-  }, [isPlaying, pause, play, ytPlaying]);
+  }, [isPlaying, play, ytPlaying]);
 
   const next = useCallback(() => {
     const q = queueRef.current;
@@ -523,9 +526,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     unlikeCurrentTrack: () => currentTrack ? unlikeSongHook(String(currentTrack.id)) : Promise.resolve(false),
     addToListeningHistory: addToHistory,
   }), [
-    trackList, currentTrack, currentIndex, displayIsPlaying, displayProgress, displayDuration,
+    trackList, currentTrack, currentIndex, displayIsPlaying, 
+    Math.floor(displayProgress), // Round to reduce re-renders
+    displayDuration,
     volume, shuffle, repeat, eqBass, eqMid, eqTreble, playbackSpeed, crossfade,
-    queue, quality, sleepMinutes,
+    queue.length, quality, sleepMinutes,
     play, playTrack, playTrackList, pause, togglePlay, next, prev, seek, setVolume,
     toggleShuffle, toggleRepeat, addToQueue, playNext, removeFromQueue, clearQueue,
     moveQueueItem, shuffleQueue, setEqBass, setEqMid, setEqTreble, applyEqPreset,
