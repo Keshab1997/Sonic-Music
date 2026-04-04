@@ -32,6 +32,13 @@ import {
 // Silent audio data URI to keep audio session alive on mobile
 const SILENT_AUDIO = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 
+// Detect mobile device - important for YouTube playback handling
+const isMobile = () => {
+  if (typeof navigator === "undefined") return false;
+  return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+};
+
 export type AudioQuality = "96kbps" | "160kbps" | "320kbps";
 
 interface PlayerContextType {
@@ -802,7 +809,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [currentTrack?.type, isPlaying]);
 
-  // Keep YouTube player alive on route changes
+  // Keep YouTube player alive on route changes - more aggressive on mobile
   useEffect(() => {
     if (currentTrack?.type === "youtube" && isPlaying && ytPlayerRef.current) {
       // Periodically check if player is still playing
@@ -812,8 +819,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const state = player.getPlayerState();
           // YouTube player states: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (cued)
           if (isPlaying && state !== 1 && state !== 3) {
-            // If should be playing but isn't, restart
+            // If should be playing but isn't, restart - more aggressive on mobile
             player.playVideo?.();
+            player.unMute?.();
+            // On mobile, also try resuming after a short delay
+            if (isMobile()) {
+              setTimeout(() => {
+                player.playVideo?.();
+              }, 200);
+            }
           }
         }
       }, 2000);
@@ -974,12 +988,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             playsinline
             muted={false}
             loop={repeat === "one"}
-            config={{ 
-              youtube: { 
-                playerVars: { 
-                  playsinline: 1, 
-                  origin: window.location.origin, 
-                  enablejsapi: 1, 
+            config={{
+              youtube: {
+                playerVars: {
+                  playsinline: 1,
+                  origin: window.location.origin,
+                  enablejsapi: 1,
                   autoplay: 1,
                   controls: 0,
                   modestbranding: 1,
@@ -991,24 +1005,43 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 },
                 embedOptions: {
                   playsinline: 1,
-                  host: "https://www.youtube.com"
+                  host: "https://www.youtube.com",
+                  // On mobile, use the youtube-nocookie.com domain for better compatibility
+                  playerVars: {
+                    playsinline: 1,
+                    origin: window.location.origin,
+                  }
                 },
                 onUnstarted: () => {
-                  // Auto-play if unstarted
+                  // Auto-play if unstarted - critical for mobile
                   if (isPlaying) {
-                    setTimeout(() => setIsPlaying(true), 500);
+                    setTimeout(() => {
+                      ytPlayerRef.current?.getInternalPlayer()?.playVideo?.();
+                    }, 500);
                   }
                 }
-              } 
+              }
             }}
             onProgress={({ playedSeconds }) => setProgress(playedSeconds)}
             onDuration={(d) => setDuration(d)}
             onReady={() => {
-              // Ensure playback starts when ready
+              // Ensure playback starts when ready - critical for mobile
               if (isPlaying && ytPlayerRef.current) {
-                setTimeout(() => {
-                  ytPlayerRef.current?.getInternalPlayer()?.playVideo?.();
-                }, 100);
+                const startPlayback = () => {
+                  const player = ytPlayerRef.current?.getInternalPlayer();
+                  if (player) {
+                    player.playVideo?.();
+                    player.unMute?.();
+                    // On mobile, retry after a short delay to handle autoplay restrictions
+                    if (isMobile()) {
+                      setTimeout(() => {
+                        player.playVideo?.();
+                        player.unMute?.();
+                      }, 500);
+                    }
+                  }
+                };
+                setTimeout(startPlayback, 100);
               }
             }}
             onPlay={() => {
