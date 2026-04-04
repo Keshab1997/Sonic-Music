@@ -59,23 +59,13 @@ export const useDownloads = () => {
       const file = new FileSystem.File(downloadDir, fileName);
       const localUri = file.uri;
 
-      const downloadResumable = FileSystem.createDownloadResumable(
-        track.src,
-        localUri,
-        {},
-        (downloadProgress: { totalBytesWritten: number; totalBytesExpectedToWrite: number }) => {
-          const progress = Math.round(
-            (downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite) * 100
-          );
-          setDownloading(prev => ({ ...prev, [trackId]: progress }));
-        }
-      );
+      // Use the new File.downloadFileAsync API (no progress callback available)
+      setDownloading(prev => ({ ...prev, [trackId]: 50 }));
+      await FileSystem.File.downloadFileAsync(track.src, file, { idempotent: true });
+      setDownloading(prev => ({ ...prev, [trackId]: 100 }));
 
-      const result = await downloadResumable.downloadAsync();
-      if (result?.uri) {
-        const newDownloads = [...downloads, { track, localUri: result.uri, downloadedAt: Date.now() }];
-        await saveDownloads(newDownloads);
-      }
+      const newDownloads = [...downloads, { track, localUri, downloadedAt: Date.now() }];
+      await saveDownloads(newDownloads);
     } catch (e) {
       console.error('Failed to download track:', e);
     } finally {
