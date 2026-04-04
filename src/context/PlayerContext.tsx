@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Track, playlist } from "@/data/playlist";
 import ReactPlayer from "react-player";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import {
   DEFAULT_VOLUME,
   DEFAULT_AUDIO_QUALITY,
@@ -108,6 +109,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [volume, setVolumeState] = useState(DEFAULT_VOLUME);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<"off" | "all" | "one">("off");
+
+  // Wake lock to prevent device from sleeping while playing
+  useWakeLock(isPlaying);
 
   // Queue state — persisted in localStorage
   const [queue, setQueue] = useState<Track[]>(() => {
@@ -232,11 +236,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [eqBass, eqMid, eqTreble]);
 
-  const playAudio = useCallback(() => {
+  // Helper to resume audio context - critical for background playback on mobile
+  const resumeAudioContext = useCallback(() => {
     setupAudioContext();
     if (audioCtxRef.current?.state === "suspended") {
-      audioCtxRef.current.resume();
+      audioCtxRef.current.resume().catch(() => {});
     }
+    // Also resume silent audio to keep media session alive on mobile
+    if (silentAudioRef.current) {
+      silentAudioRef.current.play().catch(() => {});
+    }
+  }, [setupAudioContext]);
+
+  const playAudio = useCallback(() => {
+    resumeAudioContext();
     setTimeout(() => {
       if (currentTrack?.type === "youtube") {
         // YouTube tracks are handled by ReactPlayer
@@ -246,7 +259,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsPlaying(true);
       }
     }, PLAYBACK_SHORT_DELAY_MS);
-  }, [setupAudioContext, currentTrack?.type]);
+  }, [resumeAudioContext, currentTrack?.type]);
 
   // Queue operations
   const addToQueue = useCallback((track: Track) => {
@@ -418,15 +431,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCurrentIndex(0);
         return newList;
       });
-      // Directly play audio after a delay — don't rely on playAudio() which checks currentTrack type
+      // Directly play audio after a delay — resume audio context for background playback
       setTimeout(() => {
-        setupAudioContext();
-        if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
+        resumeAudioContext();
         audioRef.current?.play().catch(() => {});
         setIsPlaying(true);
       }, PLAYBACK_START_DELAY_MS);
     }
-  }, [setupAudioContext, trackList]);
+  }, [resumeAudioContext, trackList]);
 
   const playTrackList = useCallback((tracks: Track[], index?: number) => {
     setTrackList(tracks);
@@ -439,9 +451,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       audioRef.current?.pause();
       setTimeout(() => setIsPlaying(true), PLAYBACK_START_DELAY_MS);
     } else {
-      setTimeout(() => playAudio(), PRELOAD_NEXT_TRACK_DELAY_MS);
+      setTimeout(() => {
+        resumeAudioContext();
+        playAudio();
+      }, PRELOAD_NEXT_TRACK_DELAY_MS);
     }
-  }, [playAudio]);
+  }, [playAudio, resumeAudioContext]);
 
   const pause = useCallback(() => {
     if (currentTrack?.type === "youtube") {
@@ -488,6 +503,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return newList;
       });
       setProgress(0);
+      // Resume audio context before playing next track - critical for background playback
+      resumeAudioContext();
       setTimeout(() => playAudio(), PLAYBACK_SHORT_DELAY_MS);
       return;
     }
@@ -524,14 +541,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setTimeout(() => setIsPlaying(true), PLAYBACK_START_DELAY_MS);
     } else {
       setIsPlaying(false);
-      setupAudioContext();
-      if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
+      // Resume audio context before playing next track - critical for background playback
+      resumeAudioContext();
       setTimeout(() => {
         audioRef.current?.play().catch(() => {});
         setIsPlaying(true);
       }, PLAYBACK_SHORT_DELAY_MS);
     }
-  }, [currentIndex, shuffle, trackList, setupAudioContext, queue, playAudio]);
+  }, [currentIndex, shuffle, trackList, resumeAudioContext, queue, playAudio]);
 
   const prev = useCallback(() => {
     if (currentTrack?.type !== "youtube" && audioRef.current && audioRef.current.currentTime > 3) {
@@ -548,12 +565,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setTimeout(() => setIsPlaying(true), PLAYBACK_START_DELAY_MS);
     } else {
       setIsPlaying(false);
+      // Resume audio context - critical for background playback
+      resumeAudioContext();
       setTimeout(() => {
         audioRef.current?.play().catch(() => {});
         setIsPlaying(true);
       }, PLAYBACK_SHORT_DELAY_MS);
     }
-  }, [currentIndex, trackList, currentTrack?.type]);
+  }, [currentIndex, trackList, currentTrack?.type, resumeAudioContext]);
 
   const seek = useCallback((time: number) => {
     if (currentTrack?.type === "youtube") {
@@ -809,8 +828,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Small delay to let audio src update
       const t = setTimeout(() => {
         if (audioRef.current && audioRef.current.paused) {
-          setupAudioContext();
-          if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
+          resumeAudioContext();
           audioRef.current.play().catch(() => {});
         }
       }, 150);
@@ -820,7 +838,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentTrack.type === "youtube") {
       audioRef.current?.pause();
     }
-  }, [currentTrack?.src, currentTrack?.type, isPlaying]);
+  }, [currentTrack?.src, currentTrack?.type, isPlaying, resumeAudioContext]);
 
   // Reset when track changes
   useEffect(() => {
