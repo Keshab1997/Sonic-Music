@@ -6,9 +6,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PlayerProvider } from "./src/context/PlayerContext";
 import { AuthProvider } from "./src/context/AuthContext";
+import { DownloadsProvider } from './src/context/DownloadsContext';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
+import { DownloadsPage } from './src/screens/DownloadsPage';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { MiniPlayer } from './src/components/MiniPlayer';
 
@@ -35,6 +37,7 @@ const HomeTabs = () => (
           let iconName: keyof typeof Ionicons.glyphMap = 'home-outline';
           if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
           else if (route.name === 'Search') iconName = focused ? 'search' : 'search-outline';
+          else if (route.name === 'Downloads') iconName = focused ? 'download' : 'download-outline';
           else if (route.name === 'Library') iconName = focused ? 'library' : 'library-outline';
           else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -47,6 +50,7 @@ const HomeTabs = () => (
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Search" component={SearchScreen} />
+      <Tab.Screen name="Downloads" component={DownloadsPage} />
       <Tab.Screen name="Library" component={LibraryScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
@@ -61,12 +65,14 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <PlayerProvider>
-          <NavigationContainer>
-            <SafeAreaView style={styles.safeArea}>
-              <HomeTabs />
-              <StatusBar style="light" />
-            </SafeAreaView>
-          </NavigationContainer>
+          <DownloadsProvider>
+            <NavigationContainer>
+              <SafeAreaView style={styles.safeArea}>
+                <HomeTabs />
+                <StatusBar style="light" />
+              </SafeAreaView>
+            </NavigationContainer>
+          </DownloadsProvider>
         </PlayerProvider>
       </AuthProvider>
     </QueryClientProvider>
