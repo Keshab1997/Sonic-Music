@@ -8,6 +8,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
+import { Toast } from '../components/Toast';
 import { API_BASE } from '../data/constants';
 
 const { width } = Dimensions.get('window');
@@ -26,6 +27,12 @@ export const ArtistDetailScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { currentTrack, isPlaying, playTrackList, addToQueue } = usePlayer();
   const { isDownloaded, isDownloading, downloadTrack, getDownloadProgress } = useDownloadsContext();
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error'; visible: boolean }>({ message: '', type: 'success', visible: false });
+
+  const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ message, type, visible: true });
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500);
+  }, []);
 
   useEffect(() => {
     fetchArtistSongs();
@@ -114,8 +121,12 @@ export const ArtistDetailScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.downloadBtn}
             onPress={() => {
-              if (downloaded) return;
+              if (downloaded) {
+                showToast('Already downloaded', 'info');
+                return;
+              }
               downloadTrack(item);
+              showToast('Downloading...', 'info');
             }}
             disabled={downloading}
             activeOpacity={0.7}
@@ -168,11 +179,18 @@ export const ArtistDetailScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.headerBtn}
                 onPress={() => {
+                  let count = 0;
                   songs.forEach(track => {
                     if (!isDownloaded(String(track.id))) {
                       downloadTrack(track);
+                      count++;
                     }
                   });
+                  if (count > 0) {
+                    showToast(`Downloading ${count} songs`, 'info');
+                  } else {
+                    showToast('All songs already downloaded', 'info');
+                  }
                 }}
                 activeOpacity={0.7}
               >
@@ -183,6 +201,7 @@ export const ArtistDetailScreen: React.FC = () => {
                 style={styles.headerBtn}
                 onPress={() => {
                   songs.forEach(track => addToQueue(track));
+                  showToast(`Added ${songs.length} songs to queue`, 'success');
                 }}
                 activeOpacity={0.7}
               >
@@ -191,7 +210,10 @@ export const ArtistDetailScreen: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.playAllBtn}
-                onPress={() => handlePlay(0)}
+                onPress={() => {
+                  handlePlay(0);
+                  showToast(`Playing ${songs.length} songs`, 'success');
+                }}
                 activeOpacity={0.7}
               >
                 <Ionicons name="play" size={20} color="#000" />
@@ -210,6 +232,9 @@ export const ArtistDetailScreen: React.FC = () => {
           />
         </>
       )}
+
+      {/* Toast Notification */}
+      <Toast message={toast.message} type={toast.type} visible={toast.visible} />
     </View>
   );
 };
