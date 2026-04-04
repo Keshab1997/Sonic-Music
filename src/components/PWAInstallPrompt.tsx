@@ -74,7 +74,7 @@ export function PWAInstallPrompt({ onInstall, onDismiss }: PWAInstallPromptProps
                 <Smartphone size={22} className="text-primary-foreground" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-foreground">Install Pulse</h3>
+                <h3 className="text-base font-bold text-foreground">Install Sonic Bloom</h3>
                 <p className="text-xs text-muted-foreground">Get the full app experience</p>
               </div>
             </div>

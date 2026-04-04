@@ -1,7 +1,7 @@
 {
-  "name": "Pulse Music Player",
-  "short_name": "Pulse",
-  "description": "Premium music player with synced lyrics, equalizer, and multi-language support",
+  "name": "Sonic Bloom",
+  "short_name": "Sonic Bloom",
+  "description": "Premium music player with synced lyrics, equalizer, and multi-language support. Created by Keshab Sarkar",
   "start_url": "/",
   "display": "standalone",
   "background_color": "hsl(240, 6%, 7%)",

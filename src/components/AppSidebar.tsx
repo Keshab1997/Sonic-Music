@@ -1,15 +1,16 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Home, Search, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X, User, Youtube, Download } from "lucide-react";
+import { Home, Search, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X, User, Youtube, Download, LogOut } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { usePlaylists } from "@/hooks/usePlaylists";
 import { useArtistFavorites } from "@/hooks/useArtistFavorites";
 import { useLocalData } from "@/hooks/useLocalData";
+import { useAuth } from "@/context/AuthContext";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { ArtistPlaylist } from "@/components/ArtistPlaylist";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
@@ -24,7 +25,9 @@ export const AppSidebar = () => {
   const { playlists, createPlaylist, deletePlaylist, renamePlaylist } = usePlaylists();
   const { favorites: artistFavorites, removeFavorite: removeArtistFav } = useArtistFavorites();
   const { favorites: likedSongs } = useLocalData();
+  const { user, signOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [showCreateInput, setShowCreateInput] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState("");
@@ -55,7 +58,7 @@ export const AppSidebar = () => {
       <div className="p-5 pb-3 flex items-center justify-between flex-shrink-0">
         <Link to="/">
           <h1 className="text-2xl font-bold text-foreground tracking-tight">
-            <span className="text-gradient-brand">Pulse</span>
+            <span className="text-gradient-brand">Sonic Bloom</span>
           </h1>
         </Link>
         <button
@@ -272,6 +275,33 @@ export const AppSidebar = () => {
           onClose={() => setSelectedArtist(null)}
         />,
         document.body
+      )}
+
+      {/* User profile section */}
+      {user && (
+        <div className="border-t border-sidebar-border p-3 flex-shrink-0">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <User size={14} className="text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground truncate">
+                {user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'}
+              </p>
+              <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+            </div>
+            <button
+              onClick={async () => {
+                await signOut();
+                navigate('/login');
+              }}
+              className="p-1.5 text-muted-foreground hover:text-destructive rounded-full hover:bg-sidebar-accent transition-colors"
+              title="Sign out"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        </div>
       )}
     </aside>
   );

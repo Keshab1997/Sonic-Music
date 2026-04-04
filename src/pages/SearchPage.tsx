@@ -183,7 +183,7 @@ const SongRow = (
   );
 };
 
-export const SearchPage = () => {
+const SearchPage = () => {
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"search" | "favorites">("search");
   const [searchSource, setSearchSource] = useState<"saavn" | "ytmusic">("saavn");
@@ -523,3 +523,5 @@ export const SearchPage = () => {
     </main>
   );
 };
+
+export default SearchPage;

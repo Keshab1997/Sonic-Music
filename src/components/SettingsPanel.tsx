@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Moon, Settings, Zap, X } from "lucide-react";
+import { Moon, Settings, Zap, X, Info } from "lucide-react";
 import { usePlayer, AudioQuality } from "@/context/PlayerContext";
 
 interface SettingsPanelProps {
-  panelType: "sleep" | "quality" | "speed" | null;
+  panelType: "sleep" | "quality" | "speed" | "about" | null;
   onClose: () => void;
 }
 
@@ -34,6 +34,22 @@ export const SettingsPanel = ({ panelType, onClose }: SettingsPanelProps) => {
 
   const renderPanel = () => {
     switch (panelType) {
+      case "about":
+        return (
+          <div className="p-4 text-center">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+              <Zap size={24} className="text-primary" />
+            </div>
+            <h4 className="text-lg font-bold text-foreground mb-1">Sonic Bloom</h4>
+            <p className="text-xs text-muted-foreground mb-4">Version 1.0.0</p>
+            <p className="text-xs text-muted-foreground">Created by</p>
+            <p className="text-sm font-medium text-foreground mb-4">Keshab Sarkar</p>
+            <p className="text-xs text-muted-foreground/60">
+              A premium music player with synced lyrics, equalizer, and multi-language support.
+            </p>
+          </div>
+        );
+
       case "sleep":
         return (
           <div className="p-4">
@@ -116,6 +132,8 @@ export const SettingsPanel = ({ panelType, onClose }: SettingsPanelProps) => {
 
   const getTitle = () => {
     switch (panelType) {
+      case "about":
+        return "About";
       case "sleep":
         return "Sleep Timer";
       case "quality":
@@ -129,6 +147,8 @@ export const SettingsPanel = ({ panelType, onClose }: SettingsPanelProps) => {
 
   const getIcon = () => {
     switch (panelType) {
+      case "about":
+        return <Info size={14} />;
       case "sleep":
         return <Moon size={14} />;
       case "quality":

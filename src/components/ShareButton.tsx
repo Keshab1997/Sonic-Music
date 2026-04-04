@@ -13,7 +13,7 @@ export function ShareButton({ track, className = "", iconSize = 16 }: ShareButto
   const [copied, setCopied] = useState(false);
 
   const handleShare = useCallback(async () => {
-    const shareText = `${track.title} by ${track.artist} — Sonic Bloom Player`;
+    const shareText = `${track.title} by ${track.artist} — Sonic Bloom`;
     const shareUrl = track.songId
       ? `https://www.jiosaavn.com/song/${track.songId}`
       : window.location.href;
