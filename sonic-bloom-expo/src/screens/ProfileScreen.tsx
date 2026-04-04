@@ -344,7 +344,11 @@ export const ProfileScreen: React.FC = () => {
             <Ionicons name="chevron-forward" size={18} color="#555" />
           </Pressable>
 
-          <Pressable style={styles.settingItem} onPress={() => Alert.alert('Terms & Privacy', 'Terms of Service and Privacy Policy coming soon')}>
+          <Pressable style={styles.settingItem} onPress={() => Alert.alert(
+            'Terms & Privacy',
+            '📜 Terms of Service\n\nBy using Sonic Bloom, you agree to:\n• Use the app for personal, non-commercial purposes\n• Respect copyright and intellectual property rights\n• Not attempt to reverse engineer or modify the app\n• Comply with YouTube\'s Terms of Service\n\n🔒 Privacy Policy\n\nWe value your privacy:\n• Your data is stored securely with Supabase\n• We don\'t sell or share your personal information\n• Profile pictures are stored in secure cloud storage\n• Downloads are stored locally on your device\n• You can delete your account and data anytime\n\nFor questions: contact@sonicbloom.app',
+            [{ text: 'Close', style: 'cancel' }]
+          )}>
             <View style={styles.settingLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons name="document-text-outline" size={20} color="#1DB954" />

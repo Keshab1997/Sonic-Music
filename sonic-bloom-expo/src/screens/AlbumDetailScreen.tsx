@@ -10,6 +10,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
 import { CachedImage } from '../components/CachedImage';
 import { Toast } from '../components/Toast';
+import { lightHaptic, mediumHaptic } from '../lib/haptics';
 import { API_BASE } from '../data/constants';
 
 const { width } = Dimensions.get('window');
@@ -119,6 +120,7 @@ export const AlbumDetailScreen: React.FC = () => {
 
   const handlePlay = (index: number) => {
     playTrackList(songs, index);
+    mediumHaptic();
   };
 
   const renderItem = ({ item, index }: { item: Track; index: number }) => {
