@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TouchableOpacity, Text, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayer } from '../context/PlayerContext';
+import { useLikedSongsContext } from '../context/LikedSongsContext';
 import { FullScreenPlayer } from './FullScreenPlayer';
 import { CachedImage } from './CachedImage';
 import { lightHaptic } from '../lib/haptics';
@@ -12,11 +13,22 @@ interface MiniPlayerProps {
 
 export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
   const { currentTrack, isPlaying, togglePlay, next, prev, progress, duration } = usePlayer();
+  const { isLiked, toggleLike } = useLikedSongsContext();
   const [fsVisible, setFsVisible] = useState(false);
 
   if (!currentTrack) return null;
 
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
+  const trackId = currentTrack?.id ? String(currentTrack.id) : '';
+  const liked = trackId ? isLiked(trackId) : false;
+
+  const handleToggleLike = (e: any) => {
+    e.stopPropagation();
+    if (currentTrack) {
+      toggleLike(currentTrack);
+      lightHaptic();
+    }
+  };
 
   return (
     <>
@@ -43,6 +55,13 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
             {currentTrack.artist}
           </Text>
         </View>
+        <TouchableOpacity 
+          style={styles.miniBtn} 
+          onPress={handleToggleLike}
+          activeOpacity={0.7}
+        >
+          <Ionicons name={liked ? "heart" : "heart-outline"} size={22} color={liked ? "#1DB954" : "#fff"} />
+        </TouchableOpacity>
         <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); prev(); lightHaptic(); }} activeOpacity={0.7}>
           <Ionicons name="play-skip-back" size={20} color="#fff" />
         </TouchableOpacity>

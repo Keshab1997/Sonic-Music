@@ -1,13 +1,10 @@
-import React, { useRef, useCallback, useState, memo, useEffect } from 'react';
+import React, { useRef, useCallback, useState, useMemo, memo } from 'react';
 import {
-  View, Text, Image, Modal,
-  Dimensions, PanResponder, Animated, StyleSheet, ActivityIndicator, Pressable,
+  View, Text, Image, TouchableOpacity, Modal,
+  Dimensions, PanResponder, Animated, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { usePlayer } from '../context/PlayerContext';
-import { useDownloadsContext } from '../context/DownloadsContext';
 import { QueueManager } from './QueueManager';
 import { SleepTimerSheet } from './SleepTimerSheet';
 import { PlaybackSettingsSheet } from './PlaybackSettingsSheet';
@@ -22,102 +19,56 @@ const formatTime = (s: number) => {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 };
 
+// Memoized progress bar to avoid re-rendering the whole screen
 const ProgressBar = memo(({ progress, duration, onSeek }: { progress: number; duration: number; onSeek: (t: number) => void }) => {
   const progressBarRef = useRef<View>(null);
   const [seeking, setSeeking] = useState(false);
   const [seekValue, setSeekValue] = useState(0);
-  
   const displayProgress = seeking ? seekValue : progress;
   const progressPercent = duration > 0 ? (displayProgress / duration) * 100 : 0;
 
-  const handleTouch = useCallback((pageX: number, isEnd: boolean) => {
-    progressBarRef.current?.measure((x, y, w, h, px, py) => {
-      const relX = Math.max(0, Math.min(pageX - px, w));
-      const newTime = (relX / w) * duration;
-      if (isEnd) {
-        onSeek(newTime);
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (e) => {
+      setSeeking(true);
+      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
+        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
+        setSeekValue((relX / (width - 48)) * duration);
+      });
+    },
+    onPanResponderMove: (e) => {
+      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
+        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
+        setSeekValue((relX / (width - 48)) * duration);
+      });
+    },
+    onPanResponderRelease: (e) => {
+      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
+        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
+        onSeek((relX / (width - 48)) * duration);
         setSeeking(false);
-      } else {
-        setSeekValue(newTime);
-        if (!seeking) setSeeking(true);
-      }
-    });
-  }, [duration, onSeek, seeking]);
+      });
+    },
+  }), [duration, onSeek]);
 
   return (
     <View style={styles.progressSection}>
-      <Pressable
+      <View
         ref={progressBarRef}
         style={styles.progressTrack}
-        onTouchStart={(e) => handleTouch(e.nativeEvent.pageX, false)}
-        onTouchMove={(e) => handleTouch(e.nativeEvent.pageX, false)}
-        onTouchEnd={(e) => handleTouch(e.nativeEvent.pageX, true)}
+        {...panResponder.panHandlers}
       >
-        <View style={styles.progressBg} />
-        <LinearGradient
-          colors={['#1DB954', '#1ed760']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[styles.progressFill, { width: `${progressPercent}%` }]}
-        />
+        <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
         <View style={[styles.progressThumb, { left: `${progressPercent}%` }]} />
-      </Pressable>
+      </View>
       <View style={styles.timeRow}>
         <Text style={styles.timeText}>{formatTime(displayProgress)}</Text>
         <Text style={styles.timeText}>{formatTime(duration)}</Text>
       </View>
     </View>
   );
-}, (prev, next) => Math.abs(prev.progress - next.progress) < 1 && prev.duration === next.duration);
-
-const VolumeSlider = memo(({ volume, onVolumeChange }: { volume: number; onVolumeChange: (v: number) => void }) => {
-  const volumeBarRef = useRef<View>(null);
-  const [adjusting, setAdjusting] = useState(false);
-  const [tempVolume, setTempVolume] = useState(volume);
-  
-  const displayVolume = adjusting ? tempVolume : volume;
-
-  const handleTouch = useCallback((pageX: number, isEnd: boolean) => {
-    volumeBarRef.current?.measure((x, y, w, h, px, py) => {
-      const relX = Math.max(0, Math.min(pageX - px, w));
-      const newVol = relX / w;
-      if (isEnd) {
-        onVolumeChange(newVol);
-        setAdjusting(false);
-      } else {
-        setTempVolume(newVol);
-        if (!adjusting) setAdjusting(true);
-      }
-    });
-  }, [onVolumeChange, adjusting]);
-
-  return (
-    <View style={styles.volumeRow}>
-      <Pressable onPress={() => onVolumeChange(0)} style={styles.volumeIcon}>
-        <Ionicons name={displayVolume === 0 ? "volume-mute" : "volume-low"} size={22} color="rgba(255,255,255,0.7)" />
-      </Pressable>
-      <Pressable 
-        ref={volumeBarRef}
-        style={styles.volumeTrack}
-        onTouchStart={(e) => handleTouch(e.nativeEvent.pageX, false)}
-        onTouchMove={(e) => handleTouch(e.nativeEvent.pageX, false)}
-        onTouchEnd={(e) => handleTouch(e.nativeEvent.pageX, true)}
-      >
-        <View style={styles.volumeBg} />
-        <LinearGradient
-          colors={['#fff', '#f0f0f0']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[styles.volumeFill, { width: `${displayVolume * 100}%` }]}
-        />
-        <View style={[styles.volumeThumb, { left: `${displayVolume * 100}%` }]} />
-      </Pressable>
-      <Pressable onPress={() => onVolumeChange(1)} style={styles.volumeIcon}>
-        <Ionicons name="volume-high" size={22} color="rgba(255,255,255,0.7)" />
-      </Pressable>
-    </View>
-  );
-}, (prev, next) => Math.abs(prev.volume - next.volume) < 0.05);
+});
 
 interface Props {
   visible: boolean;
@@ -137,11 +88,9 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
   const [sleepVisible, setSleepVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [eqVisible, setEqVisible] = useState(false);
-  const { isDownloaded, isDownloading, downloadTrack } = useDownloadsContext();
 
+  // Swipe down to close
   const translateY = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) => g.dy > 10 && Math.abs(g.dy) > Math.abs(g.dx),
@@ -158,25 +107,11 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
     })
   ).current;
 
-  useEffect(() => {
-    if (isPlaying) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(scaleAnim, { toValue: 1.02, duration: 1000, useNativeDriver: true }),
-          Animated.timing(scaleAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
-        ])
-      ).start();
-    } else {
-      scaleAnim.setValue(1);
-    }
-  }, [isPlaying, scaleAnim]);
+  const handleModalShow = useCallback(() => {
+    translateY.setValue(0);
+  }, [translateY]);
 
   if (!currentTrack) return null;
-
-  const trackId = String(currentTrack.id);
-  const isLiked = isCurrentTrackLiked;
-  const downloaded = isDownloaded(trackId);
-  const downloading = isDownloading(trackId);
 
   return (
     <Modal
@@ -184,156 +119,168 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
       animationType="slide"
       transparent={false}
       statusBarTranslucent
+      onShow={handleModalShow}
       onRequestClose={onClose}
     >
       <Animated.View style={[styles.container, { transform: [{ translateY }] }]} {...panResponder.panHandlers}>
-        <Image source={{ uri: currentTrack.cover }} style={styles.bgImage} blurRadius={80} />
-        <LinearGradient
-          colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)', 'rgba(0,0,0,0.95)']}
-          style={styles.bgGradient}
-        />
+        {/* Background - no blur for performance */}
+        <Image source={{ uri: currentTrack.cover }} style={styles.bgImage} />
+        <View style={styles.bgOverlay} />
 
-        <BlurView intensity={20} tint="dark" style={styles.header}>
-          <Pressable onPress={onClose} style={styles.headerBtn}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.headerBtn} activeOpacity={0.7}>
             <Ionicons name="chevron-down" size={28} color="#fff" />
-          </Pressable>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerLabel}>NOW PLAYING</Text>
-            <View style={styles.headerDot} />
-          </View>
-          <Pressable onPress={() => setQueueVisible(true)} style={styles.headerBtn}>
-            <Ionicons name="list" size={24} color="rgba(255,255,255,0.9)" />
-            {queue.length > 0 && (
-              <View style={styles.queueBadge}>
-                <Text style={styles.queueBadgeText}>{queue.length > 9 ? '9+' : queue.length}</Text>
-              </View>
-            )}
-          </Pressable>
-        </BlurView>
-
-        <View style={styles.artContainer}>
-          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-            <View style={styles.artShadow} />
-            <Image
-              source={{ uri: currentTrack.cover }}
-              style={styles.albumArt}
-              resizeMode="cover"
-            />
-            {isPlaying && (
-              <View style={styles.playingIndicator}>
-                <View style={styles.playingBar} />
-                <View style={styles.playingBar} />
-                <View style={styles.playingBar} />
-                <View style={styles.playingBar} />
-              </View>
-            )}
-          </Animated.View>
+          </TouchableOpacity>
+          <Text style={styles.headerLabel}>NOW PLAYING</Text>
+          <TouchableOpacity onPress={() => setQueueVisible(true)} style={styles.headerBtn} activeOpacity={0.7}>
+            <View>
+              <Ionicons name="list" size={22} color="rgba(255,255,255,0.7)" />
+              {queue.length > 0 && (
+                <View style={styles.queueBadge}>
+                  <Text style={styles.queueBadgeText}>{queue.length > 9 ? '9+' : queue.length}</Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
         </View>
 
+        {/* Album Art */}
+        <View style={styles.artContainer}>
+          <Image
+            source={{ uri: currentTrack.cover }}
+            style={[styles.albumArt, { transform: [{ scale: isPlaying ? 1 : 0.92 }] }]}
+          />
+        </View>
+
+        {/* Track Info + Like */}
         <View style={styles.infoRow}>
           <View style={styles.infoText}>
             <Text style={styles.trackTitle} numberOfLines={1}>{currentTrack.title}</Text>
             <Text style={styles.trackArtist} numberOfLines={1}>{currentTrack.artist}</Text>
           </View>
-          <View style={styles.infoActions}>
-            <Pressable
-              onPress={() => {
-                if (!downloaded && !downloading) downloadTrack(currentTrack);
-              }}
-              style={styles.actionBtn}
-              disabled={downloaded || downloading}
-            >
-              {downloading ? (
-                <ActivityIndicator size="small" color="#1DB954" />
-              ) : downloaded ? (
-                <Ionicons name="checkmark-circle" size={26} color="#1DB954" />
-              ) : (
-                <Ionicons name="download-outline" size={26} color="rgba(255,255,255,0.6)" />
-              )}
-            </Pressable>
-            <Pressable onPress={() => isLiked ? unlikeCurrentTrack() : likeCurrentTrack()} style={styles.actionBtn}>
-              <Ionicons
-                name={isLiked ? 'heart' : 'heart-outline'}
-                size={28}
-                color={isLiked ? '#ef4444' : 'rgba(255,255,255,0.6)'}
-              />
-            </Pressable>
-          </View>
+          <TouchableOpacity
+            onPress={() => isCurrentTrackLiked ? unlikeCurrentTrack() : likeCurrentTrack()}
+            activeOpacity={0.7}
+            style={styles.likeBtn}
+          >
+            <Ionicons
+              name={isCurrentTrackLiked ? 'heart' : 'heart-outline'}
+              size={26}
+              color={isCurrentTrackLiked ? '#ef4444' : 'rgba(255,255,255,0.5)'}
+            />
+          </TouchableOpacity>
         </View>
 
+        {/* Progress Bar - memoized */}
         <ProgressBar progress={progress} duration={duration} onSeek={seek} />
 
+        {/* Controls */}
         <View style={styles.controls}>
-          <Pressable onPress={toggleShuffle} style={styles.controlBtn}>
-            <Ionicons name="shuffle" size={24} color={shuffle ? '#1DB954' : 'rgba(255,255,255,0.5)'} />
-          </Pressable>
+          <TouchableOpacity onPress={toggleShuffle} activeOpacity={0.7} style={styles.controlBtn}>
+            <Ionicons name="shuffle" size={22} color={shuffle ? '#1DB954' : 'rgba(255,255,255,0.4)'} />
+          </TouchableOpacity>
 
-          <Pressable onPress={prev} style={styles.controlBtn}>
-            <Ionicons name="play-skip-back" size={36} color="#fff" />
-          </Pressable>
+          <TouchableOpacity onPress={prev} activeOpacity={0.7} style={styles.controlBtn}>
+            <Ionicons name="play-skip-back" size={32} color="#fff" />
+          </TouchableOpacity>
 
-          <Pressable onPress={togglePlay} style={styles.playBtn}>
-            <LinearGradient
-              colors={['#fff', '#f5f5f5']}
-              style={styles.playBtnGradient}
-            >
-              <Ionicons name={isPlaying ? 'pause' : 'play'} size={36} color="#000" style={isPlaying ? undefined : { marginLeft: 4 }} />
-            </LinearGradient>
-          </Pressable>
+          <TouchableOpacity onPress={togglePlay} activeOpacity={0.85} style={styles.playBtn}>
+            <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color="#000" style={isPlaying ? undefined : { marginLeft: 3 }} />
+          </TouchableOpacity>
 
-          <Pressable onPress={next} style={styles.controlBtn}>
-            <Ionicons name="play-skip-forward" size={36} color="#fff" />
-          </Pressable>
+          <TouchableOpacity onPress={next} activeOpacity={0.7} style={styles.controlBtn}>
+            <Ionicons name="play-skip-forward" size={32} color="#fff" />
+          </TouchableOpacity>
 
-          <Pressable onPress={toggleRepeat} style={styles.controlBtn}>
+          <TouchableOpacity onPress={toggleRepeat} activeOpacity={0.7} style={styles.controlBtn}>
             <Ionicons
               name="repeat"
-              size={24}
-              color={repeat !== 'off' ? '#1DB954' : 'rgba(255,255,255,0.5)'}
+              size={22}
+              color={repeat !== 'off' ? '#1DB954' : 'rgba(255,255,255,0.4)'}
             />
-            {repeat === 'one' && <View style={styles.repeatOneDot} />}
-          </Pressable>
+            {repeat === 'one' && (
+              <View style={styles.repeatOneDot} />
+            )}
+          </TouchableOpacity>
         </View>
 
-        <VolumeSlider volume={volume} onVolumeChange={setVolume} />
+        {/* Volume */}
+        <View style={styles.volumeRow}>
+          <Ionicons name="volume-low" size={18} color="rgba(255,255,255,0.4)" />
+          <View style={styles.volumeTrack}>
+            <View style={[styles.volumeFill, { width: `${volume * 100}%` }]} />
+            <View style={[styles.volumeThumb, { left: `${volume * 100}%` }]} />
+          </View>
+          <Ionicons name="volume-high" size={18} color="rgba(255,255,255,0.4)" />
+        </View>
 
-        <BlurView intensity={20} tint="dark" style={styles.toolbar}>
-          <Pressable
+        {/* Volume tap zones */}
+        <View style={styles.volumeTapRow}>
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setVolume(Math.max(0, volume - 0.1))} activeOpacity={0.5} />
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setVolume(Math.min(1, volume + 0.1))} activeOpacity={0.5} />
+        </View>
+
+        {/* Toolbar: Sleep + Settings */}
+        <View style={styles.toolbar}>
+          {/* Sleep Timer */}
+          <TouchableOpacity
             style={[styles.toolbarBtn, sleepMinutes !== null && styles.toolbarBtnActive]}
             onPress={() => setSleepVisible(true)}
+            activeOpacity={0.7}
           >
-            <Ionicons name="moon" size={18} color={sleepMinutes !== null ? '#a78bfa' : 'rgba(255,255,255,0.5)'} />
+            <Ionicons name="moon" size={16} color={sleepMinutes !== null ? '#a78bfa' : 'rgba(255,255,255,0.4)'} />
             <Text style={[styles.toolbarLabel, sleepMinutes !== null && styles.toolbarLabelActive]}>
-              Sleep
+              {sleepMinutes !== null ? 'Sleep On' : 'Sleep'}
             </Text>
-          </Pressable>
+          </TouchableOpacity>
 
-          <Pressable
+          {/* Playback Speed */}
+          <TouchableOpacity
             style={[styles.toolbarBtn, playbackSpeed !== 1 && styles.toolbarBtnBlue]}
             onPress={() => setSettingsVisible(true)}
+            activeOpacity={0.7}
           >
-            <Ionicons name="speedometer-outline" size={18} color={playbackSpeed !== 1 ? '#60a5fa' : 'rgba(255,255,255,0.5)'} />
+            <Ionicons name="speedometer-outline" size={16} color={playbackSpeed !== 1 ? '#60a5fa' : 'rgba(255,255,255,0.4)'} />
             <Text style={[styles.toolbarLabel, playbackSpeed !== 1 && styles.toolbarLabelBlue]}>
               {playbackSpeed}x
             </Text>
-          </Pressable>
+          </TouchableOpacity>
 
-          <Pressable style={styles.toolbarBtn} onPress={() => setSettingsVisible(true)}>
-            <Ionicons name="musical-note-outline" size={18} color="rgba(255,255,255,0.5)" />
-            <Text style={styles.toolbarLabel}>{quality.replace('kbps', '')}</Text>
-          </Pressable>
+          {/* Audio Quality */}
+          <TouchableOpacity
+            style={styles.toolbarBtn}
+            onPress={() => setSettingsVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="musical-note-outline" size={16} color="rgba(255,255,255,0.4)" />
+            <Text style={styles.toolbarLabel}>{quality.replace('kbps', '')} kbps</Text>
+          </TouchableOpacity>
 
-          <Pressable style={styles.toolbarBtn} onPress={() => setEqVisible(true)}>
-            <Ionicons name="options-outline" size={18} color="rgba(255,255,255,0.5)" />
+          {/* Equalizer */}
+          <TouchableOpacity
+            style={styles.toolbarBtn}
+            onPress={() => setEqVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="options-outline" size={16} color="rgba(255,255,255,0.4)" />
             <Text style={styles.toolbarLabel}>EQ</Text>
-          </Pressable>
-        </BlurView>
+          </TouchableOpacity>
+        </View>
 
+        {/* Drag indicator */}
         <View style={styles.dragHandle} />
 
+        {/* Queue Manager */}
         <QueueManager visible={queueVisible} onClose={() => setQueueVisible(false)} />
+
+        {/* Sleep Timer */}
         <SleepTimerSheet visible={sleepVisible} onClose={() => setSleepVisible(false)} />
+
+        {/* Playback Settings */}
         <PlaybackSettingsSheet visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
+
+        {/* Equalizer */}
         <EqualizerPanel visible={eqVisible} onClose={() => setEqVisible(false)} />
       </Animated.View>
     </Modal>
@@ -341,51 +288,42 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: '#0a0a0a' },
   bgImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-  bgGradient: { ...StyleSheet.absoluteFillObject },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  bgOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.65)' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
   headerBtn: { padding: 8 },
-  headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerLabel: { fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: '700', letterSpacing: 2 },
-  headerDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#1DB954' },
-  queueBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#1DB954', borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', shadowColor: '#1DB954', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 4 },
-  queueBadgeText: { fontSize: 10, color: '#000', fontWeight: '800' },
-  artContainer: { alignItems: 'center', paddingVertical: 40, flex: 1, justifyContent: 'center' },
-  artShadow: { position: 'absolute', width: width - 60, height: width - 60, borderRadius: 24, backgroundColor: '#1DB954', opacity: 0.15, top: 20, left: 0, right: 0, marginHorizontal: 'auto' },
-  albumArt: { width: width - 60, height: width - 60, borderRadius: 24, backgroundColor: '#1a1a1a', shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.6, shadowRadius: 30, elevation: 20 },
-  playingIndicator: { position: 'absolute', bottom: 20, right: 20, flexDirection: 'row', alignItems: 'flex-end', gap: 4, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  playingBar: { width: 3, height: 16, backgroundColor: '#1DB954', borderRadius: 2 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, marginBottom: 24 },
+  headerLabel: { fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: '600', letterSpacing: 2 },
+  queueBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#1DB954', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center' },
+  queueBadgeText: { fontSize: 9, color: '#000', fontWeight: '700' },
+  artContainer: { alignItems: 'center', paddingVertical: 24 },
+  albumArt: { width: width - 80, height: width - 80, borderRadius: 12, backgroundColor: '#1a1a1a' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, marginBottom: 16 },
   infoText: { flex: 1 },
-  trackTitle: { fontSize: 26, color: '#fff', fontWeight: '800', letterSpacing: -0.5 },
-  trackArtist: { fontSize: 16, color: 'rgba(255,255,255,0.65)', marginTop: 6, fontWeight: '500' },
-  infoActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  actionBtn: { padding: 8 },
-  progressSection: { paddingHorizontal: 28, marginBottom: 20 },
-  progressTrack: { height: 44, justifyContent: 'center', position: 'relative' },
-  progressBg: { position: 'absolute', left: 0, right: 0, height: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 3 },
-  progressFill: { position: 'absolute', left: 0, height: 6, borderRadius: 3 },
-  progressThumb: { position: 'absolute', top: 19, width: 16, height: 16, backgroundColor: '#fff', borderRadius: 8, marginLeft: -8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
+  trackTitle: { fontSize: 20, color: '#fff', fontWeight: 'bold' },
+  trackArtist: { fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
+  likeBtn: { padding: 8 },
+  progressSection: { paddingHorizontal: 24, marginBottom: 16 },
+  progressTrack: { height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2, position: 'relative' },
+  progressFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#1DB954', borderRadius: 2 },
+  progressThumb: { position: 'absolute', top: -6, width: 16, height: 16, backgroundColor: '#fff', borderRadius: 8, marginLeft: -8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  timeText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: '600' },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 28, paddingHorizontal: 20 },
-  controlBtn: { padding: 12 },
-  playBtn: { width: 76, height: 76, borderRadius: 38 },
-  playBtnGradient: { width: 76, height: 76, borderRadius: 38, justifyContent: 'center', alignItems: 'center', shadowColor: '#fff', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 12 },
-  repeatOneDot: { position: 'absolute', top: 8, right: 8, width: 5, height: 5, backgroundColor: '#1DB954', borderRadius: 3 },
-  volumeRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, gap: 16, marginBottom: 20 },
-  volumeIcon: { padding: 4 },
-  volumeTrack: { flex: 1, height: 44, justifyContent: 'center', position: 'relative' },
-  volumeBg: { position: 'absolute', left: 0, right: 0, height: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 3 },
-  volumeFill: { position: 'absolute', left: 0, height: 6, borderRadius: 3 },
-  volumeThumb: { position: 'absolute', top: 19, width: 16, height: 16, backgroundColor: '#fff', borderRadius: 8, marginLeft: -8, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 6 },
-  toolbar: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 20, paddingVertical: 16, marginHorizontal: 20, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  toolbarBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16 },
-  toolbarBtnActive: { backgroundColor: 'rgba(167,139,250,0.2)' },
-  toolbarBtnBlue: { backgroundColor: 'rgba(96,165,250,0.2)' },
-  toolbarLabel: { fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
+  timeText: { fontSize: 12, color: 'rgba(255,255,255,0.5)' },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24, marginBottom: 20 },
+  controlBtn: { padding: 8 },
+  playBtn: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
+  repeatOneDot: { position: 'absolute', top: 4, right: 4, width: 4, height: 4, backgroundColor: '#1DB954', borderRadius: 2 },
+  volumeRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, gap: 12, marginBottom: 4 },
+  volumeTrack: { flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2, position: 'relative' },
+  volumeFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#fff', borderRadius: 2 },
+  volumeThumb: { position: 'absolute', top: -4, width: 12, height: 12, backgroundColor: '#fff', borderRadius: 6, marginLeft: -6 },
+  volumeTapRow: { flexDirection: 'row', height: 24, marginHorizontal: 24 },
+  toolbar: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16, paddingVertical: 12, marginTop: 8 },
+  toolbarBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
+  toolbarBtnActive: { backgroundColor: 'rgba(167,139,250,0.15)' },
+  toolbarBtnBlue: { backgroundColor: 'rgba(96,165,250,0.15)' },
+  toolbarLabel: { fontSize: 11, color: 'rgba(255,255,255,0.5)' },
   toolbarLabelActive: { color: '#a78bfa' },
   toolbarLabelBlue: { color: '#60a5fa' },
-  dragHandle: { width: 50, height: 5, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 3, alignSelf: 'center', marginTop: 16, marginBottom: 20 },
+  dragHandle: { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginTop: 16 },
 });

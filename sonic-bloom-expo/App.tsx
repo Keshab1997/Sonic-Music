@@ -8,10 +8,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PlayerProvider } from "./src/context/PlayerContext";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { DownloadsProvider } from './src/context/DownloadsContext';
+import { LikedSongsProvider } from './src/context/LikedSongsContext';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
 import { DownloadsPage } from './src/screens/DownloadsPage';
+import { LikedSongsPage } from './src/screens/LikedSongsPage';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SignupScreen } from './src/screens/SignupScreen';
@@ -77,6 +79,7 @@ const MainNavigator = () => (
       <Stack.Screen name="Tabs" component={TabNavigator} />
       <Stack.Screen name="ArtistDetail" component={ArtistDetailScreen} />
       <Stack.Screen name="AlbumDetail" component={AlbumDetailScreen} />
+      <Stack.Screen name="LikedSongs" component={LikedSongsPage} />
     </Stack.Navigator>
     <MiniPlayer />
   </View>
@@ -108,10 +111,12 @@ export default function App() {
       <AuthProvider>
         <PlayerProvider>
           <DownloadsProvider>
-            <SafeAreaView style={styles.safeArea}>
-              <RootNavigator />
-              <StatusBar style="light" />
-            </SafeAreaView>
+            <LikedSongsProvider>
+              <SafeAreaView style={styles.safeArea}>
+                <RootNavigator />
+                <StatusBar style="light" />
+              </SafeAreaView>
+            </LikedSongsProvider>
           </DownloadsProvider>
         </PlayerProvider>
       </AuthProvider>
