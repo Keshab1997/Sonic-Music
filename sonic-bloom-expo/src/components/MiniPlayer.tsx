@@ -1,121 +1,72 @@
-
-import { Play, Pause, SkipForward, X, Maximize2, ListPlus } from "lucide-react-native";
-import { usePlayer } from "@/context/PlayerContext";
-import { usePlaylists } from "@/hooks/usePlaylists";
-import { toast } from "sonner";
+import React, { useState } from 'react';
+import { TouchableOpacity, Image, Text, View, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { usePlayer } from '../context/PlayerContext';
+import { FullScreenPlayer } from './FullScreenPlayer';
 
 interface MiniPlayerProps {
-  onExpand: () => void;
-  onClose: () => void;
+  onExpand?: () => void;
 }
 
-export const MiniPlayer = ({ onExpand, onClose }: MiniPlayerProps) => {
-  const { currentTrack, isPlaying, togglePlay, next, progress, duration, tracks, playTrackList } = usePlayer();
-  const { createPlaylist, addToPlaylist } = usePlaylists();
-
-  const handleNewPlaylist = () => {
-    if (tracks.length === 0) {
-      toast.info("No tracks to save", { description: "Play some songs first" });
-      return;
-    }
-
-    // Save current playlist with timestamp
-    const playlistName = `Playlist - ${new Date().toLocaleString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-    const newPl = createPlaylist(playlistName);
-    
-    // Add all current tracks to the new playlist
-    tracks.forEach((track) => addToPlaylist(newPl.id, track));
-    
-    toast.success("Playlist saved", {
-      description: `${tracks.length} songs saved to "${playlistName}"`,
-    });
-
-    // Clear current playlist and start fresh
-    playTrackList([], 0);
-  };
+export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
+  const { currentTrack, isPlaying, togglePlay, next, prev, progress, duration } = usePlayer();
+  const [fsVisible, setFsVisible] = useState(false);
 
   if (!currentTrack) return null;
 
-  const progressPercent = duration ? (progress / duration) * 100 : 0;
+  const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
 
   return (
-    <div className="fixed bottom-[140px] md:bottom-24 right-2 md:right-4 z-[101] md:z-50 w-[calc(100vw-1rem)] max-w-72 glass-heavy border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-up">
-      {/* Progress bar at top */}
-      <div className="h-0.5 bg-muted">
-        <div
-          className="h-full bg-primary transition-all duration-300"
-          style={{ width: `${progressPercent}%` }}
+    <>
+      <TouchableOpacity
+        style={styles.miniPlayer}
+        activeOpacity={0.9}
+        onPress={() => { onExpand?.(); setFsVisible(true); }}
+      >
+        {/* Progress bar at top of mini player */}
+        <View style={styles.miniProgressTrack}>
+          <View style={[styles.miniProgressFill, { width: `${progressPercent}%` }]} />
+        </View>
+
+        <Image
+          source={{ uri: currentTrack.cover }}
+          style={styles.miniCover}
+          defaultSource={require('../../assets/icon.png')}
         />
-      </div>
+        <View style={styles.miniInfo}>
+          <Text style={styles.miniTitle} numberOfLines={1}>
+            {currentTrack.title}
+          </Text>
+          <Text style={styles.miniArtist} numberOfLines={1}>
+            {currentTrack.artist}
+          </Text>
+        </View>
+        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); prev(); }} activeOpacity={0.7}>
+          <Ionicons name="play-skip-back" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); togglePlay(); }} activeOpacity={0.7}>
+          <Ionicons name={isPlaying ? "pause" : "play"} size={26} color="#1DB954" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); next(); }} activeOpacity={0.7}>
+          <Ionicons name="play-skip-forward" size={20} color="#fff" />
+        </TouchableOpacity>
+      </TouchableOpacity>
 
-      <div className="p-3 flex items-center gap-3">
-        {/* Cover */}
-        <div className="relative flex-shrink-0 cursor-pointer" onClick={onExpand}>
-          <img
-            src={currentTrack.cover}
-            alt=""
-            className="w-11 h-11 rounded-lg object-cover shadow-md"
-          />
-          {isPlaying && (
-            <div className="absolute bottom-0.5 left-0.5 flex items-end gap-0.5">
-              <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse-glow" />
-              <span className="w-0.5 h-3 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
-              <span className="w-0.5 h-1.5 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
-            </div>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0 cursor-pointer" onClick={onExpand}>
-          <p className="text-xs font-medium text-foreground truncate">{currentTrack.title}</p>
-          <p className="text-[10px] text-muted-foreground truncate">{currentTrack.artist}</p>
-        </div>
-
-        {/* Controls */}
-        <div className="flex items-center gap-1">
-          <button
-            onClick={togglePlay}
-            className="w-10 h-10 rounded-full bg-primary flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
-          >
-            {isPlaying ? (
-              <Pause size={16} className="text-primary-foreground" />
-            ) : (
-              <Play size={16} className="text-primary-foreground ml-0.5" />
-            )}
-          </button>
-          <button
-            onClick={next}
-            className="p-2 text-muted-foreground hover:text-foreground active:scale-90 transition-all"
-          >
-            <SkipForward size={16} />
-          </button>
-          <button
-            onClick={handleNewPlaylist}
-            className="p-2 text-muted-foreground hover:text-green-400 active:scale-90 transition-all"
-            title="Save playlist & start new"
-          >
-            <ListPlus size={14} />
-          </button>
-          <button
-            onClick={onExpand}
-            className="p-2 text-muted-foreground hover:text-foreground active:scale-90 transition-all"
-          >
-            <Maximize2 size={14} />
-          </button>
-          <button
-            onClick={onClose}
-            className="p-2 text-muted-foreground/50 hover:text-muted-foreground active:scale-90 transition-all"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      </div>
-    </div>
+      <FullScreenPlayer
+        visible={fsVisible}
+        onClose={() => setFsVisible(false)}
+      />
+    </>
   );
 };
 
+const styles = StyleSheet.create({
+  miniPlayer: { position: 'absolute', bottom: 60, left: 0, right: 0, zIndex: 999, backgroundColor: '#1a1a1a', borderTopWidth: 1, borderTopColor: '#2a2a2a', paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
+  miniProgressTrack: { position: 'absolute', top: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(255,255,255,0.1)' },
+  miniProgressFill: { height: '100%', backgroundColor: '#1DB954' },
+  miniCover: { width: 44, height: 44, borderRadius: 6, backgroundColor: '#2a2a2a' },
+  miniInfo: { flex: 1, marginLeft: 10 },
+  miniTitle: { fontSize: 13, fontWeight: 'bold', color: '#fff' },
+  miniArtist: { fontSize: 11, color: '#888' },
+  miniBtn: { padding: 8 },
+});

@@ -1,0 +1,766 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  View, Text, ScrollView, Image, TextInput, TouchableOpacity,
+  ActivityIndicator, StyleSheet, Dimensions
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Track } from '../data/playlist';
+import { usePlayer } from '../context/PlayerContext';
+import { Toast } from '../components/Toast';
+import {
+  API_BASE, SEARCH_HISTORY_KEY, SEARCH_HISTORY_MAX, SONGS_PER_PAGE,
+  TRENDING_SEARCHES, HINDI_ARTISTS, BENGALI_ARTISTS
+} from '../data/constants';
+
+const { width } = Dimensions.get('window');
+
+export const SearchScreen: React.FC = () => {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Track[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [activeFilter, setActiveFilter] = useState<"songs" | "artists" | "albums">("songs");
+  const [artistResults, setArtistResults] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalResults, setTotalResults] = useState(0);
+  const [albumSongs, setAlbumSongs] = useState<Track[]>([]);
+  const [selectedAlbum, setSelectedAlbum] = useState<{ id: string; name: string } | null>(null);
+  const [loadingAlbum, setLoadingAlbum] = useState(false);
+  const [rawAlbums, setRawAlbums] = useState<any[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error'; visible: boolean }>({ message: '', type: 'success', visible: false });
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { currentTrack, isPlaying, addToQueue, playTrackList } = usePlayer();
+
+  const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ message, type, visible: true });
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500);
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(SEARCH_HISTORY_KEY).then((data) => {
+      if (data) {
+        try { setSearchHistory(JSON.parse(data)); } catch {}
+      }
+    });
+  }, []);
+
+  const saveToHistory = useCallback(async (q: string) => {
+    if (!q.trim()) return;
+    setSearchHistory((prev) => {
+      const updated = [q, ...prev.filter((h) => h !== q)].slice(0, SEARCH_HISTORY_MAX);
+      AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    setSearchHistory([]);
+    AsyncStorage.removeItem(SEARCH_HISTORY_KEY);
+  }, []);
+
+  const fetchSongs = useCallback(async (searchQuery: string, page: number, append = false) => {
+    try {
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=${SONGS_PER_PAGE}`);
+      if (!res.ok) return { tracks: [], hasMore: false, total: 0 };
+      const data = await res.json();
+      const songs = data.data?.results || [];
+      const total = data.data?.total || songs.length;
+      const offset = append ? results.length : 0;
+      const tracks: Track[] = songs
+        .map((s: any, i: number) => {
+          if (!s.downloadUrl?.length) return null;
+          const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+          const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+          const url320 = s.downloadUrl.find((d: any) => d.quality === "320kbps")?.link;
+          const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+          if (!bestUrl) return null;
+          return {
+            id: 80000 + offset + i,
+            title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+            artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: any) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
+            src: bestUrl,
+            duration: parseInt(String(s.duration)) || 0,
+            type: "audio" as const,
+            songId: s.id,
+            audioUrls: {
+              ...(url96 ? { "96kbps": url96 } : {}),
+              ...(url160 ? { "160kbps": url160 } : {}),
+              ...(url320 ? { "320kbps": url320 } : {}),
+            },
+          };
+        })
+        .filter((t: Track | null): t is Track => t !== null);
+      return { tracks, hasMore: songs.length >= SONGS_PER_PAGE, total };
+    } catch {
+      return { tracks: [], hasMore: false, total: 0 };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) {
+      setResults([]);
+      setArtistResults([]);
+      setTotalResults(0);
+      setCurrentPage(1);
+      setHasMore(true);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      setCurrentPage(1);
+      if (activeFilter === "songs") {
+        const { tracks, hasMore, total } = await fetchSongs(query, 1);
+        setResults(tracks);
+        setHasMore(hasMore);
+        setTotalResults(total);
+        setArtistResults([]);
+      } else if (activeFilter === "artists") {
+        try {
+          const res = await fetch(`${API_BASE}/search/artists?query=${encodeURIComponent(query)}&page=1&limit=30`);
+          if (res.ok) {
+            const data = await res.json();
+            setArtistResults(data.data?.results || []);
+          }
+        } catch {}
+        setResults([]);
+        setTotalResults(0);
+      } else if (activeFilter === "albums") {
+        try {
+          const res = await fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(query)}&page=1&limit=30`);
+          if (res.ok) {
+            const data = await res.json();
+            const albums = data.data?.results || [];
+            setRawAlbums(albums);
+            const albumTracks: Track[] = albums.map((a: any, i: number) => {
+              const albumName = typeof a.name === 'string' ? a.name : a.name?.name || a.name?.id || "Unknown Album";
+              const artistName = typeof a.music === 'string' ? a.music :
+                                 typeof a.primaryArtists === 'string' ? a.primaryArtists :
+                                 a.music?.name || a.primaryArtists?.name || a.primaryArtists?.id || "Unknown";
+              const coverUrl = Array.isArray(a.image) ?
+                               (a.image[0]?.link || a.image[a.image.length - 1]?.link || "") :
+                               (typeof a.image === 'string' ? a.image : "");
+              return {
+                id: 90000 + i,
+                title: albumName,
+                artist: artistName,
+                album: albumName,
+                cover: coverUrl,
+                src: "",
+                duration: 0,
+                type: "audio" as const,
+                songId: a.id,
+              };
+            });
+            setResults(albumTracks);
+            setTotalResults(albums.length);
+          }
+        } catch {}
+        setArtistResults([]);
+        setHasMore(false);
+      }
+      setLoading(false);
+    }, 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, activeFilter, fetchSongs]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || activeFilter !== "songs") return;
+    setLoadingMore(true);
+    const nextPage = currentPage + 1;
+    const { tracks, hasMore: more } = await fetchSongs(query, nextPage, true);
+    setResults((prev) => [...prev, ...tracks]);
+    setHasMore(more);
+    setCurrentPage(nextPage);
+    setLoadingMore(false);
+  }, [loadingMore, hasMore, currentPage, query, activeFilter, fetchSongs]);
+
+  const handleSearch = (q: string) => {
+    setQuery(q);
+    saveToHistory(q);
+  };
+
+  const handleSearchPlay = async (track: Track) => {
+    playTrackList([track], 0);
+  };
+
+  const handleArtistPress = (artist: any) => {
+    const artistName = typeof artist.name === 'string' ? artist.name : artist.name?.id || artist.name?.name || 'Unknown Artist';
+    handleSearch(artistName);
+    setActiveFilter("songs");
+  };
+
+  const fetchAlbumSongs = useCallback(async (albumId: string, albumName: string) => {
+    setLoadingAlbum(true);
+    setSelectedAlbum({ id: albumId, name: albumName });
+    setAlbumSongs([]);
+    try {
+      const res = await fetch(`${API_BASE}/albums?id=${albumId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const songs = data.data?.songs || [];
+        if (songs.length > 0) {
+          const tracks: Track[] = songs
+            .map((s: any, i: number) => {
+              if (!s.downloadUrl?.length) return null;
+              const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+              const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+              const url320 = s.downloadUrl.find((d: any) => d.quality === "320kbps")?.link;
+              const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+              if (!bestUrl) return null;
+              return {
+                id: 95000 + i,
+                title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+                artist: s.primaryArtists || "Unknown",
+                album: albumName,
+                cover: s.image?.find((img: any) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
+                src: bestUrl,
+                duration: parseInt(String(s.duration)) || 0,
+                type: "audio" as const,
+                songId: s.id,
+                audioUrls: {
+                  ...(url96 ? { "96kbps": url96 } : {}),
+                  ...(url160 ? { "160kbps": url160 } : {}),
+                  ...(url320 ? { "320kbps": url320 } : {}),
+                },
+              };
+            })
+            .filter((t: Track | null): t is Track => t !== null);
+          setAlbumSongs(tracks);
+          setLoadingAlbum(false);
+          return;
+        }
+      }
+    } catch (e) { console.log('Album fetch error:', e); }
+    try {
+      const res = await fetch(`${API_BASE}/playlists?id=${albumId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const songs = data.data?.songs || [];
+        if (songs.length > 0) {
+          const tracks: Track[] = songs
+            .map((s: any, i: number) => {
+              if (!s.downloadUrl?.length) return null;
+              const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+              const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+              const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+              return {
+                id: 95000 + i,
+                title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+                artist: s.primaryArtists || "Unknown",
+                album: albumName,
+                cover: s.image?.find((img: any) => img.quality === "500x500")?.link || "",
+                src: bestUrl,
+                duration: parseInt(String(s.duration)) || 0,
+                type: "audio" as const,
+                songId: s.id,
+              };
+            })
+            .filter((t: Track | null): t is Track => t !== null);
+          setAlbumSongs(tracks);
+          setLoadingAlbum(false);
+          return;
+        }
+      }
+    } catch {}
+    try {
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(albumName)}&page=1&limit=50`);
+      if (res.ok) {
+        const data = await res.json();
+        const songs = data.data?.results || [];
+        const tracks: Track[] = songs
+          .map((s: any, i: number) => {
+            if (!s.downloadUrl?.length) return null;
+            const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+            const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+            const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+            return {
+              id: 95000 + i,
+              title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+              artist: s.primaryArtists || "Unknown",
+              album: albumName,
+              cover: s.image?.find((img: any) => img.quality === "500x500")?.link || "",
+              src: bestUrl,
+              duration: parseInt(String(s.duration)) || 0,
+              type: "audio" as const,
+              songId: s.id,
+            };
+          })
+          .filter((t: Track | null): t is Track => t !== null);
+        setAlbumSongs(tracks);
+      }
+    } catch {}
+    setLoadingAlbum(false);
+  }, []);
+
+  const handleAlbumPress = (index: number) => {
+    const rawAlbum = rawAlbums[index];
+    if (rawAlbum && rawAlbum.id) {
+      const albumName = typeof rawAlbum.name === 'string' ? rawAlbum.name : rawAlbum.name?.name || rawAlbum.name?.id || "Unknown Album";
+      fetchAlbumSongs(rawAlbum.id, albumName);
+    }
+  };
+
+  const backToAlbums = () => {
+    setSelectedAlbum(null);
+    setAlbumSongs([]);
+  };
+
+  const FILTERS = [
+    { key: "songs" as const, label: "Songs", icon: "musical-notes" },
+    { key: "artists" as const, label: "Artists", icon: "people" },
+    { key: "albums" as const, label: "Albums", icon: "disc" },
+  ];
+
+  return (
+    <View style={styles.container}>
+      <Toast message={toast.message} type={toast.type} visible={toast.visible} />
+      
+      {/* Search Bar */}
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={18} color="#555" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search songs, artists, albums..."
+          placeholderTextColor="#555"
+          value={query}
+          onChangeText={setQuery}
+          returnKeyType="search"
+        />
+        {query.length > 0 && (
+          <TouchableOpacity onPress={() => setQuery("")} activeOpacity={0.7}>
+            <Ionicons name="close" size={18} color="#555" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Filter Chips */}
+        {query.length > 0 && (
+          <View style={styles.filterChips}>
+            {FILTERS.map((f) => (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.filterChip, { backgroundColor: activeFilter === f.key ? '#1DB954' : '#1a1a1a' }]}
+                onPress={() => setActiveFilter(f.key)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={f.icon as any} size={14} color={activeFilter === f.key ? '#000' : '#888'} />
+                <Text style={[styles.filterChipText, { color: activeFilter === f.key ? '#000' : '#888' }]}>
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Empty State - No Query */}
+        {!query ? (
+          <>
+            {/* Trending Searches */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🔥 Trending Searches</Text>
+              <View style={styles.trendingGrid}>
+                {TRENDING_SEARCHES.map((t, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.trendingBtn}
+                    onPress={() => handleSearch(t.query)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.trendingBtnText}>{t.title}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Top Artists Grid */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🎤 Top Artists</Text>
+              <View style={styles.artistsGrid}>
+                {[...HINDI_ARTISTS, ...BENGALI_ARTISTS].slice(0, 8).map((artist, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.artistItem}
+                    onPress={() => handleSearch(artist.query)}
+                    activeOpacity={0.7}
+                  >
+                    <Image
+                      source={{ uri: artist.image }}
+                      style={styles.artistImage}
+                    />
+                    <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Search History */}
+            {searchHistory.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.historyHeader}>
+                  <Text style={styles.sectionTitle}>🕐 Recent Searches</Text>
+                  <TouchableOpacity onPress={clearHistory} activeOpacity={0.7}>
+                    <Text style={styles.clearAllText}>Clear All</Text>
+                  </TouchableOpacity>
+                </View>
+                {searchHistory.map((h, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.historyItem}
+                    onPress={() => handleSearch(h)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="time-outline" size={18} color="#555" />
+                    <Text style={styles.historyText} numberOfLines={1}>{h}</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const updated = searchHistory.filter((_, idx) => idx !== i);
+                        setSearchHistory(updated);
+                        AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated));
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="close" size={18} color="#555" />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </>
+        ) : loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#1DB954" />
+            <Text style={styles.loadingText}>Searching...</Text>
+          </View>
+        ) : results.length === 0 && artistResults.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="musical-notes-outline" size={64} color="#333" />
+            <Text style={styles.emptyText}>No results found for "{query}"</Text>
+          </View>
+        ) : (
+          <>
+            {/* Songs Results */}
+            {activeFilter === "songs" && results.length > 0 && (
+              <View style={styles.resultsContainer}>
+                <View style={styles.resultsActions}>
+                  <Text style={styles.resultsCount}>
+                    Showing {results.length} of {totalResults}+ results
+                  </Text>
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => {
+                        results.forEach(track => addToQueue(track));
+                        showToast(`Added ${results.length} songs to queue`, 'success');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="list" size={14} color="#1DB954" />
+                      <Text style={styles.actionBtnText}>Add to Queue</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={async () => {
+                        setLoading(true);
+                        const randomPage = Math.floor(Math.random() * 10) + 1;
+                        try {
+                          const res = await fetch(
+                            `${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=${randomPage}&limit=${SONGS_PER_PAGE}`
+                          );
+                          if (res.ok) {
+                            const data = await res.json();
+                            const songs = data.data?.results || [];
+                            const tracks: Track[] = songs
+                              .map((s: any, i: number) => {
+                                if (!s.downloadUrl?.length) return null;
+                                const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+                                const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+                                const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+                                return {
+                                  id: 80000 + i,
+                                  title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+                                  artist: s.primaryArtists || "Unknown",
+                                  album: typeof s.album === "string" ? s.album : s.album?.name || "",
+                                  cover: s.image?.find((img: any) => img.quality === "500x500")?.link || "",
+                                  src: bestUrl,
+                                  duration: parseInt(String(s.duration)) || 0,
+                                  type: "audio" as const,
+                                  songId: s.id,
+                                };
+                              })
+                              .filter((t: Track | null): t is Track => t !== null);
+                            setResults(tracks);
+                            setCurrentPage(1);
+                            setHasMore(true);
+                            showToast(`Loaded ${tracks.length} new songs`, 'info');
+                          }
+                        } catch {
+                          showToast('Failed to load more songs', 'error');
+                        }
+                        setLoading(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="shuffle" size={14} color="#1DB954" />
+                      <Text style={styles.actionBtnText}>Next</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.playAllBtn]}
+                      onPress={() => {
+                        playTrackList(results, 0);
+                        showToast(`Playing ${results.length} songs`, 'success');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="play" size={14} color="#000" />
+                      <Text style={[styles.actionBtnText, { color: '#000' }]}>Play All</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {results.map((item, index) => {
+                  const isCurrentTrack = currentTrack?.id === item.id;
+                  return (
+                    <TouchableOpacity
+                      key={`${item.id}-${index}`}
+                      style={[
+                        styles.songRow,
+                        isCurrentTrack && styles.songRowActive
+                      ]}
+                      onPress={() => handleSearchPlay(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.songImageContainer}>
+                        <Image
+                          source={{ uri: item.cover || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' }}
+                          style={styles.songImage}
+                        />
+                        {isCurrentTrack && (
+                          <View style={styles.songOverlay}>
+                            <Ionicons name={isPlaying ? ("play-back" as any) : "play"} size={20} color="#1DB954" />
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.songInfo}>
+                        <Text style={[styles.songTitle, isCurrentTrack && styles.songTitleActive]} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        <Text style={styles.songArtist} numberOfLines={1}>{item.artist}</Text>
+                      </View>
+                      <TouchableOpacity style={styles.songAddBtn} onPress={() => addToQueue(item)} activeOpacity={0.7}>
+                        <Ionicons name="add-circle-outline" size={24} color="#1DB954" />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {/* Load More Button */}
+                {hasMore && activeFilter === "songs" && (
+                  <TouchableOpacity
+                    style={styles.loadMoreBtn}
+                    onPress={loadMore}
+                    disabled={loadingMore}
+                    activeOpacity={0.7}
+                  >
+                    {loadingMore ? (
+                      <ActivityIndicator size="small" color="#1DB954" />
+                    ) : (
+                      <Text style={styles.loadMoreText}>Load More Songs</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+                {!hasMore && results.length > 0 && (
+                  <Text style={styles.noMoreText}>No more results</Text>
+                )}
+              </View>
+            )}
+
+            {/* Artists Results */}
+            {activeFilter === "artists" && artistResults.length > 0 && (
+              <View style={styles.resultsContainer}>
+                <Text style={styles.resultsSubTitle}>Artists ({artistResults.length})</Text>
+                <View style={styles.artistsResultsGrid}>
+                  {artistResults.map((artist: any, i: number) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={styles.artistResultItem}
+                      onPress={() => handleArtistPress(artist)}
+                      activeOpacity={0.7}
+                    >
+                      <Image
+                        source={{ uri: artist.image?.[0]?.link || '' }}
+                        style={styles.artistResultImage}
+                      />
+                      <Text style={styles.artistResultName} numberOfLines={1}>{artist.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Albums Results / Album Songs View */}
+            {activeFilter === "albums" && (
+              <View style={styles.resultsContainer}>
+                {selectedAlbum && albumSongs.length > 0 ? (
+                  <>
+                    <View style={styles.albumHeader}>
+                      <TouchableOpacity onPress={backToAlbums} activeOpacity={0.7} style={styles.backBtn}>
+                        <Ionicons name="arrow-back" size={18} color="#1DB954" />
+                        <Text style={styles.backBtnText}>Back to Albums</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.playAllSmallBtn}
+                        onPress={() => playTrackList(albumSongs, 0)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="play" size={16} color="#1DB954" />
+                        <Text style={styles.playAllSmallText}>Play All</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.albumNameTitle}>{selectedAlbum.name}</Text>
+                    <Text style={styles.albumSongCount}>{albumSongs.length} songs</Text>
+                    {loadingAlbum ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color="#1DB954" />
+                      </View>
+                    ) : (
+                      albumSongs.map((track, index) => {
+                        const isCurrentTrack = currentTrack?.id === track.id;
+                        return (
+                          <TouchableOpacity
+                            key={`${track.id}-${index}`}
+                            style={[styles.songRow, isCurrentTrack && styles.songRowActive]}
+                            onPress={() => playTrackList(albumSongs, index)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={styles.songImageContainer}>
+                              <Image
+                                source={{ uri: track.cover || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' }}
+                                style={[styles.songImage, { width: 48, height: 48 }]}
+                              />
+                              {isCurrentTrack && (
+                                <View style={styles.songOverlay}>
+                                  <Ionicons name={isPlaying ? ("play-back" as any) : "play"} size={18} color="#1DB954" />
+                                </View>
+                              )}
+                            </View>
+                            <View style={styles.songInfo}>
+                              <Text style={[styles.songTitle, isCurrentTrack && styles.songTitleActive]} numberOfLines={1}>{track.title}</Text>
+                              <Text style={styles.songArtist} numberOfLines={1}>{track.artist}</Text>
+                            </View>
+                            <TouchableOpacity style={styles.songAddBtn} onPress={() => addToQueue(track)} activeOpacity={0.7}>
+                              <Ionicons name="add-circle-outline" size={22} color="#1DB954" />
+                            </TouchableOpacity>
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </>
+                ) : loadingAlbum ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#1DB954" />
+                    <Text style={styles.loadingText}>Loading album...</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.resultsSubTitle}>Albums ({results.length})</Text>
+                    <View style={styles.albumsGrid}>
+                      {results.map((album, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={styles.albumGridItem}
+                          onPress={() => handleAlbumPress(i)}
+                          activeOpacity={0.7}
+                        >
+                          <Image
+                            source={{ uri: album.cover || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' }}
+                            style={styles.albumGridImage}
+                          />
+                          <Text style={styles.albumGridTitle} numberOfLines={1}>{album.title}</Text>
+                          <Text style={styles.albumGridArtist} numberOfLines={1}>{album.artist}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
+          </>
+        )}
+      </ScrollView>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0a0a0a' },
+  scrollContent: { paddingBottom: 140 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginHorizontal: 16, marginTop: 12, marginBottom: 8, gap: 10 },
+  searchInput: { flex: 1, color: '#fff', fontSize: 15 },
+  filterChips: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 12, gap: 8 },
+  filterChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, gap: 6 },
+  filterChipText: { fontSize: 12, fontWeight: '600' },
+  section: { paddingHorizontal: 16, marginTop: 8 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 12 },
+  trendingGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  trendingBtn: { backgroundColor: '#1a0808', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: '#222' },
+  trendingBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+  artistsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  artistItem: { width: (width - 56) / 4 - 9, alignItems: 'center' },
+  artistImage: { width: '100%', aspectRatio: 1, borderRadius: 999, backgroundColor: '#1a1a1a', marginBottom: 6 },
+  artistName: { fontSize: 11, color: '#ccc', textAlign: 'center' },
+  historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  clearAllText: { fontSize: 12, color: '#1DB954' },
+  historyItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1a1a1a', gap: 12 },
+  historyText: { flex: 1, fontSize: 14, color: '#ccc' },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+  loadingText: { color: '#555', fontSize: 14, marginTop: 12 },
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+  emptyText: { color: '#555', fontSize: 14, marginTop: 12 },
+  resultsContainer: { paddingHorizontal: 16 },
+  resultsActions: { marginBottom: 12 },
+  resultsCount: { fontSize: 14, color: '#888', marginBottom: 8 },
+  actionButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1a1a1a', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 },
+  actionBtnText: { fontSize: 12, color: '#1DB954', fontWeight: '600' },
+  playAllBtn: { backgroundColor: '#1DB954' },
+  songRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
+  songRowActive: { backgroundColor: '#0d1f0d', borderRadius: 8, paddingHorizontal: 8 },
+  songImageContainer: { position: 'relative' },
+  songImage: { width: 52, height: 52, borderRadius: 8, backgroundColor: '#1a1a1a' },
+  songOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  songInfo: { flex: 1 },
+  songTitle: { fontSize: 14, color: '#fff', fontWeight: '600' },
+  songTitleActive: { color: '#1DB954' },
+  songArtist: { fontSize: 12, color: '#888', marginTop: 2 },
+  songAddBtn: { padding: 8 },
+  loadMoreBtn: { marginTop: 16, paddingVertical: 12, backgroundColor: '#1a1a1a', borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#1DB954' },
+  loadMoreText: { fontSize: 14, color: '#1DB954', fontWeight: '600' },
+  noMoreText: { textAlign: 'center', fontSize: 12, color: '#555', marginTop: 16, marginBottom: 8 },
+  resultsSubTitle: { fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 12 },
+  artistsResultsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  artistResultItem: { width: (width - 56) / 3 - 8, alignItems: 'center' },
+  artistResultImage: { width: '100%', aspectRatio: 1, borderRadius: 999, backgroundColor: '#1a1a1a', marginBottom: 6 },
+  artistResultName: { fontSize: 12, color: '#ccc', textAlign: 'center' },
+  albumHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  backBtnText: { fontSize: 14, color: '#1DB954' },
+  playAllSmallBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  playAllSmallText: { fontSize: 12, color: '#1DB954', fontWeight: '600' },
+  albumNameTitle: { fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 4 },
+  albumSongCount: { fontSize: 12, color: '#888', marginBottom: 12 },
+  albumsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  albumGridItem: { width: (width - 56) / 3 - 8 },
+  albumGridImage: { width: '100%', aspectRatio: 1, borderRadius: 8, backgroundColor: '#1a1a1a', marginBottom: 6 },
+  albumGridTitle: { fontSize: 12, color: '#ccc', fontWeight: '600' },
+  albumGridArtist: { fontSize: 10, color: '#888' },
+});
