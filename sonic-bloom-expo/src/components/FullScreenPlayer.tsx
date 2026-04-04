@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useState, useMemo } from 'react';
+import React, { useRef, useCallback, useState, useMemo, memo } from 'react';
 import {
   View, Text, Image, TouchableOpacity, Modal,
   Dimensions, PanResponder, Animated, StyleSheet,
@@ -18,6 +18,57 @@ const formatTime = (s: number) => {
   const sec = Math.floor(s % 60);
   return `${m}:${sec.toString().padStart(2, '0')}`;
 };
+
+// Memoized progress bar to avoid re-rendering the whole screen
+const ProgressBar = memo(({ progress, duration, onSeek }: { progress: number; duration: number; onSeek: (t: number) => void }) => {
+  const progressBarRef = useRef<View>(null);
+  const [seeking, setSeeking] = useState(false);
+  const [seekValue, setSeekValue] = useState(0);
+  const displayProgress = seeking ? seekValue : progress;
+  const progressPercent = duration > 0 ? (displayProgress / duration) * 100 : 0;
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (e) => {
+      setSeeking(true);
+      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
+        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
+        setSeekValue((relX / (width - 48)) * duration);
+      });
+    },
+    onPanResponderMove: (e) => {
+      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
+        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
+        setSeekValue((relX / (width - 48)) * duration);
+      });
+    },
+    onPanResponderRelease: (e) => {
+      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
+        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
+        onSeek((relX / (width - 48)) * duration);
+        setSeeking(false);
+      });
+    },
+  }), [duration, onSeek]);
+
+  return (
+    <View style={styles.progressSection}>
+      <View
+        ref={progressBarRef}
+        style={styles.progressTrack}
+        {...panResponder.panHandlers}
+      >
+        <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+        <View style={[styles.progressThumb, { left: `${progressPercent}%` }]} />
+      </View>
+      <View style={styles.timeRow}>
+        <Text style={styles.timeText}>{formatTime(displayProgress)}</Text>
+        <Text style={styles.timeText}>{formatTime(duration)}</Text>
+      </View>
+    </View>
+  );
+});
 
 interface Props {
   visible: boolean;
@@ -60,40 +111,7 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
     translateY.setValue(0);
   }, [translateY]);
 
-  // Seek bar drag - use useMemo to avoid recreating PanResponder
-  const [seeking, setSeeking] = useState(false);
-  const [seekValue, setSeekValue] = useState(0);
-  const progressBarRef = useRef<View>(null);
-
-  const progressPanResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: (e) => {
-      setSeeking(true);
-      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
-        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
-        setSeekValue((relX / (width - 48)) * duration);
-      });
-    },
-    onPanResponderMove: (e) => {
-      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
-        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
-        setSeekValue((relX / (width - 48)) * duration);
-      });
-    },
-    onPanResponderRelease: (e) => {
-      progressBarRef.current?.measure((_, __, ___, ____, barX) => {
-        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, width - 48));
-        seek((relX / (width - 48)) * duration);
-        setSeeking(false);
-      });
-    },
-  }), [duration, seek]);
-
   if (!currentTrack) return null;
-
-  const displayProgress = seeking ? seekValue : progress;
-  const progressPercent = duration > 0 ? (displayProgress / duration) * 100 : 0;
 
   return (
     <Modal
@@ -105,8 +123,8 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
       onRequestClose={onClose}
     >
       <Animated.View style={[styles.container, { transform: [{ translateY }] }]} {...panResponder.panHandlers}>
-        {/* Blurred Background */}
-        <Image source={{ uri: currentTrack.cover }} style={styles.bgImage} blurRadius={15} />
+        {/* Background - no blur for performance */}
+        <Image source={{ uri: currentTrack.cover }} style={styles.bgImage} />
         <View style={styles.bgOverlay} />
 
         {/* Header */}
@@ -154,21 +172,8 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Progress Bar */}
-        <View style={styles.progressSection}>
-          <View
-            ref={progressBarRef}
-            style={styles.progressTrack}
-            {...progressPanResponder.panHandlers}
-          >
-            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-            <View style={[styles.progressThumb, { left: `${progressPercent}%` }]} />
-          </View>
-          <View style={styles.timeRow}>
-            <Text style={styles.timeText}>{formatTime(displayProgress)}</Text>
-            <Text style={styles.timeText}>{formatTime(duration)}</Text>
-          </View>
-        </View>
+        {/* Progress Bar - memoized */}
+        <ProgressBar progress={progress} duration={duration} onSeek={seek} />
 
         {/* Controls */}
         <View style={styles.controls}>
@@ -190,7 +195,7 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
 
           <TouchableOpacity onPress={toggleRepeat} activeOpacity={0.7} style={styles.controlBtn}>
             <Ionicons
-              name={repeat === 'one' ? 'repeat' : 'repeat'}
+              name="repeat"
               size={22}
               color={repeat !== 'off' ? '#1DB954' : 'rgba(255,255,255,0.4)'}
             />
@@ -205,10 +210,7 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
           <Ionicons name="volume-low" size={18} color="rgba(255,255,255,0.4)" />
           <View style={styles.volumeTrack}>
             <View style={[styles.volumeFill, { width: `${volume * 100}%` }]} />
-            <TouchableOpacity
-              style={[styles.volumeThumb, { left: `${volume * 100}%` }]}
-              onPress={() => {}}
-            />
+            <View style={[styles.volumeThumb, { left: `${volume * 100}%` }]} />
           </View>
           <Ionicons name="volume-high" size={18} color="rgba(255,255,255,0.4)" />
         </View>
@@ -286,248 +288,42 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
-  },
-  bgImage: {
-    ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
-  },
-  bgOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 56,
-    paddingBottom: 8,
-  },
-  headerBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerLabel: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.5)',
-    fontWeight: '700',
-    letterSpacing: 2,
-  },
-  artContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-  },
-  albumArt: {
-    width: width - 80,
-    height: width - 80,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 20,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    marginBottom: 20,
-  },
-  infoText: {
-    flex: 1,
-  },
-  trackTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  trackArtist: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.55)',
-  },
-  likeBtn: {
-    padding: 8,
-    marginLeft: 12,
-  },
-  progressSection: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  progressTrack: {
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 2,
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#fff',
-    borderRadius: 2,
-  },
-  progressThumb: {
-    position: 'absolute',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#fff',
-    marginLeft: -7,
-    top: -5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  timeText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
-    fontVariant: ['tabular-nums'],
-  },
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    marginBottom: 28,
-  },
-  controlBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playBtn: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  repeatOneDot: {
-    position: 'absolute',
-    bottom: 6,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#1DB954',
-  },
-  volumeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    gap: 10,
-    marginBottom: 4,
-  },
-  volumeTrack: {
-    flex: 1,
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 2,
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  volumeFill: {
-    height: '100%',
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: 2,
-  },
-  volumeThumb: {
-    position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#fff',
-    marginLeft: -6,
-    top: -4,
-  },
-  volumeTapRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    height: 24,
-    marginBottom: 16,
-  },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 24,
-  },
-  queueBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -6,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#1DB954',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  queueBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#000',
-  },
-  toolbar: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    marginBottom: 8,
-    gap: 12,
-  },
-  toolbarBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  toolbarBtnActive: {
-    backgroundColor: 'rgba(167,139,250,0.12)',
-    borderColor: 'rgba(167,139,250,0.3)',
-  },
-  toolbarLabel: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.4)',
-    fontWeight: '600',
-  },
-  toolbarLabelActive: {
-    color: '#a78bfa',
-  },
-  toolbarBtnBlue: {
-    backgroundColor: 'rgba(96,165,250,0.12)',
-    borderColor: 'rgba(96,165,250,0.3)',
-  },
-  toolbarLabelBlue: {
-    color: '#60a5fa',
-  },
+  container: { flex: 1, backgroundColor: '#0a0a0a' },
+  bgImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  bgOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.65)' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+  headerBtn: { padding: 8 },
+  headerLabel: { fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: '600', letterSpacing: 2 },
+  queueBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#1DB954', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center' },
+  queueBadgeText: { fontSize: 9, color: '#000', fontWeight: '700' },
+  artContainer: { alignItems: 'center', paddingVertical: 24 },
+  albumArt: { width: width - 80, height: width - 80, borderRadius: 12, backgroundColor: '#1a1a1a' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, marginBottom: 16 },
+  infoText: { flex: 1 },
+  trackTitle: { fontSize: 20, color: '#fff', fontWeight: 'bold' },
+  trackArtist: { fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
+  likeBtn: { padding: 8 },
+  progressSection: { paddingHorizontal: 24, marginBottom: 16 },
+  progressTrack: { height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2, position: 'relative' },
+  progressFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#1DB954', borderRadius: 2 },
+  progressThumb: { position: 'absolute', top: -6, width: 16, height: 16, backgroundColor: '#fff', borderRadius: 8, marginLeft: -8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
+  timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  timeText: { fontSize: 12, color: 'rgba(255,255,255,0.5)' },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24, marginBottom: 20 },
+  controlBtn: { padding: 8 },
+  playBtn: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
+  repeatOneDot: { position: 'absolute', top: 4, right: 4, width: 4, height: 4, backgroundColor: '#1DB954', borderRadius: 2 },
+  volumeRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, gap: 12, marginBottom: 4 },
+  volumeTrack: { flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2, position: 'relative' },
+  volumeFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#fff', borderRadius: 2 },
+  volumeThumb: { position: 'absolute', top: -4, width: 12, height: 12, backgroundColor: '#fff', borderRadius: 6, marginLeft: -6 },
+  volumeTapRow: { flexDirection: 'row', height: 24, marginHorizontal: 24 },
+  toolbar: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16, paddingVertical: 12, marginTop: 8 },
+  toolbarBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
+  toolbarBtnActive: { backgroundColor: 'rgba(167,139,250,0.15)' },
+  toolbarBtnBlue: { backgroundColor: 'rgba(96,165,250,0.15)' },
+  toolbarLabel: { fontSize: 11, color: 'rgba(255,255,255,0.5)' },
+  toolbarLabelActive: { color: '#a78bfa' },
+  toolbarLabelBlue: { color: '#60a5fa' },
+  dragHandle: { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginTop: 16 },
 });
