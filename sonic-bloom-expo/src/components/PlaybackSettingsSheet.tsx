@@ -1,389 +1,123 @@
-import React, { useRef, useCallback } from 'react';
-import {
-  View, Text, TouchableOpacity, Modal,
-  Animated, PanResponder, StyleSheet, Dimensions, ScrollView,
-} from 'react-native';
+import React from 'react';
+import { View, Text, TouchableOpacity, Modal, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayer, AudioQuality } from '../context/PlayerContext';
-import { QUALITY_OPTIONS, PLAYBACK_SPEED_OPTIONS } from '../lib/constants';
 
 const { height } = Dimensions.get('window');
+
+const QUALITY_OPTIONS: { label: string; value: AudioQuality }[] = [
+  { label: 'Low (96kbps)', value: '96kbps' },
+  { label: 'Normal (160kbps)', value: '160kbps' },
+  { label: 'High (320kbps)', value: '320kbps' },
+];
+
+const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
 interface Props {
   visible: boolean;
   onClose: () => void;
 }
 
-const QUALITY_INFO: Record<AudioQuality, { label: string; desc: string; color: string }> = {
-  '96kbps':  { label: '96',  desc: 'Data saver',    color: '#f59e0b' },
-  '160kbps': { label: '160', desc: 'Standard',      color: '#1DB954' },
-  '320kbps': { label: '320', desc: 'High quality',  color: '#3b82f6' },
-};
-
 export const PlaybackSettingsSheet: React.FC<Props> = ({ visible, onClose }) => {
-  const { quality, setQuality, playbackSpeed, setPlaybackSpeed } = usePlayer();
-
-  const slideY = useRef(new Animated.Value(height)).current;
-
-  const handleShow = useCallback(() => {
-    Animated.spring(slideY, {
-      toValue: 0, useNativeDriver: true, tension: 65, friction: 11,
-    }).start();
-  }, [slideY]);
-
-  const handleClose = useCallback(() => {
-    Animated.timing(slideY, {
-      toValue: height, duration: 220, useNativeDriver: true,
-    }).start(onClose);
-  }, [slideY, onClose]);
-
-  const dragPan = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => g.dy > 8,
-      onPanResponderMove: (_, g) => { if (g.dy > 0) slideY.setValue(g.dy); },
-      onPanResponderRelease: (_, g) => {
-        if (g.dy > 80) handleClose();
-        else Animated.spring(slideY, { toValue: 0, useNativeDriver: true }).start();
-      },
-    })
-  ).current;
-
-  const speedLabel = (s: number) => s === 1 ? 'Normal' : `${s}x`;
+  const { quality, setQuality, playbackSpeed, setPlaybackSpeed, crossfade, setCrossfade } = usePlayer();
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      statusBarTranslucent
-      onShow={handleShow}
-      onRequestClose={handleClose}
-    >
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
-
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
-        {/* Drag handle */}
-        <View style={styles.dragArea} {...dragPan.panHandlers}>
-          <View style={styles.dragHandle} />
-        </View>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Ionicons name="settings-outline" size={20} color="#60a5fa" />
-            <Text style={styles.headerTitle}>Playback Settings</Text>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity style={styles.panel} activeOpacity={1} onPress={() => {}}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Playback Settings</Text>
+            <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={handleClose} activeOpacity={0.7}>
-            <Ionicons name="close" size={22} color="rgba(255,255,255,0.5)" />
-          </TouchableOpacity>
-        </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-
-          {/* ── Audio Quality ── */}
-          <Text style={styles.sectionLabel}>AUDIO QUALITY</Text>
-          <View style={styles.qualityGrid}>
-            {QUALITY_OPTIONS.map(({ value }) => {
-              const info = QUALITY_INFO[value];
-              const isActive = quality === value;
-              return (
+          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            {/* Audio Quality */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Audio Quality</Text>
+              {QUALITY_OPTIONS.map((opt) => (
                 <TouchableOpacity
-                  key={value}
-                  style={[styles.qualityCard, isActive && { borderColor: info.color, backgroundColor: `${info.color}18` }]}
-                  onPress={() => setQuality(value)}
+                  key={opt.value}
+                  style={[styles.optionBtn, quality === opt.value && styles.optionBtnActive]}
+                  onPress={() => setQuality(opt.value)}
                   activeOpacity={0.7}
                 >
-                  {isActive && <View style={[styles.qualityActiveDot, { backgroundColor: info.color }]} />}
-                  <Text style={[styles.qualityValue, isActive && { color: info.color }]}>
-                    {info.label}
+                  <Text style={[styles.optionText, quality === opt.value && styles.optionTextActive]}>
+                    {opt.label}
                   </Text>
-                  <Text style={styles.qualityUnit}>kbps</Text>
-                  <Text style={[styles.qualityDesc, isActive && { color: info.color, opacity: 0.8 }]}>
-                    {info.desc}
-                  </Text>
+                  {quality === opt.value && (
+                    <Ionicons name="checkmark-circle" size={20} color="#1DB954" />
+                  )}
                 </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Quality note */}
-          <View style={styles.note}>
-            <Ionicons name="information-circle-outline" size={14} color="#555" />
-            <Text style={styles.noteText}>
-              Higher quality uses more data. Changes apply to next song.
-            </Text>
-          </View>
-
-          {/* ── Playback Speed ── */}
-          <Text style={[styles.sectionLabel, { marginTop: 24 }]}>PLAYBACK SPEED</Text>
-
-          {/* Speed display */}
-          <View style={styles.speedDisplay}>
-            <TouchableOpacity
-              style={styles.speedArrow}
-              onPress={() => {
-                const idx = PLAYBACK_SPEED_OPTIONS.indexOf(playbackSpeed);
-                if (idx > 0) setPlaybackSpeed(PLAYBACK_SPEED_OPTIONS[idx - 1]);
-              }}
-              activeOpacity={0.7}
-              disabled={playbackSpeed <= PLAYBACK_SPEED_OPTIONS[0]}
-            >
-              <Ionicons
-                name="remove"
-                size={22}
-                color={playbackSpeed <= PLAYBACK_SPEED_OPTIONS[0] ? '#333' : '#fff'}
-              />
-            </TouchableOpacity>
-
-            <View style={styles.speedCenter}>
-              <Text style={styles.speedValue}>{playbackSpeed}x</Text>
-              <Text style={styles.speedLabel}>{speedLabel(playbackSpeed)}</Text>
+              ))}
             </View>
 
-            <TouchableOpacity
-              style={styles.speedArrow}
-              onPress={() => {
-                const idx = PLAYBACK_SPEED_OPTIONS.indexOf(playbackSpeed);
-                if (idx < PLAYBACK_SPEED_OPTIONS.length - 1) setPlaybackSpeed(PLAYBACK_SPEED_OPTIONS[idx + 1]);
-              }}
-              activeOpacity={0.7}
-              disabled={playbackSpeed >= PLAYBACK_SPEED_OPTIONS[PLAYBACK_SPEED_OPTIONS.length - 1]}
-            >
-              <Ionicons
-                name="add"
-                size={22}
-                color={playbackSpeed >= PLAYBACK_SPEED_OPTIONS[PLAYBACK_SPEED_OPTIONS.length - 1] ? '#333' : '#fff'}
-              />
-            </TouchableOpacity>
-          </View>
+            {/* Playback Speed */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Playback Speed</Text>
+              <View style={styles.speedGrid}>
+                {SPEED_OPTIONS.map((speed) => (
+                  <TouchableOpacity
+                    key={speed}
+                    style={[styles.speedBtn, playbackSpeed === speed && styles.speedBtnActive]}
+                    onPress={() => setPlaybackSpeed(speed)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.speedText, playbackSpeed === speed && styles.speedTextActive]}>
+                      {speed}x
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
 
-          {/* Speed chips */}
-          <View style={styles.speedChips}>
-            {PLAYBACK_SPEED_OPTIONS.map((s) => {
-              const isActive = playbackSpeed === s;
-              return (
+            {/* Crossfade */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Crossfade</Text>
+              <View style={styles.crossfadeRow}>
                 <TouchableOpacity
-                  key={s}
-                  style={[styles.speedChip, isActive && styles.speedChipActive]}
-                  onPress={() => setPlaybackSpeed(s)}
+                  style={styles.crossfadeBtn}
+                  onPress={() => setCrossfade(Math.max(0, crossfade - 1))}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.speedChipText, isActive && styles.speedChipTextActive]}>
-                    {s}x
-                  </Text>
+                  <Ionicons name="remove" size={18} color="#fff" />
                 </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Reset to normal */}
-          {playbackSpeed !== 1 && (
-            <TouchableOpacity
-              style={styles.resetBtn}
-              onPress={() => setPlaybackSpeed(1)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="refresh-outline" size={16} color="#60a5fa" />
-              <Text style={styles.resetText}>Reset to normal speed</Text>
-            </TouchableOpacity>
-          )}
-
-        </ScrollView>
-      </Animated.View>
+                <Text style={styles.crossfadeValue}>{crossfade}s</Text>
+                <TouchableOpacity
+                  style={styles.crossfadeBtn}
+                  onPress={() => setCrossfade(Math.min(12, crossfade + 1))}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="add" size={18} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#111',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    maxHeight: height * 0.75,
-  },
-  dragArea: {
-    alignItems: 'center',
-    paddingTop: 10,
-    paddingBottom: 4,
-  },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#333',
-    borderRadius: 2,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1e1e1e',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#fff',
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 40,
-  },
-  sectionLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#444',
-    letterSpacing: 1.5,
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-
-  // Quality
-  qualityGrid: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  qualityCard: {
-    flex: 1,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#2a2a2a',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    position: 'relative',
-  },
-  qualityActiveDot: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  qualityValue: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#fff',
-  },
-  qualityUnit: {
-    fontSize: 11,
-    color: '#555',
-    fontWeight: '600',
-    marginTop: 1,
-  },
-  qualityDesc: {
-    fontSize: 11,
-    color: '#555',
-    fontWeight: '600',
-    marginTop: 6,
-  },
-  note: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-    marginTop: 10,
-    paddingHorizontal: 4,
-  },
-  noteText: {
-    flex: 1,
-    fontSize: 11,
-    color: '#444',
-    lineHeight: 16,
-  },
-
-  // Speed
-  speedDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    marginBottom: 14,
-  },
-  speedArrow: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  speedCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  speedValue: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: '#60a5fa',
-    fontVariant: ['tabular-nums'],
-  },
-  speedLabel: {
-    fontSize: 12,
-    color: '#555',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  speedChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  speedChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  speedChipActive: {
-    backgroundColor: 'rgba(96,165,250,0.15)',
-    borderColor: '#60a5fa',
-  },
-  speedChipText: {
-    fontSize: 13,
-    color: '#555',
-    fontWeight: '700',
-  },
-  speedChipTextActive: {
-    color: '#60a5fa',
-  },
-  resetBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(96,165,250,0.08)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.15)',
-  },
-  resetText: {
-    fontSize: 14,
-    color: '#60a5fa',
-    fontWeight: '600',
-  },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  panel: { backgroundColor: '#1a1a1a', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 40, maxHeight: height * 0.7 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#333' },
+  title: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
+  content: { padding: 20 },
+  section: { marginBottom: 24 },
+  sectionTitle: { fontSize: 14, color: '#888', marginBottom: 12 },
+  optionBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#222' },
+  optionBtnActive: { borderBottomColor: '#1DB954' },
+  optionText: { fontSize: 15, color: '#fff' },
+  optionTextActive: { color: '#1DB954', fontWeight: '600' },
+  speedGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  speedBtn: { backgroundColor: '#333', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
+  speedBtnActive: { backgroundColor: '#1DB954' },
+  speedText: { fontSize: 14, color: '#fff' },
+  speedTextActive: { color: '#000', fontWeight: '600' },
+  crossfadeRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  crossfadeBtn: { width: 36, height: 36, backgroundColor: '#333', borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  crossfadeValue: { fontSize: 16, color: '#fff', width: 50, textAlign: 'center' },
 });

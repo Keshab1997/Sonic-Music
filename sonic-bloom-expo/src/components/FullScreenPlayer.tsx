@@ -8,6 +8,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { QueueManager } from './QueueManager';
 import { SleepTimerSheet } from './SleepTimerSheet';
 import { PlaybackSettingsSheet } from './PlaybackSettingsSheet';
+import { EqualizerPanel } from './EqualizerPanel';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,6 +36,7 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
   const [queueVisible, setQueueVisible] = useState(false);
   const [sleepVisible, setSleepVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [eqVisible, setEqVisible] = useState(false);
 
   // Swipe down to close
   const translateY = useRef(new Animated.Value(0)).current;
@@ -262,6 +264,16 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
             <Ionicons name="musical-note-outline" size={16} color="rgba(255,255,255,0.4)" />
             <Text style={styles.toolbarLabel}>{quality.replace('kbps', '')} kbps</Text>
           </TouchableOpacity>
+
+          {/* Equalizer */}
+          <TouchableOpacity
+            style={styles.toolbarBtn}
+            onPress={() => setEqVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="options-outline" size={16} color="rgba(255,255,255,0.4)" />
+            <Text style={styles.toolbarLabel}>EQ</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Drag indicator */}
@@ -275,6 +287,9 @@ export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
 
         {/* Playback Settings */}
         <PlaybackSettingsSheet visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
+
+        {/* Equalizer */}
+        <EqualizerPanel visible={eqVisible} onClose={() => setEqVisible(false)} />
       </Animated.View>
     </Modal>
   );
