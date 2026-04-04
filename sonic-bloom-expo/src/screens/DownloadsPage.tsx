@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayer } from '../context/PlayerContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
+import { CachedImage } from '../components/CachedImage';
 
 export const DownloadsPage: React.FC = () => {
   const { downloads, deleteTrack, deleteAll } = useDownloadsContext();
@@ -43,7 +44,7 @@ export const DownloadsPage: React.FC = () => {
         onPress={() => handlePlay(index)}
         activeOpacity={0.7}
       >
-        <Image
+        <CachedImage
           source={{ uri: item.track.cover }}
           style={styles.cover}
           defaultSource={require('../../assets/icon.png')}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, ScrollView, Image, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity,
   ActivityIndicator, StyleSheet, Dimensions, FlatList
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
 import { Toast } from '../components/Toast';
+import { CachedImage } from '../components/CachedImage';
 import { API_BASE } from '../data/constants';
 
 const { width } = Dimensions.get('window');
@@ -93,7 +94,7 @@ export const ArtistDetailScreen: React.FC = () => {
         onPress={() => handlePlay(index)}
         activeOpacity={0.7}
       >
-        <Image
+        <CachedImage
           source={{ uri: item.cover }}
           style={styles.songImage}
           defaultSource={require('../../assets/icon.png')}
@@ -167,7 +168,7 @@ export const ArtistDetailScreen: React.FC = () => {
           {/* Artist Header */}
           <View style={styles.artistHeader}>
             {artistImage && (
-              <Image
+              <CachedImage
                 source={{ uri: artistImage }}
                 style={styles.artistImage}
                 defaultSource={require('../../assets/icon.png')}

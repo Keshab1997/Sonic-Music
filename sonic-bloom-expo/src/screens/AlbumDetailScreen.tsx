@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, ScrollView, Image, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity,
   ActivityIndicator, StyleSheet, Dimensions, FlatList
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
+import { CachedImage } from '../components/CachedImage';
 import { API_BASE } from '../data/constants';
 
 const { width } = Dimensions.get('window');
@@ -119,7 +120,7 @@ export const AlbumDetailScreen: React.FC = () => {
         onPress={() => handlePlay(index)}
         activeOpacity={0.7}
       >
-        <Image
+        <CachedImage
           source={{ uri: item.cover }}
           style={styles.songImage}
           defaultSource={require('../../assets/icon.png')}
@@ -157,7 +158,7 @@ export const AlbumDetailScreen: React.FC = () => {
           {/* Album Header */}
           <View style={styles.albumHeader}>
             {albumCover && (
-              <Image
+              <CachedImage
                 source={{ uri: albumCover }}
                 style={styles.albumImage}
                 defaultSource={require('../../assets/icon.png')}

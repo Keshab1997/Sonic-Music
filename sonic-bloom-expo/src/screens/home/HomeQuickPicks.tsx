@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image, ScrollView, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Track } from '../../data/playlist';
 import { TIME_GREETINGS, getTimeOfDay, formatDuration, getSongOfDayIndex } from '../../data/constants';
 import { SectionHeader } from '../../components/SectionHeader';
+import { CachedImage } from '../../components/CachedImage';
 import { lightHaptic } from '../../lib/haptics';
 
 const { width } = Dimensions.get('window');
@@ -62,7 +63,7 @@ export const HomeQuickPicks: React.FC<HomeQuickPicksProps> = ({
             onPress={() => { onSongPlay(songOfDay); lightHaptic(); }}
             activeOpacity={0.7}
           >
-            <Image
+            <CachedImage
               source={{ uri: songOfDay.cover }}
               style={styles.sotdImage}
               defaultSource={require('../../../assets/icon.png')}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, ScrollView, Image, TextInput, TouchableOpacity,
+  View, Text, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, StyleSheet, Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
 import { Toast } from '../components/Toast';
+import { CachedImage } from '../components/CachedImage';
 import { lightHaptic, mediumHaptic } from '../lib/haptics';
 import {
   API_BASE, SEARCH_HISTORY_KEY, SEARCH_HISTORY_MAX, SONGS_PER_PAGE,
@@ -405,9 +406,10 @@ export const SearchScreen: React.FC = () => {
                     onPress={() => handleSearch(artist.query)}
                     activeOpacity={0.7}
                   >
-                    <Image
+                    <CachedImage
                       source={{ uri: artist.image }}
                       style={styles.artistImage}
+                      defaultSource={require('../../assets/icon.png')}
                     />
                     <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
                   </TouchableOpacity>
@@ -569,9 +571,10 @@ export const SearchScreen: React.FC = () => {
                       activeOpacity={0.7}
                     >
                       <View style={styles.songImageContainer}>
-                        <Image
+                        <CachedImage
                           source={{ uri: item.cover || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' }}
                           style={styles.songImage}
+                          defaultSource={require('../../assets/icon.png')}
                         />
                         {isCurrentTrack && (
                           <View style={styles.songOverlay}>
@@ -665,9 +668,10 @@ export const SearchScreen: React.FC = () => {
                       onPress={() => handleArtistPress(artist)}
                       activeOpacity={0.7}
                     >
-                      <Image
+                      <CachedImage
                         source={{ uri: artist.image?.[0]?.link || '' }}
                         style={styles.artistResultImage}
+                        defaultSource={require('../../assets/icon.png')}
                       />
                       <Text style={styles.artistResultName} numberOfLines={1}>{artist.name}</Text>
                     </TouchableOpacity>
@@ -712,9 +716,10 @@ export const SearchScreen: React.FC = () => {
                             activeOpacity={0.7}
                           >
                             <View style={styles.songImageContainer}>
-                              <Image
+                              <CachedImage
                                 source={{ uri: track.cover || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' }}
                                 style={[styles.songImage, { width: 48, height: 48 }]}
+                                defaultSource={require('../../assets/icon.png')}
                               />
                               {isCurrentTrack && (
                                 <View style={styles.songOverlay}>
@@ -750,9 +755,10 @@ export const SearchScreen: React.FC = () => {
                           onPress={() => handleAlbumPress(i)}
                           activeOpacity={0.7}
                         >
-                          <Image
+                          <CachedImage
                             source={{ uri: album.cover || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' }}
                             style={styles.albumGridImage}
+                            defaultSource={require('../../assets/icon.png')}
                           />
                           <Text style={styles.albumGridTitle} numberOfLines={1}>{album.title}</Text>
                           <Text style={styles.albumGridArtist} numberOfLines={1}>{album.artist}</Text>

@@ -1,10 +1,13 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import { useNavigation } from '@react-navigation/native';
 
 export const ProfileScreen: React.FC = () => {
   const { user, signOut } = useAuth();
+  const navigation = useNavigation();
 
   const handleSignOut = () => {
     Alert.alert(
@@ -27,9 +30,24 @@ export const ProfileScreen: React.FC = () => {
     return (
       <View style={styles.container}>
         <View style={styles.centered}>
-          <Ionicons name="person-circle-outline" size={80} color="#1DB954" />
-          <Text style={styles.title}>Profile</Text>
-          <Text style={styles.subtitle}>Sign in to sync your music</Text>
+          <LinearGradient
+            colors={['#1DB954', '#1ed760']}
+            style={styles.emptyLogo}
+          >
+            <Ionicons name="person" size={60} color="#fff" />
+          </LinearGradient>
+          <Text style={styles.emptyTitle}>Not Signed In</Text>
+          <Text style={styles.emptySubtitle}>Sign in to sync your music across devices</Text>
+          <Pressable onPress={() => navigation.navigate('Login' as never)} style={styles.emptyBtn}>
+            <LinearGradient
+              colors={['#1DB954', '#1ed760']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.emptyBtnGradient}
+            >
+              <Text style={styles.emptyBtnText}>Sign In</Text>
+            </LinearGradient>
+          </Pressable>
         </View>
       </View>
     );
@@ -40,55 +58,123 @@ export const ProfileScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Profile Header */}
         <View style={styles.profileHeader}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={40} color="#fff" />
-          </View>
+          <LinearGradient
+            colors={['#1DB954', '#1ed760']}
+            style={styles.avatar}
+          >
+            <Text style={styles.avatarText}>
+              {user.email?.charAt(0).toUpperCase() || 'U'}
+            </Text>
+          </LinearGradient>
           <Text style={styles.email}>{user.email}</Text>
           {user.user_metadata?.full_name && (
             <Text style={styles.fullName}>{user.user_metadata.full_name}</Text>
           )}
         </View>
 
+        {/* Account Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          
+          <Pressable style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="person-outline" size={20} color="#1DB954" />
+              </View>
+              <Text style={styles.settingText}>Edit Profile</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#555" />
+          </Pressable>
+
+          <Pressable style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="key-outline" size={20} color="#1DB954" />
+              </View>
+              <Text style={styles.settingText}>Change Password</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#555" />
+          </Pressable>
+        </View>
+
         {/* Settings Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
           
-          <TouchableOpacity style={styles.settingItem}>
-            <Ionicons name="musical-notes-outline" size={22} color="#888" />
-            <Text style={styles.settingText}>Audio Quality</Text>
-            <Ionicons name="chevron-forward" size={18} color="#555" />
-          </TouchableOpacity>
+          <Pressable style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="musical-notes-outline" size={20} color="#1DB954" />
+              </View>
+              <Text style={styles.settingText}>Audio Quality</Text>
+            </View>
+            <View style={styles.settingRight}>
+              <Text style={styles.settingValue}>High</Text>
+              <Ionicons name="chevron-forward" size={18} color="#555" />
+            </View>
+          </Pressable>
 
-          <TouchableOpacity style={styles.settingItem}>
-            <Ionicons name="download-outline" size={22} color="#888" />
-            <Text style={styles.settingText}>Downloads</Text>
+          <Pressable style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="download-outline" size={20} color="#1DB954" />
+              </View>
+              <Text style={styles.settingText}>Downloads</Text>
+            </View>
             <Ionicons name="chevron-forward" size={18} color="#555" />
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity style={styles.settingItem}>
-            <Ionicons name="notifications-outline" size={22} color="#888" />
-            <Text style={styles.settingText}>Notifications</Text>
+          <Pressable style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="notifications-outline" size={20} color="#1DB954" />
+              </View>
+              <Text style={styles.settingText}>Notifications</Text>
+            </View>
             <Ionicons name="chevron-forward" size={18} color="#555" />
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity style={styles.settingItem}>
-            <Ionicons name="shield-checkmark-outline" size={22} color="#888" />
-            <Text style={styles.settingText}>Privacy</Text>
+          <Pressable style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="shield-checkmark-outline" size={20} color="#1DB954" />
+              </View>
+              <Text style={styles.settingText}>Privacy</Text>
+            </View>
             <Ionicons name="chevron-forward" size={18} color="#555" />
-          </TouchableOpacity>
+          </Pressable>
+        </View>
 
-          <TouchableOpacity style={styles.settingItem}>
-            <Ionicons name="information-circle-outline" size={22} color="#888" />
-            <Text style={styles.settingText}>About</Text>
+        {/* About Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          
+          <Pressable style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="information-circle-outline" size={20} color="#1DB954" />
+              </View>
+              <Text style={styles.settingText}>About Sonic Bloom</Text>
+            </View>
             <Ionicons name="chevron-forward" size={18} color="#555" />
-          </TouchableOpacity>
+          </Pressable>
+
+          <Pressable style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="document-text-outline" size={20} color="#1DB954" />
+              </View>
+              <Text style={styles.settingText}>Terms & Privacy</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#555" />
+          </Pressable>
         </View>
 
         {/* Sign Out Button */}
-        <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
+        <Pressable style={styles.signOutBtn} onPress={handleSignOut}>
           <Ionicons name="log-out-outline" size={22} color="#ef4444" />
           <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
+        </Pressable>
 
         {/* App Version */}
         <Text style={styles.version}>Sonic Bloom v1.0.0</Text>
@@ -100,18 +186,27 @@ export const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a0a' },
   scrollContent: { paddingBottom: 140 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 24, color: '#fff', fontWeight: 'bold', marginTop: 16 },
-  subtitle: { fontSize: 14, color: '#555', marginTop: 8 },
-  profileHeader: { alignItems: 'center', paddingVertical: 32 },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#1DB954', justifyContent: 'center', alignItems: 'center' },
-  email: { fontSize: 16, color: '#fff', marginTop: 12 },
-  fullName: { fontSize: 14, color: '#888', marginTop: 4 },
-  section: { paddingHorizontal: 16, marginTop: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 12 },
-  settingItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#1a1a1a', gap: 14 },
-  settingText: { flex: 1, fontSize: 15, color: '#fff' },
-  signOutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 16, marginTop: 32, paddingVertical: 14, backgroundColor: '#1a1a1a', borderRadius: 12, gap: 10 },
-  signOutText: { fontSize: 16, color: '#ef4444', fontWeight: '600' },
-  version: { textAlign: 'center', fontSize: 12, color: '#555', marginTop: 24, marginBottom: 16 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
+  emptyLogo: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', marginBottom: 24, shadowColor: '#1DB954', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 10 },
+  emptyTitle: { fontSize: 28, color: '#fff', fontWeight: '800', marginBottom: 8 },
+  emptySubtitle: { fontSize: 15, color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginBottom: 32 },
+  emptyBtn: { borderRadius: 16, overflow: 'hidden', width: '100%' },
+  emptyBtnGradient: { height: 56, justifyContent: 'center', alignItems: 'center' },
+  emptyBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  profileHeader: { alignItems: 'center', paddingVertical: 40, paddingTop: 60 },
+  avatar: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 16, shadowColor: '#1DB954', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 10 },
+  avatarText: { fontSize: 40, fontWeight: '800', color: '#fff' },
+  email: { fontSize: 18, color: '#fff', fontWeight: '600', marginBottom: 4 },
+  fullName: { fontSize: 15, color: 'rgba(255,255,255,0.6)' },
+  section: { paddingHorizontal: 20, marginTop: 24 },
+  sectionTitle: { fontSize: 20, fontWeight: '800', color: '#fff', marginBottom: 12 },
+  settingItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
+  settingLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
+  iconContainer: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(29,185,84,0.1)', justifyContent: 'center', alignItems: 'center' },
+  settingText: { fontSize: 16, color: '#fff', fontWeight: '500' },
+  settingRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  settingValue: { fontSize: 14, color: 'rgba(255,255,255,0.5)' },
+  signOutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 20, marginTop: 32, paddingVertical: 16, backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 16, gap: 10, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' },
+  signOutText: { fontSize: 16, color: '#ef4444', fontWeight: '700' },
+  version: { textAlign: 'center', fontSize: 13, color: '#555', marginTop: 24, marginBottom: 16 },
 });

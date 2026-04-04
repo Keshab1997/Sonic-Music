@@ -1,18 +1,20 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, SafeAreaView } from 'react-native';
+import { StyleSheet, View, SafeAreaView, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PlayerProvider } from "./src/context/PlayerContext";
-import { AuthProvider } from "./src/context/AuthContext";
+import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { DownloadsProvider } from './src/context/DownloadsContext';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
 import { DownloadsPage } from './src/screens/DownloadsPage';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { LoginScreen } from './src/screens/LoginScreen';
+import { SignupScreen } from './src/screens/SignupScreen';
 import { ArtistDetailScreen } from './src/screens/ArtistDetailScreen';
 import { AlbumDetailScreen } from './src/screens/AlbumDetailScreen';
 import { MiniPlayer } from './src/components/MiniPlayer';
@@ -20,6 +22,15 @@ import { MiniPlayer } from './src/components/MiniPlayer';
 const queryClient = new QueryClient();
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const AuthStack = createNativeStackNavigator();
+
+// Auth Navigator (Login/Signup)
+const AuthNavigator = () => (
+  <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+    <AuthStack.Screen name="Login" component={LoginScreen} />
+    <AuthStack.Screen name="Signup" component={SignupScreen} />
+  </AuthStack.Navigator>
+);
 
 // Tab Navigator
 const TabNavigator = () => (
@@ -59,18 +70,36 @@ const TabNavigator = () => (
   </Tab.Navigator>
 );
 
-// HomeTabs with Stack Navigator for detail screens + MiniPlayer overlay
-const HomeTabs = () => (
+// Main App Navigator (with MiniPlayer)
+const MainNavigator = () => (
   <View style={styles.container}>
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Tabs" component={TabNavigator} />
       <Stack.Screen name="ArtistDetail" component={ArtistDetailScreen} />
       <Stack.Screen name="AlbumDetail" component={AlbumDetailScreen} />
     </Stack.Navigator>
-    {/* MiniPlayer overlay - always visible */}
     <MiniPlayer />
   </View>
 );
+
+// Root Navigator with Auth Check
+const RootNavigator = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#1DB954" />
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      {user ? <MainNavigator /> : <AuthNavigator />}
+    </NavigationContainer>
+  );
+};
 
 // App Root
 export default function App() {
@@ -79,12 +108,10 @@ export default function App() {
       <AuthProvider>
         <PlayerProvider>
           <DownloadsProvider>
-            <NavigationContainer>
-              <SafeAreaView style={styles.safeArea}>
-                <HomeTabs />
-                <StatusBar style="light" />
-              </SafeAreaView>
-            </NavigationContainer>
+            <SafeAreaView style={styles.safeArea}>
+              <RootNavigator />
+              <StatusBar style="light" />
+            </SafeAreaView>
           </DownloadsProvider>
         </PlayerProvider>
       </AuthProvider>
@@ -95,4 +122,5 @@ export default function App() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a0a' },
   safeArea: { flex: 1, backgroundColor: '#0a0a0a' },
+  loadingContainer: { flex: 1, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center' },
 });
