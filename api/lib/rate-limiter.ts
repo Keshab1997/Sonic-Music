@@ -26,10 +26,10 @@ export interface RateLimitConfig {
 }
 
 export const defaultRateLimits: Record<string, RateLimitConfig> = {
-  "/api/youtube-search": { maxRequests: 30, windowMs: 60000 }, // 30 req/min
-  "/api/yt-stream": { maxRequests: 20, windowMs: 60000 }, // 20 req/min
-  "/api/proxy-yt-download": { maxRequests: 10, windowMs: 60000 }, // 10 req/min
-  "/api/proxy-audio": { maxRequests: 50, windowMs: 60000 }, // 50 req/min
+  "/api/youtube-search": { maxRequests: 120, windowMs: 60000 }, // 120 req/min
+  "/api/yt-stream": { maxRequests: 100, windowMs: 60000 }, // 100 req/min
+  "/api/proxy-yt-download": { maxRequests: 30, windowMs: 60000 }, // 30 req/min
+  "/api/proxy-audio": { maxRequests: 100, windowMs: 60000 }, // 100 req/min
 };
 
 export function checkRateLimit(

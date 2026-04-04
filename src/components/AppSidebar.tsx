@@ -15,6 +15,7 @@ const navItems = [
   { icon: Home, label: "Home", path: "/" },
   { icon: Youtube, label: "YouTube Music", path: "/youtube" },
   { icon: Download, label: "Downloads", path: "/downloads" },
+  { icon: Youtube, label: "YT Music (Web)", path: "https://music.youtube.com/", external: true },
 ];
 
 export const AppSidebar = () => {
@@ -68,19 +69,32 @@ export const AppSidebar = () => {
 
       {/* Nav */}
       <nav className="px-3 space-y-1 flex-shrink-0">
-        {navItems.map(({ icon: Icon, label, path }) => (
-          <Link
-            key={label}
-            to={path}
-            className={`flex items-center gap-4 w-full px-3 py-2.5 rounded-lg transition-colors duration-200 group ${
-              location.pathname === path
-                ? "text-foreground bg-sidebar-accent"
-                : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent"
-            }`}
-          >
-            <Icon size={22} className="group-hover:text-foreground transition-colors" />
-            <span className="font-medium text-sm">{label}</span>
-          </Link>
+        {navItems.map(({ icon: Icon, label, path, external }) => (
+          external ? (
+            <a
+              key={label}
+              href={path}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-4 w-full px-3 py-2.5 rounded-lg transition-colors duration-200 group text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent"
+            >
+              <Icon size={22} className="group-hover:text-foreground transition-colors" />
+              <span className="font-medium text-sm">{label}</span>
+            </a>
+          ) : (
+            <Link
+              key={label}
+              to={path}
+              className={`flex items-center gap-4 w-full px-3 py-2.5 rounded-lg transition-colors duration-200 group ${
+                location.pathname === path
+                  ? "text-foreground bg-sidebar-accent"
+                  : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent"
+              }`}
+            >
+              <Icon size={22} className="group-hover:text-foreground transition-colors" />
+              <span className="font-medium text-sm">{label}</span>
+            </Link>
+          )
         ))}
       </nav>
 
