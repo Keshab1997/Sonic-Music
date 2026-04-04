@@ -6,7 +6,7 @@
   "display": "standalone",
   "background_color": "hsl(240, 6%, 7%)",
   "theme_color": "hsl(240, 6%, 7%)",
-  "orientation": "any",
+  "orientation": "portrait",
   "categories": ["music", "entertainment"],
   "icons": [
     {

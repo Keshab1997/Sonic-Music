@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./index.css";
+import "./lib/orientationLock";
 
 // Mouse wheel → horizontal scroll for all scrollbar-hide sections
 document.addEventListener("wheel", (e) => {
