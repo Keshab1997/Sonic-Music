@@ -29,7 +29,6 @@
   "exclude": [
     "node_modules",
     "src/components",
-    "src/pages",
     "src/test",
     "src/types",
     "src/hooks/useDownloads.ts",
