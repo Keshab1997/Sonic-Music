@@ -151,10 +151,7 @@ const FRONT_SECTIONS: FrontSection[] = [
 ];
 
 // Helper to get random suffix for variety
-const getRandomSuffix = () => {
-  const suffixes = ["", " 2026", " new", " best", " hits", " latest", " popular", " hd", " audio", " live", " remix"];
-  return suffixes[Math.floor(Math.random() * suffixes.length)];
-};
+const getRandomSuffix = () => ""; // Disabled: random suffix breaks server-side cache
 
 // Shuffle array helper - optimized
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -251,7 +248,7 @@ export default function YoutubeMusicPage() {
   const fetchSectionTracks = useCallback(async (sectionId: string, query: string) => {
     // Check cache first
     const cached = sectionCache.get(sectionId);
-    if (cached && Date.now() - cached.timestamp < 600000) { // 10 min cache
+    if (cached && Date.now() - cached.timestamp < 3600000) { // 1 hour cache
       setSectionTracks(prev => new Map(prev).set(sectionId, cached.tracks));
       setLoadedSections(prev => new Set(prev).add(sectionId));
       return;
@@ -315,7 +312,7 @@ export default function YoutubeMusicPage() {
     seenIds.current = new Set();
     setSectionTracks(new Map());
     setLoadedSections(new Set());
-    sectionCache.clear(); // Clear section cache for fresh data
+    // Only clear cache on manual refresh, not on every load
     
     // Shuffle sections order for variety
     const sections = shuffle ? shuffleArray(FRONT_SECTIONS) : FRONT_SECTIONS;
