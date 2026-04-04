@@ -4,6 +4,7 @@ import {
   ActivityIndicator, StyleSheet, Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
@@ -35,6 +36,7 @@ export const SearchScreen: React.FC = () => {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { currentTrack, isPlaying, addToQueue, playTrackList } = usePlayer();
   const { isDownloaded, isDownloading, downloadTrack, getDownloadProgress } = useDownloadsContext();
+  const navigation = useNavigation();
 
   const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type, visible: true });
@@ -193,8 +195,8 @@ export const SearchScreen: React.FC = () => {
 
   const handleArtistPress = (artist: any) => {
     const artistName = typeof artist.name === 'string' ? artist.name : artist.name?.id || artist.name?.name || 'Unknown Artist';
-    handleSearch(artistName);
-    setActiveFilter("songs");
+    const artistImage = artist.image?.[0]?.link || '';
+    (navigation as any).navigate('ArtistDetail', { artistName, artistImage });
   };
 
   const fetchAlbumSongs = useCallback(async (albumId: string, albumName: string) => {
@@ -304,7 +306,9 @@ export const SearchScreen: React.FC = () => {
     const rawAlbum = rawAlbums[index];
     if (rawAlbum && rawAlbum.id) {
       const albumName = typeof rawAlbum.name === 'string' ? rawAlbum.name : rawAlbum.name?.name || rawAlbum.name?.id || "Unknown Album";
-      fetchAlbumSongs(rawAlbum.id, albumName);
+      const albumCover = rawAlbum.image?.[0]?.link || '';
+      const albumArtist = typeof rawAlbum.music === 'string' ? rawAlbum.music : rawAlbum.primaryArtists || '';
+      (navigation as any).navigate('AlbumDetail', { albumId: rawAlbum.id, albumName, albumCover, albumArtist });
     }
   };
 
