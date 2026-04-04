@@ -35,11 +35,15 @@ const streamCache = new Map<string, { url: string; timestamp: number }>();
 const searchCache = new Map<string, { tracks: Track[]; timestamp: number }>();
 const sectionCache = new Map<string, { tracks: Track[]; timestamp: number }>();
 
+interface CacheEntry {
+  timestamp: number;
+}
+
 // Cache cleanup helper
-const cleanupCache = <T,>(cache: Map<string, T>, maxSize: number) => {
+const cleanupCache = <T extends CacheEntry>(cache: Map<string, T>, maxSize: number) => {
   if (cache.size > maxSize) {
     const entries = Array.from(cache.entries());
-    entries.sort((a, b) => (a[1] as any).timestamp - (b[1] as any).timestamp);
+    entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
     const toDelete = entries.slice(0, cache.size - maxSize);
     toDelete.forEach(([key]) => cache.delete(key));
   }
@@ -289,6 +293,7 @@ export default function YoutubeMusicPage() {
       };
       
       if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).requestIdleCallback(updateState, { timeout: 2000 });
       } else {
         updateState();

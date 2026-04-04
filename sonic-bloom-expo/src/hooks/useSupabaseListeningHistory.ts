@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import type { Track } from '@/data/playlist'
 
 interface UseListeningHistoryReturn {
-  history: any[]
+  history: unknown[]
   loading: boolean
   error: Error | null
   addToHistory: (trackId: string, durationPlayed: number, completed: boolean) => Promise<boolean>

@@ -14,6 +14,43 @@ interface YouTubeSearchResult {
   thumbnail: string;
 }
 
+interface YouTubeApiSearchItem {
+  id: {
+    videoId: string;
+  };
+  snippet: {
+    title: string;
+    channelTitle: string;
+    thumbnails: {
+      default?: { url: string };
+      medium?: { url: string };
+    };
+  };
+}
+
+interface YouTubeApiVideoItem {
+  id: string;
+  contentDetails?: {
+    duration: string;
+  };
+}
+
+interface InvidiousSearchItem {
+  videoId: string;
+  title: string;
+  author?: string;
+  lengthSeconds?: number;
+  videoThumbnails?: Array<{ url: string }>;
+}
+
+interface PipedSearchItem {
+  url?: string;
+  title: string;
+  uploaderName?: string;
+  duration?: number;
+  thumbnail?: string;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const allowedOrigin = process.env.ALLOWED_ORIGIN || "*";
   res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
@@ -56,15 +93,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         { headers: { Accept: "application/json" } }
       );
       if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        const videoIds: string[] = searchData.items.map((i: any) => i.id.videoId);
+        const searchData = await searchRes.json() as { items: YouTubeApiSearchItem[] };
+        const videoIds: string[] = searchData.items.map((i) => i.id.videoId);
 
         // Fetch durations via videos endpoint
         const detailRes = await fetch(
           `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds.join(",")}&key=${ytApiKey}`,
           { headers: { Accept: "application/json" } }
         );
-        const detailData = detailRes.ok ? await detailRes.json() : { items: [] };
+        const detailData = (detailRes.ok ? await detailRes.json() : { items: [] }) as { items: YouTubeApiVideoItem[] };
         const durationMap: Record<string, number> = {};
         for (const item of detailData.items) {
           const iso = item.contentDetails?.duration || "";
@@ -72,7 +109,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           durationMap[item.id] = m ? (parseInt(m[1] || "0") * 3600 + parseInt(m[2] || "0") * 60 + parseInt(m[3] || "0")) : 0;
         }
 
-        const results: YouTubeSearchResult[] = searchData.items.map((i: any) => ({
+        const results: YouTubeSearchResult[] = searchData.items.map((i) => ({
           videoId: i.id.videoId,
           title: i.snippet.title,
           author: i.snippet.channelTitle,
@@ -98,9 +135,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       clearTimeout(timeout);
       if (!invRes.ok) return null;
-      const data = await invRes.json().catch(() => null);
+      const data = await invRes.json().catch(() => null) as InvidiousSearchItem[] | null;
       if (!Array.isArray(data) || data.length === 0) return null;
-      const results = data.slice(0, 50).map((v: any) => ({
+      const results = data.slice(0, 50).map((v) => ({
         videoId: v.videoId,
         title: v.title,
         author: v.author || "Unknown",
@@ -136,15 +173,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       clearTimeout(timeout);
       if (!pipedRes.ok) return null;
-      const data = await pipedRes.json().catch(() => null);
+      const data = await pipedRes.json().catch(() => null) as { items: PipedSearchItem[] } | null;
       if (!data?.items || !Array.isArray(data.items)) return null;
-      const results = data.items.slice(0, 50).map((v: any) => ({
-        videoId: v.url?.replace("/watch?v=", ""),
-        title: v.title,
-        author: v.uploaderName || "Unknown",
-        duration: v.duration || 0,
-        thumbnail: v.thumbnail,
-      })).filter((v: any) => v.videoId);
+      const results = data.items.slice(0, 50)
+        .map((v) => ({
+          videoId: v.url?.replace("/watch?v=", "") ?? "",
+          title: v.title,
+          author: v.uploaderName || "Unknown",
+          duration: v.duration || 0,
+          thumbnail: v.thumbnail ?? "",
+        }))
+        .filter((v) => v.videoId);
       searchCache.set(cacheKey, { results, expiresAt: Date.now() + CACHE_TTL_MS });
       return results;
     } catch {

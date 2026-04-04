@@ -10,6 +10,33 @@ import { AuthProvider } from "./src/context/AuthContext";
 import { useState, useEffect, useCallback } from 'react';
 import { Track } from './src/data/playlist';
 
+interface ApiDownloadUrl {
+  quality: string;
+  link: string;
+}
+
+interface ApiImage {
+  quality: string;
+  link: string;
+}
+
+interface ApiSong {
+  downloadUrl?: ApiDownloadUrl[];
+  name?: string;
+  primaryArtists?: string;
+  album?: string | { name?: string };
+  image?: ApiImage[];
+  duration?: number | string;
+  id?: string;
+  language?: string;
+}
+
+interface ApiSearchResponse {
+  data?: {
+    results?: ApiSong[];
+  };
+}
+
 const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -19,11 +46,11 @@ const CARD_WIDTH = (width - 48) / 2;
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 
 // Parse song from API response
-const parseSong = (s: any, offset: number): Track | null => {
+const parseSong = (s: ApiSong, offset: number): Track | null => {
   if (!s.downloadUrl?.length) return null;
-  const url96 = s.downloadUrl?.find((d: any) => d.quality === "96kbps")?.link;
-  const url160 = s.downloadUrl?.find((d: any) => d.quality === "160kbps")?.link;
-  const url320 = s.downloadUrl?.find((d: any) => d.quality === "320kbps")?.link;
+  const url96 = s.downloadUrl?.find((d) => d.quality === "96kbps")?.link;
+  const url160 = s.downloadUrl?.find((d) => d.quality === "160kbps")?.link;
+  const url320 = s.downloadUrl?.find((d) => d.quality === "320kbps")?.link;
   const bestUrl = url160 || url96 || s.downloadUrl?.[0]?.link || "";
   if (!bestUrl) return null;
   return {
@@ -31,7 +58,7 @@ const parseSong = (s: any, offset: number): Track | null => {
     title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
     artist: s.primaryArtists || "Unknown",
     album: typeof s.album === "string" ? s.album : s.album?.name || "",
-    cover: s.image?.find((img: any) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
+    cover: s.image?.find((img) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
     src: bestUrl,
     duration: parseInt(String(s.duration)) || 0,
     type: "audio" as const,
@@ -45,7 +72,7 @@ const parseSong = (s: any, offset: number): Track | null => {
 };
 
 // Home Screen with all sections - each section has its own state
-const HomeScreen = ({ navigation }: any) => {
+const HomeScreen = ({ navigation }: { navigation: unknown }) => {
   const { playTrackList, currentTrack, isPlaying, togglePlay, next, prev } = usePlayer();
   
   // Main sections
@@ -76,10 +103,10 @@ const HomeScreen = ({ navigation }: any) => {
     try {
       const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=15`);
       if (!res.ok) return;
-      const data = await res.json();
-      let songs = data.data?.results?.filter((s: any) => s.downloadUrl?.length > 0) || [];
-      if (langFilter) songs = songs.filter((s: any) => s.language === langFilter);
-      const tracks: Track[] = songs.map((s: any, i: number) => parseSong(s, i)).filter(Boolean);
+      const data = await res.json() as ApiSearchResponse;
+      let songs = data.data?.results?.filter((s) => (s.downloadUrl?.length ?? 0) > 0) || [];
+      if (langFilter) songs = songs.filter((s) => s.language === langFilter);
+      const tracks: Track[] = songs.map((s, i) => parseSong(s, i)).filter((t): t is Track => t !== null);
       setter(tracks.slice(0, 10));
     } catch { /* ignore */ }
   }, []);
@@ -89,10 +116,10 @@ const HomeScreen = ({ navigation }: any) => {
     try {
       const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=15`);
       if (!res.ok) return;
-      const data = await res.json();
-      let songs = data.data?.results?.filter((s: any) => s.downloadUrl?.length > 0) || [];
-      if (langFilter) songs = songs.filter((s: any) => s.language === langFilter);
-      const tracks: Track[] = songs.map((s: any, i: number) => parseSong(s, i)).filter(Boolean);
+      const data = await res.json() as ApiSearchResponse;
+      let songs = data.data?.results?.filter((s) => (s.downloadUrl?.length ?? 0) > 0) || [];
+      if (langFilter) songs = songs.filter((s) => s.language === langFilter);
+      const tracks: Track[] = songs.map((s, i) => parseSong(s, i)).filter((t): t is Track => t !== null);
       setter(tracks.slice(0, 10));
     } catch { /* ignore */ }
     setLoading(false);
@@ -102,8 +129,8 @@ const HomeScreen = ({ navigation }: any) => {
     try {
       const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=5`);
       if (!res.ok) return;
-      const data = await res.json();
-      const songs = data.data?.results?.filter((s: any) => s.downloadUrl?.length > 0) || [];
+      const data = await res.json() as ApiSearchResponse;
+      const songs = data.data?.results?.filter((s) => (s.downloadUrl?.length ?? 0) > 0) || [];
       if (songs.length > 0) {
         const track = parseSong(songs[0], 0);
         if (track) setter(track);
@@ -433,9 +460,9 @@ const SearchScreen = () => {
     try {
       const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=20`);
       if (!res.ok) return;
-      const data = await res.json();
-      const songs = data.data?.results?.filter((s: any) => s.downloadUrl?.length > 0) || [];
-      const tracks: Track[] = songs.map((s: any, i: number) => parseSong(s, i)).filter(Boolean);
+      const data = await res.json() as ApiSearchResponse;
+      const songs = data.data?.results?.filter((s) => (s.downloadUrl?.length ?? 0) > 0) || [];
+      const tracks: Track[] = songs.map((s, i) => parseSong(s, i)).filter((t): t is Track => t !== null);
       setResults(tracks);
     } catch { /* ignore */ }
     setLoading(false);
