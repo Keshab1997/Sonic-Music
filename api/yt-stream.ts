@@ -59,8 +59,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             (a: { bitrate: number }, b: { bitrate: number }) => b.bitrate - a.bitrate
           )[0];
           
-          const audioUrl = best.url;
-          if (audioUrl) {
+          const rawUrl = best.url;
+          if (rawUrl) {
+            const audioUrl = `/api/proxy-yt-audio?url=${encodeURIComponent(rawUrl)}`;
             return { audioUrl, source: instance };
           }
         }
@@ -101,8 +102,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             (a: { bitrate: number }, b: { bitrate: number }) => (b.bitrate || 0) - (a.bitrate || 0)
           )[0];
           
-          const audioUrl = best.url;
-          if (audioUrl) {
+          const rawUrl = best.url;
+          if (rawUrl) {
+            const audioUrl = `/api/proxy-yt-audio?url=${encodeURIComponent(rawUrl)}`;
             return { audioUrl, source: instance };
           }
         }
