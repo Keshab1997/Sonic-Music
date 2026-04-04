@@ -16,6 +16,20 @@ export const INVIDIOUS_INSTANCES = [
   "https://yewtu.be",
   "https://invidious.lunar.icu",
   "https://inv.in.projectsegfau.lt",
+  "https://vid.puffyan.us",
+  "https://invidious.privacydev.net",
+  "https://inv.tux.pizza",
+];
+
+/**
+ * Piped API instances (alternative to Invidious - more reliable)
+ */
+export const PIPED_INSTANCES = [
+  "https://pipedapi.kavin.rocks",
+  "https://pipedapi.in.projectsegfau.lt",
+  "https://pipedapi.adminforge.de",
+  "https://pipedapi.r4fo.com",
+  "https://pipedapi.leptons.xyz",
 ];
 
 /**

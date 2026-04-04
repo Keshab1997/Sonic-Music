@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { INVIDIOUS_INSTANCES, INVIDIOUS_REQUEST_TIMEOUT, INVIDIOUS_HEADERS } from "./lib/invidious.js";
+import { INVIDIOUS_INSTANCES, INVIDIOUS_REQUEST_TIMEOUT, INVIDIOUS_HEADERS, PIPED_INSTANCES } from "./lib/invidious.js";
 import { checkRateLimit, getRateLimitHeaders, defaultRateLimits } from "./lib/rate-limiter.js";
 
 // In-memory cache: query -> { results, expiresAt }
@@ -114,11 +114,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   };
 
+  // Try Invidious first
   const firstBatch = INVIDIOUS_INSTANCES.slice(0, 4);
   const remaining = INVIDIOUS_INSTANCES.slice(4);
 
   const batchResults = await Promise.allSettled(firstBatch.map(tryInstance));
   for (const result of batchResults) {
+    if (result.status === "fulfilled" && result.value) {
+      return res.status(200).json(result.value);
+    }
+  }
+
+  // Try Piped as fallback
+  const tryPiped = async (instance: string): Promise<YouTubeSearchResult[] | null> => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), INVIDIOUS_REQUEST_TIMEOUT);
+      const pipedRes = await fetch(
+        `${instance}/search?q=${encodeURIComponent(query)}&filter=videos`,
+        { signal: controller.signal, headers: INVIDIOUS_HEADERS }
+      );
+      clearTimeout(timeout);
+      if (!pipedRes.ok) return null;
+      const data = await pipedRes.json().catch(() => null);
+      if (!data?.items || !Array.isArray(data.items)) return null;
+      const results = data.items.slice(0, 50).map((v: any) => ({
+        videoId: v.url?.replace("/watch?v=", ""),
+        title: v.title,
+        author: v.uploaderName || "Unknown",
+        duration: v.duration || 0,
+        thumbnail: v.thumbnail,
+      })).filter((v: any) => v.videoId);
+      searchCache.set(cacheKey, { results, expiresAt: Date.now() + CACHE_TTL_MS });
+      return results;
+    } catch {
+      return null;
+    }
+  };
+
+  const pipedBatch = PIPED_INSTANCES.slice(0, 3);
+  const pipedResults = await Promise.allSettled(pipedBatch.map(tryPiped));
+  for (const result of pipedResults) {
     if (result.status === "fulfilled" && result.value) {
       return res.status(200).json(result.value);
     }
