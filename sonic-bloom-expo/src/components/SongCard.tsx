@@ -1,7 +1,8 @@
 import React from 'react';
-import { TouchableOpacity, Image, Text, View, StyleSheet } from 'react-native';
+import { TouchableOpacity, Text, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Track } from '../data/playlist';
+import { CachedImage } from './CachedImage';
 
 interface SongCardProps {
   track: Track;
@@ -27,7 +28,7 @@ export const SongCard: React.FC<SongCardProps> = ({
       activeOpacity={0.7}
     >
       <View style={styles.cardImageContainer}>
-        <Image
+        <CachedImage
           source={{ uri: track.cover }}
           style={[styles.cardImage, { width: cardWidth, height: cardWidth }]}
           defaultSource={require('../../assets/icon.png')}

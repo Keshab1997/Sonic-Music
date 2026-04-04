@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { TouchableOpacity, Image, Text, View, StyleSheet } from 'react-native';
+import { TouchableOpacity, Text, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayer } from '../context/PlayerContext';
 import { FullScreenPlayer } from './FullScreenPlayer';
+import { CachedImage } from './CachedImage';
 
 interface MiniPlayerProps {
   onExpand?: () => void;
@@ -28,7 +29,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
           <View style={[styles.miniProgressFill, { width: `${progressPercent}%` }]} />
         </View>
 
-        <Image
+        <CachedImage
           source={{ uri: currentTrack.cover }}
           style={styles.miniCover}
           defaultSource={require('../../assets/icon.png')}

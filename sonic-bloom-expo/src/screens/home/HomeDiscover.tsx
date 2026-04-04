@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Image, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MOODS, LABELS, ERAS, HINDI_ARTISTS, BENGALI_ARTISTS } from '../../data/constants';
 import { SectionHeader } from '../../components/SectionHeader';
+import { CachedImage } from '../../components/CachedImage';
 
 const { width } = Dimensions.get('window');
 
@@ -90,7 +91,7 @@ export const HomeDiscover: React.FC<HomeDiscoverProps> = ({
               activeOpacity={0.7}
             >
               <View style={styles.artistImageWrap}>
-                <Image
+                <CachedImage
                   source={{ uri: artist.image }}
                   style={styles.artistImage}
                   defaultSource={require('../../../assets/icon.png')}
@@ -114,7 +115,7 @@ export const HomeDiscover: React.FC<HomeDiscoverProps> = ({
               activeOpacity={0.7}
             >
               <View style={styles.artistImageWrap}>
-                <Image
+                <CachedImage
                   source={{ uri: artist.image }}
                   style={styles.artistImage}
                   defaultSource={require('../../../assets/icon.png')}

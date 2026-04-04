@@ -1,8 +1,9 @@
 import React from 'react';
-import { Modal, Pressable, View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { Modal, Pressable, View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
+import { CachedImage } from './CachedImage';
 
 interface BottomSheetModalProps {
   visible: boolean;
@@ -33,7 +34,7 @@ export const BottomSheetModal: React.FC<BottomSheetModalProps> = ({
         onPress={() => onPlayTrack(item, index)}
         activeOpacity={0.7}
       >
-        <Image
+        <CachedImage
           source={{ uri: item.cover }}
           style={styles.sheetCover}
           defaultSource={require('../../assets/icon.png')}

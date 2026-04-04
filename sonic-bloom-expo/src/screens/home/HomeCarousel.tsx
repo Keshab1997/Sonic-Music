@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Image, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Track } from '../../data/playlist';
+import { CachedImage } from '../../components/CachedImage';
 
 const { width } = Dimensions.get('window');
 
@@ -23,7 +24,7 @@ export const HomeCarousel: React.FC<HomeCarouselProps> = ({ songs, carouselIndex
           key={i}
           style={[styles.carouselSlide, { opacity: carouselIndex === i ? 1 : 0 }]}
         >
-          <Image
+          <CachedImage
             source={{ uri: song.cover }}
             style={styles.carouselImage}
             defaultSource={require('../../../assets/icon.png')}
