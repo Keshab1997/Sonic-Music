@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert, Image } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert, Image, TextInput, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -14,6 +14,14 @@ export const ProfileScreen: React.FC = () => {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     user?.user_metadata?.avatar_url || null
   );
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [fullName, setFullName] = useState(user?.user_metadata?.full_name || '');
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [audioQuality, setAudioQuality] = useState('High');
+  const [qualityModalVisible, setQualityModalVisible] = useState(false);
 
   const pickImage = async () => {
     try {
@@ -72,20 +80,24 @@ export const ProfileScreen: React.FC = () => {
     try {
       setUploading(true);
 
-      // Convert image to blob
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      
-      // Create file name
-      const fileExt = uri.split('.').pop();
+      // Get file extension
+      const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
       const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
+      // Create FormData for upload
+      const formData = new FormData();
+      formData.append('file', {
+        uri,
+        name: fileName,
+        type: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
+      } as any);
+
       // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError, data } = await supabase.storage
         .from('profiles')
-        .upload(filePath, blob, {
-          contentType: `image/${fileExt}`,
+        .upload(filePath, formData, {
+          contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
           upsert: true,
         });
 
@@ -123,6 +135,41 @@ export const ProfileScreen: React.FC = () => {
         { text: 'Cancel', style: 'cancel' },
       ]
     );
+  };
+
+  const handleEditProfile = async () => {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { full_name: fullName }
+      });
+      if (error) throw error;
+      Alert.alert('Success', 'Profile updated!');
+      setEditModalVisible(false);
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      Alert.alert('Success', 'Password changed successfully!');
+      setPasswordModalVisible(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
   };
 
   const handleSignOut = () => {
@@ -205,7 +252,7 @@ export const ProfileScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           
-          <Pressable style={styles.settingItem}>
+          <Pressable style={styles.settingItem} onPress={() => setEditModalVisible(true)}>
             <View style={styles.settingLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons name="person-outline" size={20} color="#1DB954" />
@@ -215,7 +262,7 @@ export const ProfileScreen: React.FC = () => {
             <Ionicons name="chevron-forward" size={18} color="#555" />
           </Pressable>
 
-          <Pressable style={styles.settingItem}>
+          <Pressable style={styles.settingItem} onPress={() => setPasswordModalVisible(true)}>
             <View style={styles.settingLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons name="key-outline" size={20} color="#1DB954" />
@@ -230,7 +277,7 @@ export const ProfileScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
           
-          <Pressable style={styles.settingItem}>
+          <Pressable style={styles.settingItem} onPress={() => setQualityModalVisible(true)}>
             <View style={styles.settingLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons name="musical-notes-outline" size={20} color="#1DB954" />
@@ -238,12 +285,12 @@ export const ProfileScreen: React.FC = () => {
               <Text style={styles.settingText}>Audio Quality</Text>
             </View>
             <View style={styles.settingRight}>
-              <Text style={styles.settingValue}>High</Text>
+              <Text style={styles.settingValue}>{audioQuality}</Text>
               <Ionicons name="chevron-forward" size={18} color="#555" />
             </View>
           </Pressable>
 
-          <Pressable style={styles.settingItem}>
+          <Pressable style={styles.settingItem} onPress={() => Alert.alert('Downloads', 'No downloads yet')}>
             <View style={styles.settingLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons name="download-outline" size={20} color="#1DB954" />
@@ -253,7 +300,7 @@ export const ProfileScreen: React.FC = () => {
             <Ionicons name="chevron-forward" size={18} color="#555" />
           </Pressable>
 
-          <Pressable style={styles.settingItem}>
+          <Pressable style={styles.settingItem} onPress={() => Alert.alert('Notifications', 'Notification settings coming soon')}>
             <View style={styles.settingLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons name="notifications-outline" size={20} color="#1DB954" />
@@ -263,7 +310,7 @@ export const ProfileScreen: React.FC = () => {
             <Ionicons name="chevron-forward" size={18} color="#555" />
           </Pressable>
 
-          <Pressable style={styles.settingItem}>
+          <Pressable style={styles.settingItem} onPress={() => Alert.alert('Privacy', 'Privacy settings coming soon')}>
             <View style={styles.settingLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons name="shield-checkmark-outline" size={20} color="#1DB954" />
@@ -278,7 +325,7 @@ export const ProfileScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About</Text>
           
-          <Pressable style={styles.settingItem}>
+          <Pressable style={styles.settingItem} onPress={() => Alert.alert('Sonic Bloom', 'Version 1.0.0\n\nCreated by Keshab Sarkar\n\nA premium music player with YouTube integration')}>
             <View style={styles.settingLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons name="information-circle-outline" size={20} color="#1DB954" />
@@ -288,7 +335,7 @@ export const ProfileScreen: React.FC = () => {
             <Ionicons name="chevron-forward" size={18} color="#555" />
           </Pressable>
 
-          <Pressable style={styles.settingItem}>
+          <Pressable style={styles.settingItem} onPress={() => Alert.alert('Terms & Privacy', 'Terms of Service and Privacy Policy coming soon')}>
             <View style={styles.settingLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons name="document-text-outline" size={20} color="#1DB954" />
@@ -308,6 +355,94 @@ export const ProfileScreen: React.FC = () => {
         {/* App Version */}
         <Text style={styles.version}>Sonic Bloom v1.0.0</Text>
       </ScrollView>
+
+      {/* Edit Profile Modal */}
+      <Modal visible={editModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Profile</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Full Name"
+              placeholderTextColor="#666"
+              value={fullName}
+              onChangeText={setFullName}
+            />
+            <View style={styles.modalButtons}>
+              <Pressable style={styles.modalBtnCancel} onPress={() => setEditModalVisible(false)}>
+                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.modalBtnSave} onPress={handleEditProfile}>
+                <LinearGradient colors={['#1DB954', '#1ed760']} style={styles.modalBtnGradient}>
+                  <Text style={styles.modalBtnSaveText}>Save</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Change Password Modal */}
+      <Modal visible={passwordModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Change Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="New Password"
+              placeholderTextColor="#666"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password"
+              placeholderTextColor="#666"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+            />
+            <View style={styles.modalButtons}>
+              <Pressable style={styles.modalBtnCancel} onPress={() => setPasswordModalVisible(false)}>
+                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.modalBtnSave} onPress={handleChangePassword}>
+                <LinearGradient colors={['#1DB954', '#1ed760']} style={styles.modalBtnGradient}>
+                  <Text style={styles.modalBtnSaveText}>Change</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Audio Quality Modal */}
+      <Modal visible={qualityModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Audio Quality</Text>
+            {['Low (96 kbps)', 'Medium (160 kbps)', 'High (320 kbps)'].map((quality) => (
+              <Pressable
+                key={quality}
+                style={styles.qualityOption}
+                onPress={() => {
+                  setAudioQuality(quality.split(' ')[0]);
+                  setQualityModalVisible(false);
+                }}
+              >
+                <Text style={styles.qualityText}>{quality}</Text>
+                {audioQuality === quality.split(' ')[0] && (
+                  <Ionicons name="checkmark-circle" size={24} color="#1DB954" />
+                )}
+              </Pressable>
+            ))}
+            <Pressable style={styles.modalBtnCancel} onPress={() => setQualityModalVisible(false)}>
+              <Text style={styles.modalBtnCancelText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -342,4 +477,16 @@ const styles = StyleSheet.create({
   signOutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 20, marginTop: 32, paddingVertical: 16, backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 16, gap: 10, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' },
   signOutText: { fontSize: 16, color: '#ef4444', fontWeight: '700' },
   version: { textAlign: 'center', fontSize: 13, color: '#555', marginTop: 24, marginBottom: 16 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
+  modalContent: { backgroundColor: '#1a1a1a', borderRadius: 20, padding: 24, width: '100%', maxWidth: 400 },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 20, textAlign: 'center' },
+  input: { backgroundColor: '#0a0a0a', borderRadius: 12, padding: 16, fontSize: 16, color: '#fff', marginBottom: 16, borderWidth: 1, borderColor: '#2a2a2a' },
+  modalButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  modalBtnCancel: { flex: 1, backgroundColor: '#2a2a2a', borderRadius: 12, padding: 16, alignItems: 'center' },
+  modalBtnCancelText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  modalBtnSave: { flex: 1, borderRadius: 12, overflow: 'hidden' },
+  modalBtnGradient: { padding: 16, alignItems: 'center' },
+  modalBtnSaveText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  qualityOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: '#0a0a0a', borderRadius: 12, marginBottom: 12 },
+  qualityText: { fontSize: 16, color: '#fff', fontWeight: '500' },
 });

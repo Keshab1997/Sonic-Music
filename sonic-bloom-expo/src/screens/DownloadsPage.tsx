@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayer } from '../context/PlayerContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
@@ -8,6 +8,7 @@ import { CachedImage } from '../components/CachedImage';
 export const DownloadsPage: React.FC = () => {
   const { downloads, deleteTrack, deleteAll } = useDownloadsContext();
   const { playTrackList, currentTrack, isPlaying, addToQueue } = usePlayer();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleDelete = (trackId: string) => {
     Alert.alert(
@@ -66,6 +67,17 @@ export const DownloadsPage: React.FC = () => {
     );
   };
 
+  // Filter downloads based on search query
+  const filteredDownloads = useMemo(() => {
+    if (!searchQuery.trim()) return downloads;
+    const query = searchQuery.toLowerCase();
+    return downloads.filter(d =>
+      d.track.title.toLowerCase().includes(query) ||
+      d.track.artist.toLowerCase().includes(query) ||
+      d.track.album.toLowerCase().includes(query)
+    );
+  }, [downloads, searchQuery]);
+
   if (downloads.length === 0) {
     return (
       <View style={styles.container}>
@@ -89,6 +101,23 @@ export const DownloadsPage: React.FC = () => {
         </TouchableOpacity>
       </View>
 
+      {/* Search Bar */}
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={18} color="#555" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search downloaded songs..."
+          placeholderTextColor="#555"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+            <Ionicons name="close" size={18} color="#555" />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Play All Button */}
       <TouchableOpacity
         style={styles.playAllBtn}
@@ -101,11 +130,19 @@ export const DownloadsPage: React.FC = () => {
 
       {/* Downloads List */}
       <FlatList
-        data={downloads}
+        data={filteredDownloads}
         keyExtractor={(item) => String(item.track.id)}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          searchQuery ? (
+            <View style={styles.emptySearch}>
+              <Ionicons name="search-outline" size={48} color="#333" />
+              <Text style={styles.emptySearchText}>No results for "{searchQuery}"</Text>
+            </View>
+          ) : null
+        }
       />
     </View>
   );
@@ -120,9 +157,13 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 24, color: '#fff', fontWeight: 'bold' },
   headerCount: { fontSize: 14, color: '#888' },
   deleteAllText: { fontSize: 14, color: '#ef4444', fontWeight: '600' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginHorizontal: 16, marginBottom: 8, gap: 10 },
+  searchInput: { flex: 1, color: '#fff', fontSize: 15 },
   playAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#1DB954', marginHorizontal: 16, paddingVertical: 12, borderRadius: 24, marginBottom: 8 },
   playAllText: { fontSize: 14, color: '#000', fontWeight: '600' },
   listContent: { paddingHorizontal: 16, paddingBottom: 140 },
+  emptySearch: { alignItems: 'center', paddingVertical: 40 },
+  emptySearchText: { color: '#888', fontSize: 14, marginTop: 8 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
   rowActive: { backgroundColor: '#0d1f0d', borderRadius: 8, paddingHorizontal: 8 },
   cover: { width: 52, height: 52, borderRadius: 8, backgroundColor: '#1a1a1a' },
