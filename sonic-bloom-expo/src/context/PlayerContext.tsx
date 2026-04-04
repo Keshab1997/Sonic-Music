@@ -1,15 +1,19 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { View } from "react-native";
 import { Track, playlist } from "@/data/playlist";
 import { Audio } from "expo-av";
-import { useListeningHistory } from "@/hooks/useSupabaseListeningHistory";
-import { useLikedSongs } from "@/hooks/useSupabaseLikedSongs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from "@/lib/supabase";
+import YoutubeIframe, { YoutubeIframeRef } from "react-native-youtube-iframe";
 import {
   DEFAULT_VOLUME,
   DEFAULT_AUDIO_QUALITY,
   STORAGE_KEY_QUALITY,
   STORAGE_KEY_QUEUE,
 } from "@/lib/constants";
+
+const LIKED_SONGS_KEY = "sonic_liked_songs";
+const LIKED_TRACKS_FULL_KEY = "sonic_liked_tracks_full";
 
 export type AudioQuality = "96kbps" | "160kbps" | "320kbps";
 
@@ -23,9 +27,7 @@ interface PlayerContextType {
   volume: number;
   shuffle: boolean;
   repeat: "off" | "all" | "one";
-  eqBass: number;
-  eqMid: number;
-  eqTreble: number;
+  eqBass: number; eqMid: number; eqTreble: number;
   setEqBass: (v: number) => void;
   setEqMid: (v: number) => void;
   setEqTreble: (v: number) => void;
@@ -71,15 +73,10 @@ export const usePlayer = () => {
   return ctx;
 };
 
-// Helper to get audio src based on quality
 function getAudioSrcForTrack(track: Track, quality: AudioQuality): string {
   if (!track) return "";
   if (track.audioUrls) {
-    return track.audioUrls[quality] ||
-           track.audioUrls["160kbps"] ||
-           track.audioUrls["96kbps"] ||
-           track.audioUrls["320kbps"] ||
-           track.src;
+    return track.audioUrls[quality] || track.audioUrls["160kbps"] || track.audioUrls["96kbps"] || track.audioUrls["320kbps"] || track.src;
   }
   return track.src;
 }
@@ -93,27 +90,96 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [volume, setVolumeState] = useState(DEFAULT_VOLUME);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<"off" | "all" | "one">("off");
-
-  const { addToHistory } = useListeningHistory();
-  const { likeSong: likeSongHook, unlikeSong: unlikeSongHook, isLiked: isLikedHook } = useLikedSongs();
-
   const [queue, setQueue] = useState<Track[]>([]);
   const [quality, setQualityState] = useState<AudioQuality>(DEFAULT_AUDIO_QUALITY);
   const [sleepMinutes, setSleepMinutesState] = useState<number | null>(null);
   const sleepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const [eqBass, setEqBassState] = useState(0);
   const [eqMid, setEqMidState] = useState(0);
   const [eqTreble, setEqTrebleState] = useState(0);
   const [playbackSpeed, setPlaybackSpeedState] = useState(1.0);
   const [crossfade, setCrossfadeState] = useState(0);
 
-  const currentTrack = trackList[currentIndex] || null;
+  // expo-av
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Use refs to avoid circular dependencies
+  // YouTube
+  const ytPlayerRef = useRef<YoutubeIframeRef>(null);
+  const [ytVideoId, setYtVideoId] = useState<string | null>(null);
+  const [ytPlaying, setYtPlaying] = useState(false);
+  const isYoutubeRef = useRef(false);
+  const ytProgressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [ytProgress, setYtProgress] = useState(0);
+  const [ytDuration, setYtDuration] = useState(0);
+
+  const displayProgress = isYoutubeRef.current ? ytProgress : progress;
+  const displayDuration = isYoutubeRef.current ? ytDuration : duration;
+  const displayIsPlaying = isYoutubeRef.current ? ytPlaying : isPlaying;
+
+  // Liked songs
+  const [likedSongIds, setLikedSongIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    AsyncStorage.getItem(LIKED_SONGS_KEY).then(s => {
+      if (s) setLikedSongIds(new Set(JSON.parse(s)));
+    }).catch(() => {});
+  }, []);
+
+  const isLikedHook = useCallback((id: string) => likedSongIds.has(id), [likedSongIds]);
+
+  const likeSongHook = useCallback(async (track: Track): Promise<boolean> => {
+    const id = String(track.id);
+    setLikedSongIds(prev => {
+      const next = new Set(prev).add(id);
+      AsyncStorage.setItem(LIKED_SONGS_KEY, JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
+    try {
+      const stored = await AsyncStorage.getItem(LIKED_TRACKS_FULL_KEY);
+      const existing: Track[] = stored ? JSON.parse(stored) : [];
+      if (!existing.some(t => String(t.id) === id)) {
+        await AsyncStorage.setItem(LIKED_TRACKS_FULL_KEY, JSON.stringify([track, ...existing]));
+      }
+    } catch { }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("tracks").upsert({ id, title: track.title, artist: track.artist, album: track.album, duration: track.duration, youtube_id: track.songId, cover_url: track.cover, audio_url: track.src });
+        await supabase.from("liked_songs").upsert({ track_id: id, user_id: user.id });
+      }
+    } catch { }
+    return true;
+  }, []);
+
+  const unlikeSongHook = useCallback(async (trackId: string): Promise<boolean> => {
+    setLikedSongIds(prev => {
+      const next = new Set(prev); next.delete(trackId);
+      AsyncStorage.setItem(LIKED_SONGS_KEY, JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
+    try {
+      const stored = await AsyncStorage.getItem(LIKED_TRACKS_FULL_KEY);
+      if (stored) {
+        const existing: Track[] = JSON.parse(stored);
+        await AsyncStorage.setItem(LIKED_TRACKS_FULL_KEY, JSON.stringify(existing.filter(t => String(t.id) !== trackId)));
+      }
+    } catch { }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) await supabase.from("liked_songs").delete().eq("track_id", trackId).eq("user_id", user.id);
+    } catch { }
+    return true;
+  }, []);
+
+  const addToHistory = useCallback(async (trackId: string, durationPlayed: number, completed: boolean): Promise<boolean> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) await supabase.from("listening_history").insert({ track_id: trackId, user_id: user.id, duration_played: durationPlayed, completed });
+    } catch { }
+    return true;
+  }, []);
+
+  // Refs
   const trackListRef = useRef(trackList);
   const currentIndexRef = useRef(currentIndex);
   const queueRef = useRef(queue);
@@ -121,7 +187,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const repeatRef = useRef(repeat);
   const qualityRef = useRef(quality);
   const volumeRef = useRef(volume);
-
   useEffect(() => { trackListRef.current = trackList; }, [trackList]);
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
   useEffect(() => { queueRef.current = queue; }, [queue]);
@@ -130,119 +195,112 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => { qualityRef.current = quality; }, [quality]);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
 
-  // Initialize audio
+  // Setup audio mode
   useEffect(() => {
-    const setupAudio = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: true,
-        });
-      } catch (error) {
-        console.warn("Failed to set audio mode:", error);
-      }
-    };
-    setupAudio();
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: true,
+    }).catch(() => {});
     return () => {
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-      }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
+      soundRef.current?.unloadAsync();
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      if (ytProgressRef.current) clearInterval(ytProgressRef.current);
     };
   }, []);
 
   // Load persisted state
   useEffect(() => {
-    const loadPersisted = async () => {
-      try {
-        const storedQueue = await AsyncStorage.getItem(STORAGE_KEY_QUEUE);
-        if (storedQueue) setQueue(JSON.parse(storedQueue));
-        const storedQuality = await AsyncStorage.getItem(STORAGE_KEY_QUALITY);
-        if (storedQuality && ["96kbps", "160kbps", "320kbps"].includes(storedQuality)) {
-          setQualityState(storedQuality as AudioQuality);
-        }
-      } catch { /* ignore */ }
-    };
-    loadPersisted();
+    AsyncStorage.getItem(STORAGE_KEY_QUEUE).then(s => { if (s) setQueue(JSON.parse(s)); }).catch(() => {});
+    AsyncStorage.getItem(STORAGE_KEY_QUALITY).then(s => {
+      if (s && ["96kbps", "160kbps", "320kbps"].includes(s)) setQualityState(s as AudioQuality);
+    }).catch(() => {});
   }, []);
 
-  // Save queue
   useEffect(() => {
     AsyncStorage.setItem(STORAGE_KEY_QUEUE, JSON.stringify(queue)).catch(() => {});
   }, [queue]);
 
-  // Core play function
-  const playSound = useCallback(async (src: string, fromPositionMillis: number = 0) => {
+  // Stable refs for play functions — fixes stale closure in next/prev
+  const playSoundRef = useRef<(src: string) => Promise<void>>(async () => {});
+  const playYoutubeRef = useRef<(videoId: string) => void>(() => {});
+  const stopYoutubeRef = useRef<() => void>(() => {});
+
+  // YouTube helpers
+  const stopYoutube = useCallback(() => {
+    setYtPlaying(false);
+    setYtVideoId(null);
+    isYoutubeRef.current = false;
+    setYtProgress(0);
+    setYtDuration(0);
+    if (ytProgressRef.current) { clearInterval(ytProgressRef.current); ytProgressRef.current = null; }
+  }, []);
+  stopYoutubeRef.current = stopYoutube;
+
+  const playYoutube = useCallback((videoId: string) => {
+    soundRef.current?.unloadAsync().catch(() => {});
+    soundRef.current = null;
+    if (progressIntervalRef.current) { clearInterval(progressIntervalRef.current); progressIntervalRef.current = null; }
+    isYoutubeRef.current = true;
+    setYtVideoId(videoId);
+    setYtPlaying(true);
+    setYtProgress(0);
+    setYtDuration(0);
+    setIsPlaying(true);
+    if (ytProgressRef.current) clearInterval(ytProgressRef.current);
+    ytProgressRef.current = setInterval(async () => {
+      if (ytPlayerRef.current) {
+        const cur = await ytPlayerRef.current.getCurrentTime().catch(() => 0);
+        const dur = await ytPlayerRef.current.getDuration().catch(() => 0);
+        setYtProgress(cur);
+        if (dur > 0) setYtDuration(dur);
+      }
+    }, 1000);
+  }, []);
+  playYoutubeRef.current = playYoutube;
+
+  // expo-av play
+  const playSound = useCallback(async (src: string) => {
     try {
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
+      if (soundRef.current) { await soundRef.current.unloadAsync(); soundRef.current = null; }
+      if (progressIntervalRef.current) { clearInterval(progressIntervalRef.current); progressIntervalRef.current = null; }
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: src },
-        {
-          shouldPlay: true,
-          volume: volumeRef.current,
-          rate: 1.0,
-          positionMillis: fromPositionMillis,
-        },
+        { shouldPlay: true, volume: volumeRef.current, rate: 1.0 },
         (status) => {
-          if (status.isLoaded) {
-            setDuration(status.durationMillis ? status.durationMillis / 1000 : 0);
-            setProgress(status.positionMillis / 1000);
-
-            if (status.didJustFinish) {
-              const ct = trackListRef.current[currentIndexRef.current];
-              if (ct) {
-                addToHistory(String(ct.id), status.durationMillis ? status.durationMillis / 1000 : 0, true).catch(() => {});
+          if (!status.isLoaded) return;
+          setDuration(status.durationMillis ? status.durationMillis / 1000 : 0);
+          setProgress(status.positionMillis / 1000);
+          if (status.didJustFinish) {
+            if (repeatRef.current === "one") {
+              playSoundRef.current(src);
+            } else {
+              const q = queueRef.current;
+              if (q.length > 0) {
+                const nt = q[0];
+                setQueue(prev => prev.slice(1));
+                const ei = trackListRef.current.findIndex(t => t.src === nt.src);
+                if (ei !== -1) setCurrentIndex(ei);
+                else { setTrackList(prev => [nt, ...prev]); setCurrentIndex(0); }
+                if (nt.type === "youtube" && nt.songId) playYoutubeRef.current(nt.songId);
+                else playSoundRef.current(getAudioSrcForTrack(nt, qualityRef.current));
+                return;
               }
-              if (repeatRef.current === "one") {
-                playSound(src, 0);
-              } else {
-                // Inline next logic to avoid circular ref
-                const q = queueRef.current;
-                if (q.length > 0) {
-                  const nextTrack = q[0];
-                  setQueue((prev) => prev.slice(1));
-                  const nextSrc = getAudioSrcForTrack(nextTrack, qualityRef.current);
-                  if (nextSrc) {
-                    const existingIdx = trackListRef.current.findIndex((t) => t.src === nextTrack.src);
-                    if (existingIdx !== -1) {
-                      setCurrentIndex(existingIdx);
-                    } else {
-                      setTrackList((prev) => [nextTrack, ...prev]);
-                      setCurrentIndex(0);
-                    }
-                    playSound(nextSrc);
-                  }
-                  return;
-                }
-                let nextIdx: number;
-                if (shuffleRef.current) {
-                  nextIdx = Math.floor(Math.random() * trackListRef.current.length);
-                } else {
-                  nextIdx = (currentIndexRef.current + 1) % trackListRef.current.length;
-                }
-                setCurrentIndex(nextIdx);
-                setProgress(0);
-                const nextTrack = trackListRef.current[nextIdx];
-                if (nextTrack) {
-                  const nextSrc = getAudioSrcForTrack(nextTrack, qualityRef.current);
-                  if (nextSrc) playSound(nextSrc);
-                }
+              const nextIdx = shuffleRef.current
+                ? Math.floor(Math.random() * trackListRef.current.length)
+                : (currentIndexRef.current + 1) % trackListRef.current.length;
+              setCurrentIndex(nextIdx);
+              setProgress(0);
+              const nt = trackListRef.current[nextIdx];
+              if (nt) {
+                if (nt.type === "youtube" && nt.songId) playYoutubeRef.current(nt.songId);
+                else playSoundRef.current(getAudioSrcForTrack(nt, qualityRef.current));
               }
             }
           }
         }
       );
-
       soundRef.current = sound;
       progressIntervalRef.current = setInterval(async () => {
         if (soundRef.current) {
@@ -251,79 +309,154 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }, 500);
       setIsPlaying(true);
-    } catch (error) {
-      console.warn("Failed to play sound:", error);
-      // Skip to next on error
-      const q = queueRef.current;
-      if (q.length > 0) {
-        const nextTrack = q[0];
-        setQueue((prev) => prev.slice(1));
-        const nextSrc = getAudioSrcForTrack(nextTrack, qualityRef.current);
-        if (nextSrc) {
-          const existingIdx = trackListRef.current.findIndex((t) => t.src === nextTrack.src);
-          if (existingIdx !== -1) setCurrentIndex(existingIdx);
-          else {
-            setTrackList((prev) => [nextTrack, ...prev]);
-            setCurrentIndex(0);
-          }
-          playSound(nextSrc);
-        }
-      }
+    } catch {
+      const nextIdx = (currentIndexRef.current + 1) % trackListRef.current.length;
+      setCurrentIndex(nextIdx);
+      const nt = trackListRef.current[nextIdx];
+      if (nt) playSoundRef.current(getAudioSrcForTrack(nt, qualityRef.current));
     }
-  }, [addToHistory]);
-
-  // Queue operations
-  const addToQueue = useCallback((track: Track) => setQueue((prev) => [...prev, track]), []);
-  const playNext = useCallback((track: Track) => setQueue((prev) => [track, ...prev]), []);
-  const removeFromQueue = useCallback((index: number) => setQueue((prev) => prev.filter((_, i) => i !== index)), []);
-  const clearQueue = useCallback(() => setQueue([]), []);
-  const moveQueueItem = useCallback((from: number, to: number) => {
-    setQueue((prev) => {
-      const updated = [...prev];
-      const [item] = updated.splice(from, 1);
-      updated.splice(to, 0, item);
-      return updated;
-    });
   }, []);
-  const shuffleQueue = useCallback(() => {
-    setQueue((prev) => {
-      const shuffled = [...prev];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      return shuffled;
-    });
+  playSoundRef.current = playSound;
+
+  const playTrackList = useCallback((tracks: Track[], index?: number) => {
+    const idx = index ?? 0;
+    setTrackList(tracks);
+    setCurrentIndex(idx);
+    setProgress(0); setDuration(0);
+    const track = tracks[idx];
+    if (!track) return;
+    if (track.type === "youtube" && track.songId) { stopYoutubeRef.current(); playYoutubeRef.current(track.songId); }
+    else { stopYoutubeRef.current(); playSoundRef.current(getAudioSrcForTrack(track, qualityRef.current)); }
+  }, []);
+
+  const playTrack = useCallback((track: Track) => {
+    const ei = trackListRef.current.findIndex(t => t.src === track.src);
+    let newList = trackListRef.current;
+    let idx = ei;
+    if (ei === -1) { newList = [track, ...trackListRef.current]; idx = 0; }
+    setTrackList(newList);
+    setCurrentIndex(idx);
+    setProgress(0); setDuration(0);
+    if (track.type === "youtube" && track.songId) { stopYoutubeRef.current(); playYoutubeRef.current(track.songId); }
+    else { stopYoutubeRef.current(); playSoundRef.current(getAudioSrcForTrack(track, qualityRef.current)); }
+  }, []);
+
+  const play = useCallback((index?: number) => {
+    const idx = index ?? currentIndexRef.current;
+    const track = trackListRef.current[idx];
+    if (!track) return;
+    if (index !== undefined) setCurrentIndex(index);
+    if (track.type === "youtube" && track.songId) { stopYoutubeRef.current(); playYoutubeRef.current(track.songId); }
+    else { stopYoutubeRef.current(); playSoundRef.current(getAudioSrcForTrack(track, qualityRef.current)); }
+  }, []);
+
+  const pause = useCallback(async () => {
+    if (isYoutubeRef.current) setYtPlaying(false);
+    else if (soundRef.current) await soundRef.current.pauseAsync();
+    setIsPlaying(false);
+  }, []);
+
+  const togglePlay = useCallback(async () => {
+    if (isYoutubeRef.current) {
+      setYtPlaying(p => !p);
+      setIsPlaying(p => !p);
+    } else if (isPlaying) {
+      await pause();
+    } else {
+      if (soundRef.current) { await soundRef.current.playAsync(); setIsPlaying(true); }
+      else play();
+    }
+  }, [isPlaying, pause, play]);
+
+  const next = useCallback(() => {
+    const q = queueRef.current;
+    const advance = (track: Track, idx: number) => {
+      setCurrentIndex(idx);
+      setProgress(0);
+      if (track.type === "youtube" && track.songId) { stopYoutubeRef.current(); playYoutubeRef.current(track.songId); }
+      else { stopYoutubeRef.current(); playSoundRef.current(getAudioSrcForTrack(track, qualityRef.current)); }
+    };
+    if (q.length > 0) {
+      const nt = q[0];
+      setQueue(prev => prev.slice(1));
+      const ei = trackListRef.current.findIndex(t => t.src === nt.src);
+      if (ei !== -1) advance(nt, ei);
+      else { setTrackList(prev => [nt, ...prev]); advance(nt, 0); }
+      return;
+    }
+    const nextIdx = shuffleRef.current
+      ? Math.floor(Math.random() * trackListRef.current.length)
+      : (currentIndexRef.current + 1) % trackListRef.current.length;
+    const nt = trackListRef.current[nextIdx];
+    if (nt) advance(nt, nextIdx);
+  }, []);
+
+  const prev = useCallback(async () => {
+    const pos = isYoutubeRef.current ? ytProgress : progress;
+    if (pos > 3) {
+      if (isYoutubeRef.current) { ytPlayerRef.current?.seekTo(0, true); setYtProgress(0); }
+      else if (soundRef.current) { await soundRef.current.setPositionAsync(0); setProgress(0); }
+      return;
+    }
+    const prevIdx = (currentIndexRef.current - 1 + trackListRef.current.length) % trackListRef.current.length;
+    const pt = trackListRef.current[prevIdx];
+    if (!pt) return;
+    setCurrentIndex(prevIdx);
+    setProgress(0);
+    if (pt.type === "youtube" && pt.songId) { stopYoutubeRef.current(); playYoutubeRef.current(pt.songId); }
+    else { stopYoutubeRef.current(); playSoundRef.current(getAudioSrcForTrack(pt, qualityRef.current)); }
+  }, [progress, ytProgress]);
+
+  const seek = useCallback(async (time: number) => {
+    if (isYoutubeRef.current) { ytPlayerRef.current?.seekTo(time, true); setYtProgress(time); }
+    else if (soundRef.current) { await soundRef.current.setPositionAsync(time * 1000); setProgress(time); }
+  }, []);
+
+  const setVolume = useCallback(async (v: number) => {
+    setVolumeState(v);
+    if (soundRef.current) await soundRef.current.setVolumeAsync(v);
   }, []);
 
   const setPlaybackSpeed = useCallback(async (speed: number) => {
     setPlaybackSpeedState(speed);
-    if (soundRef.current) {
-      await soundRef.current.setRateAsync(speed, true);
-    }
+    if (soundRef.current) await soundRef.current.setRateAsync(speed, true);
   }, []);
 
-  const setCrossfade = useCallback((seconds: number) => setCrossfadeState(seconds), []);
-
-  const applyEqPreset = useCallback((preset: string) => {
-    const presets: Record<string, [number, number, number]> = {
-      flat: [0, 0, 0], rock: [4, -1, 3], pop: [-1, 3, 1],
-      bass: [6, 0, -2], vocal: [-2, 4, 2], treble: [-3, 0, 5], electronic: [3, -1, 4],
-    };
-    const [b, m, t] = presets[preset] || presets.flat;
-    setEqBassState(b); setEqMidState(m); setEqTrebleState(t);
-  }, []);
-
-  const setQuality = useCallback(async (q: AudioQuality) => {
+  const setQuality = useCallback((q: AudioQuality) => {
     setQualityState(q);
     AsyncStorage.setItem(STORAGE_KEY_QUALITY, q).catch(() => {});
   }, []);
 
+  const toggleShuffle = useCallback(() => setShuffle(s => !s), []);
+  const toggleRepeat = useCallback(() => setRepeat(r => r === "off" ? "all" : r === "all" ? "one" : "off"), []);
+
+  const addToQueue = useCallback((track: Track) => setQueue(prev => [...prev, track]), []);
+  const playNext = useCallback((track: Track) => setQueue(prev => [track, ...prev]), []);
+  const removeFromQueue = useCallback((index: number) => setQueue(prev => prev.filter((_, i) => i !== index)), []);
+  const clearQueue = useCallback(() => setQueue([]), []);
+  const moveQueueItem = useCallback((from: number, to: number) => {
+    setQueue(prev => { const a = [...prev]; const [item] = a.splice(from, 1); a.splice(to, 0, item); return a; });
+  }, []);
+  const shuffleQueue = useCallback(() => setQueue(prev => [...prev].sort(() => Math.random() - 0.5)), []);
+
+  const setEqBass = useCallback((v: number) => setEqBassState(v), []);
+  const setEqMid = useCallback((v: number) => setEqMidState(v), []);
+  const setEqTreble = useCallback((v: number) => setEqTrebleState(v), []);
+  const applyEqPreset = useCallback((preset: string) => {
+    const presets: Record<string, [number, number, number]> = {
+      flat: [0,0,0], rock: [4,-1,3], pop: [-1,3,1], bass: [6,0,-2], vocal: [-2,4,2], treble: [-3,0,5], electronic: [3,-1,4],
+    };
+    const [b, m, t] = presets[preset] || presets.flat;
+    setEqBassState(b); setEqMidState(m); setEqTrebleState(t);
+  }, []);
+  const setCrossfade = useCallback((v: number) => setCrossfadeState(v), []);
+
   const setSleepTimer = useCallback((minutes: number) => {
     if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current);
     setSleepMinutesState(minutes);
-    sleepTimerRef.current = setTimeout(() => {
-      if (soundRef.current) soundRef.current.pauseAsync();
+    sleepTimerRef.current = setTimeout(async () => {
+      if (isYoutubeRef.current) setYtPlaying(false);
+      else if (soundRef.current) await soundRef.current.pauseAsync();
       setIsPlaying(false);
       setSleepMinutesState(null);
     }, minutes * 60 * 1000);
@@ -335,164 +468,59 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSleepMinutesState(null);
   }, []);
 
-  useEffect(() => {
-    return () => { if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current); };
-  }, []);
+  useEffect(() => () => { if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current); }, []);
 
-  const setEqBass = useCallback((v: number) => setEqBassState(v), []);
-  const setEqMid = useCallback((v: number) => setEqMidState(v), []);
-  const setEqTreble = useCallback((v: number) => setEqTrebleState(v), []);
-
-  const play = useCallback((index?: number) => {
-    const idx = index ?? currentIndexRef.current;
-    const track = trackListRef.current[idx];
-    if (track) {
-      if (index !== undefined) setCurrentIndex(index);
-      const src = getAudioSrcForTrack(track, qualityRef.current);
-      if (src) playSound(src);
-    }
-  }, [playSound]);
-
-  const playTrack = useCallback((track: Track) => {
-    const existingIdx = trackListRef.current.findIndex((t) => t.src === track.src);
-    if (existingIdx !== -1) setCurrentIndex(existingIdx);
-    else {
-      setTrackList((prev) => [track, ...prev]);
-      setCurrentIndex(0);
-    }
-    setProgress(0);
-    setDuration(0);
-    const src = getAudioSrcForTrack(track, qualityRef.current);
-    if (src) playSound(src);
-  }, [playSound]);
-
-  const playTrackList = useCallback((tracks: Track[], index?: number) => {
-    setTrackList(tracks);
-    setCurrentIndex(index ?? 0);
-    setProgress(0);
-    setDuration(0);
-    const track = tracks[index ?? 0];
-    if (track) {
-      const src = getAudioSrcForTrack(track, qualityRef.current);
-      if (src) playSound(src);
-    }
-  }, [playSound]);
-
-  const pause = useCallback(async () => {
-    if (soundRef.current) await soundRef.current.pauseAsync();
-    setIsPlaying(false);
-  }, []);
-
-  const togglePlay = useCallback(async () => {
-    if (isPlaying) {
-      await pause();
-    } else {
-      if (soundRef.current) {
-        await soundRef.current.playAsync();
-        setIsPlaying(true);
-      } else {
-        play();
-      }
-    }
-  }, [isPlaying, pause, play]);
-
-  const next = useCallback(() => {
-    const q = queueRef.current;
-    if (q.length > 0) {
-      const nextTrack = q[0];
-      setQueue((prev) => prev.slice(1));
-      const nextSrc = getAudioSrcForTrack(nextTrack, qualityRef.current);
-      if (nextSrc) {
-        const existingIdx = trackListRef.current.findIndex((t) => t.src === nextTrack.src);
-        if (existingIdx !== -1) setCurrentIndex(existingIdx);
-        else {
-          setTrackList((prev) => [nextTrack, ...prev]);
-          setCurrentIndex(0);
-        }
-        playSound(nextSrc);
-      }
-      return;
-    }
-    let nextIdx: number;
-    if (shuffleRef.current) {
-      nextIdx = Math.floor(Math.random() * trackListRef.current.length);
-    } else {
-      nextIdx = (currentIndexRef.current + 1) % trackListRef.current.length;
-    }
-    setCurrentIndex(nextIdx);
-    setProgress(0);
-    const nextTrack = trackListRef.current[nextIdx];
-    if (nextTrack) {
-      const src = getAudioSrcForTrack(nextTrack, qualityRef.current);
-      if (src) playSound(src);
-    }
-  }, [playSound]);
-
-  const prev = useCallback(() => {
-    if (progress > 3) {
-      setProgress(0);
-      if (soundRef.current) soundRef.current.setPositionAsync(0);
-      return;
-    }
-    const prevIdx = (currentIndexRef.current - 1 + trackListRef.current.length) % trackListRef.current.length;
-    setCurrentIndex(prevIdx);
-    setProgress(0);
-    const prevTrack = trackListRef.current[prevIdx];
-    if (prevTrack) {
-      const src = getAudioSrcForTrack(prevTrack, qualityRef.current);
-      if (src) playSound(src);
-    }
-  }, [progress, playSound]);
-
-  const seek = useCallback(async (time: number) => {
-    if (soundRef.current) await soundRef.current.setPositionAsync(time * 1000);
-    setProgress(time);
-  }, []);
-
-  const setVolume = useCallback(async (v: number) => {
-    setVolumeState(v);
-    if (soundRef.current) await soundRef.current.setVolumeAsync(v);
-  }, []);
-
-  const toggleShuffle = useCallback(() => setShuffle((s) => !s), []);
-  const toggleRepeat = useCallback(() => {
-    setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off"));
-  }, []);
-
-  useEffect(() => {
-    if (soundRef.current) soundRef.current.setVolumeAsync(volume).catch(() => {});
-  }, [volume]);
-
-  useEffect(() => {
-    setProgress(0);
-    if (currentTrack) setDuration(currentTrack.duration || 0);
-  }, [currentIndex, currentTrack]);
+  const currentTrack = trackList[currentIndex] || null;
 
   const contextValue = useMemo(() => ({
-    tracks: trackList, currentTrack, currentIndex, isPlaying, progress, duration,
-    volume, shuffle, repeat, eqBass, eqMid, eqTreble, setEqBass, setEqMid, setEqTreble,
-    applyEqPreset, playbackSpeed, setPlaybackSpeed, crossfade, setCrossfade, queue,
-    addToQueue, playNext, removeFromQueue, clearQueue, moveQueueItem, shuffleQueue,
+    tracks: trackList, currentTrack, currentIndex,
+    isPlaying: displayIsPlaying,
+    progress: displayProgress,
+    duration: displayDuration,
+    volume, shuffle, repeat, eqBass, eqMid, eqTreble,
+    setEqBass, setEqMid, setEqTreble, applyEqPreset,
+    playbackSpeed, setPlaybackSpeed, crossfade, setCrossfade,
+    queue, addToQueue, playNext, removeFromQueue, clearQueue, moveQueueItem, shuffleQueue,
     quality, setQuality, sleepMinutes, setSleepTimer, cancelSleepTimer,
     play, playTrack, playTrackList, pause, togglePlay, next, prev, seek, setVolume,
     toggleShuffle, toggleRepeat,
     isCurrentTrackLiked: currentTrack ? isLikedHook(String(currentTrack.id)) : false,
-    likeCurrentTrack: () => (currentTrack ? likeSongHook(currentTrack) : Promise.resolve(false)),
-    unlikeCurrentTrack: () => (currentTrack ? unlikeSongHook(String(currentTrack.id)) : Promise.resolve(false)),
+    likeCurrentTrack: () => currentTrack ? likeSongHook(currentTrack) : Promise.resolve(false),
+    unlikeCurrentTrack: () => currentTrack ? unlikeSongHook(String(currentTrack.id)) : Promise.resolve(false),
     addToListeningHistory: addToHistory,
   }), [
-    trackList, currentTrack, currentIndex, isPlaying, progress, duration,
-    volume, shuffle, repeat, eqBass, eqMid, eqTreble, playbackSpeed,
-    crossfade, queue, quality, sleepMinutes, play, playTrack, playTrackList,
-    pause, togglePlay, next, prev, seek, setVolume, toggleShuffle, toggleRepeat,
-    addToQueue, playNext, removeFromQueue, clearQueue, moveQueueItem, shuffleQueue,
-    setEqBass, setEqMid, setEqTreble, applyEqPreset, setPlaybackSpeed,
-    setCrossfade, setQuality, setSleepTimer, cancelSleepTimer,
+    trackList, currentTrack, currentIndex, displayIsPlaying, displayProgress, displayDuration,
+    volume, shuffle, repeat, eqBass, eqMid, eqTreble, playbackSpeed, crossfade,
+    queue, quality, sleepMinutes,
+    play, playTrack, playTrackList, pause, togglePlay, next, prev, seek, setVolume,
+    toggleShuffle, toggleRepeat, addToQueue, playNext, removeFromQueue, clearQueue,
+    moveQueueItem, shuffleQueue, setEqBass, setEqMid, setEqTreble, applyEqPreset,
+    setPlaybackSpeed, setCrossfade, setQuality, setSleepTimer, cancelSleepTimer,
     isLikedHook, likeSongHook, unlikeSongHook, addToHistory,
   ]);
 
   return (
     <PlayerContext.Provider value={contextValue}>
+      {ytVideoId && (
+        <View style={{ width: 0, height: 0, overflow: "hidden", position: "absolute" }}>
+          <YoutubeIframe
+            ref={ytPlayerRef}
+            videoId={ytVideoId}
+            play={ytPlaying}
+            height={1}
+            width={1}
+            volume={Math.round(volume * 100)}
+            onChangeState={(state: string) => {
+              if (state === "ended") {
+                if (repeatRef.current === "one") { ytPlayerRef.current?.seekTo(0, true); setYtPlaying(true); }
+                else next();
+              }
+              if (state === "playing") { setYtPlaying(true); setIsPlaying(true); }
+              if (state === "paused") { setYtPlaying(false); }
+            }}
+          />
+        </View>
+      )}
       {children}
     </PlayerContext.Provider>
   );

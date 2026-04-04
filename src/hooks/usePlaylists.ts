@@ -5,24 +5,57 @@ import { supabase } from "@/lib/supabase";
 
 const PLAYLISTS_KEY = "sonic_playlists";
 
+const getUserId = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id ?? null;
+};
+
 export const usePlaylists = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(PLAYLISTS_KEY);
-      if (stored) setPlaylists(JSON.parse(stored));
-    } catch { /* ignore */ }
+    const load = async () => {
+      // Load local first for instant UI
+      try {
+        const stored = localStorage.getItem(PLAYLISTS_KEY);
+        if (stored) setPlaylists(JSON.parse(stored));
+      } catch { /* ignore */ }
+
+      // Pull playlists from Supabase for logged-in user
+      const userId = await getUserId();
+      if (!userId) return;
+      try {
+        const { data: remotePlaylists } = await supabase
+          .from('playlists')
+          .select('id, name, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true });
+
+        if (remotePlaylists && remotePlaylists.length > 0) {
+          // Merge: keep local tracks, use remote playlist list as source of truth
+          const localStored = localStorage.getItem(PLAYLISTS_KEY);
+          const localPlaylists: Playlist[] = localStored ? JSON.parse(localStored) : [];
+          const merged: Playlist[] = remotePlaylists.map((rp) => {
+            const local = localPlaylists.find(lp => lp.id === rp.id);
+            return local ?? { id: rp.id, name: rp.name, tracks: [], createdAt: new Date(rp.created_at).getTime() };
+          });
+          setPlaylists(merged);
+          localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(merged));
+        }
+      } catch { /* silent — use local fallback */ }
+    };
+    load();
   }, []);
 
   // Sync playlist to Supabase in background
   const syncPlaylistToSupabase = useCallback(async (playlist: Playlist, action: 'create' | 'delete' | 'rename' | 'add_track' | 'remove_track', track?: Track) => {
+    const userId = await getUserId();
     try {
       if (action === 'create') {
         await supabase.from('playlists').upsert({
           id: playlist.id,
           name: playlist.name,
-          tracks_count: 0
+          user_id: userId,
         });
       } else if (action === 'delete') {
         await supabase.from('playlists').delete().eq('id', playlist.id);

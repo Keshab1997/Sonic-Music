@@ -1,13 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
-import { Platform } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
-// Use Platform-specific storage for credentials
-// In React Native, we use hardcoded values or a config file
-// since import.meta.env doesn't exist
-const SUPABASE_URL = 'https://placeholder.supabase.co'
-const SUPABASE_ANON_KEY = 'placeholder-key'
+const SUPABASE_URL = 'https://hcutwzcybidywtmmbehq.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjdXR3emN5YmlkeXd0bW1iZWhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1NDY1NTksImV4cCI6MjA4MzEyMjU1OX0.B0tTULLbpT7elnnZ5mrQC_dfdiZV52XcYRONTEwThOw'
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+})
 
 // Helper types for common operations
 export type Json =

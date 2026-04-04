@@ -2,7 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import {
   StyleSheet, Text, View, ScrollView, Image, SafeAreaView,
   TouchableOpacity, FlatList, Dimensions, TextInput,
-  ActivityIndicator, Modal, Pressable
+  ActivityIndicator, Modal, Pressable, Animated
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
@@ -14,6 +14,7 @@ import { PlayerProvider, usePlayer } from "./src/context/PlayerContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Track } from './src/data/playlist';
+import { FullScreenPlayer } from './src/components/FullScreenPlayer';
 
 const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator();
@@ -25,6 +26,15 @@ const YT_STREAM_API = "https://sonic-bloom-player.vercel.app/api/yt-stream";
 const { width } = Dimensions.get('window');
 const CARD_W = 120;
 const RECENTLY_PLAYED_KEY = "sonic_recently_played_native";
+const SEARCH_HISTORY_KEY = "sonic_search_history_native";
+const TRENDING_SEARCHES = [
+  { title: "Arijit Singh Hits", query: "arijit singh top songs", color: "#1a0808" },
+  { title: "Bengali Modern", query: "modern bengali songs 2024", color: "#081a08" },
+  { title: "Bollywood Romance", query: "bollywood romantic songs", color: "#1a0f00" },
+  { title: "Lofi Chill", query: "lofi hindi songs chill", color: "#08081a" },
+  { title: "Party Anthems", query: "bollywood party songs", color: "#1a0008" },
+  { title: "90s Nostalgia", query: "90s hindi songs hits", color: "#0f0a1a" },
+];
 
 const MOODS = [
   { name: "Bollywood", emoji: "🎬", color: "#dc2626", query: "bollywood songs hits" },
@@ -305,39 +315,54 @@ const BottomSheetModal: React.FC<BottomSheetModalProps> = ({
 
 // ==================== Component 2: MiniPlayer ====================
 const MiniPlayer: React.FC<{ onExpand?: () => void }> = ({ onExpand }) => {
-  const { currentTrack, isPlaying, togglePlay, next, prev } = usePlayer();
+  const { currentTrack, isPlaying, togglePlay, next, prev, progress, duration } = usePlayer();
+  const [fsVisible, setFsVisible] = useState(false);
 
   if (!currentTrack) return null;
 
+  const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
+
   return (
-    <TouchableOpacity
-      style={styles.miniPlayer}
-      activeOpacity={0.9}
-      onPress={onExpand}
-    >
-      <Image
-        source={{ uri: currentTrack.cover }}
-        style={styles.miniCover}
-        defaultSource={require('./assets/icon.png')}
+    <>
+      <TouchableOpacity
+        style={styles.miniPlayer}
+        activeOpacity={0.9}
+        onPress={() => { onExpand?.(); setFsVisible(true); }}
+      >
+        {/* Progress bar at top of mini player */}
+        <View style={styles.miniProgressTrack}>
+          <View style={[styles.miniProgressFill, { width: `${progressPercent}%` }]} />
+        </View>
+
+        <Image
+          source={{ uri: currentTrack.cover }}
+          style={styles.miniCover}
+          defaultSource={require('./assets/icon.png')}
+        />
+        <View style={styles.miniInfo}>
+          <Text style={styles.miniTitle} numberOfLines={1}>
+            {currentTrack.title}
+          </Text>
+          <Text style={styles.miniArtist} numberOfLines={1}>
+            {currentTrack.artist}
+          </Text>
+        </View>
+        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); prev(); }} activeOpacity={0.7}>
+          <Ionicons name="play-skip-back" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); togglePlay(); }} activeOpacity={0.7}>
+          <Ionicons name={isPlaying ? "pause" : "play"} size={26} color="#1DB954" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); next(); }} activeOpacity={0.7}>
+          <Ionicons name="play-skip-forward" size={20} color="#fff" />
+        </TouchableOpacity>
+      </TouchableOpacity>
+
+      <FullScreenPlayer
+        visible={fsVisible}
+        onClose={() => setFsVisible(false)}
       />
-      <View style={styles.miniInfo}>
-        <Text style={styles.miniTitle} numberOfLines={1}>
-          {currentTrack.title}
-        </Text>
-        <Text style={styles.miniArtist} numberOfLines={1}>
-          {currentTrack.artist}
-        </Text>
-      </View>
-      <TouchableOpacity style={styles.miniBtn} onPress={prev} activeOpacity={0.7}>
-        <Ionicons name="play-skip-back" size={20} color="#fff" />
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.miniBtn} onPress={togglePlay} activeOpacity={0.7}>
-        <Ionicons name={isPlaying ? "pause" : "play"} size={26} color="#1DB954" />
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.miniBtn} onPress={next} activeOpacity={0.7}>
-        <Ionicons name="play-skip-forward" size={20} color="#fff" />
-      </TouchableOpacity>
-    </TouchableOpacity>
+    </>
   );
 };
 
@@ -547,21 +572,15 @@ const HomeScreen = () => {
     setSheetLoading(false);
   }, []);
 
-  // Play a track — resolve YouTube audio first if needed
+  // Play a track — YouTube tracks now handled natively via YoutubeIframe
   const handlePlay = useCallback(async (track: Track, allTracks: Track[], index: number) => {
-    if (track.type === "youtube") {
-      const resolved = await resolveYtAudio(track);
-      const resolvedList = allTracks.map((t, i) => i === index ? resolved : t);
-      playTrackList(resolvedList, index);
-    } else {
-      playTrackList(allTracks, index);
-    }
+    playTrackList(allTracks, index);
   }, [playTrackList]);
 
-  // Play from bottom sheet
+  // Play from bottom sheet — YouTube handled natively
   const handleSheetPlay = useCallback(async (track: Track, index: number) => {
-    await handlePlay(track, sheetTracks, index);
-  }, [handlePlay, sheetTracks]);
+    playTrackList(sheetTracks, index);
+  }, [playTrackList, sheetTracks]);
 
   // Quick Pick — search and immediately play
   const handleQuickPick = useCallback(async (query: string, offset: number) => {
@@ -579,14 +598,11 @@ const HomeScreen = () => {
     setLoadingLabel(null);
   }, [playTrackList]);
 
-  // YouTube Quick Pick
+  // YouTube Quick Pick — play directly
   const handleYtQuickPick = useCallback(async (query: string, offset: number) => {
     setLoadingYtPick(query);
     const tracks = await fetchYouTube(query, offset);
-    if (tracks.length > 0) {
-      const first = await resolveYtAudio(tracks[0]);
-      playTrackList([first, ...tracks.slice(1)], 0);
-    }
+    if (tracks.length > 0) playTrackList(tracks, 0);
     setLoadingYtPick(null);
   }, [playTrackList]);
 
@@ -1201,44 +1217,393 @@ const HomeScreen = () => {
   );
 };
 
-// ==================== SearchScreen ====================
+// ==================== Custom Toast Component ====================
+const Toast = ({ message, type, visible }: { message: string; type: 'success' | 'info' | 'error'; visible: boolean }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  
+  useEffect(() => {
+    if (visible) {
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.delay(2000),
+        Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible, fadeAnim]);
+
+  if (!visible) return null;
+
+  const bgColor = type === 'success' ? '#1DB954' : type === 'error' ? '#ef4444' : '#3b82f6';
+  const icon = type === 'success' ? 'checkmark-circle' : type === 'error' ? 'close-circle' : 'information-circle';
+
+  return (
+    <Animated.View
+      style={{
+        position: 'absolute',
+        top: 50,
+        left: 16,
+        right: 16,
+        backgroundColor: bgColor,
+        borderRadius: 12,
+        padding: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        zIndex: 9999,
+        opacity: fadeAnim,
+        transform: [{ translateY: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }],
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+      }}
+    >
+      <Ionicons name={icon as any} size={20} color="#fff" />
+      <Text style={{ flex: 1, color: '#fff', fontSize: 14, fontWeight: '600' }}>{message}</Text>
+    </Animated.View>
+  );
+};
+
+// ==================== SearchScreen (JioSaavn Style - Enhanced) ====================
+const SEARCH_HISTORY_MAX = 10;
+const SONGS_PER_PAGE = 20;
+
 const SearchScreen = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
-  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [activeFilter, setActiveFilter] = useState<"songs" | "artists" | "albums">("songs");
+  const [artistResults, setArtistResults] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalResults, setTotalResults] = useState(0);
+  const [albumSongs, setAlbumSongs] = useState<Track[]>([]);
+  const [selectedAlbum, setSelectedAlbum] = useState<{ id: string; name: string } | null>(null);
+  const [loadingAlbum, setLoadingAlbum] = useState(false);
+  const [rawAlbums, setRawAlbums] = useState<any[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error'; visible: boolean }>({ message: '', type: 'success', visible: false });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { currentTrack, isPlaying, addToQueue, playTrackList } = usePlayer();
+
+  // Show toast notification
+  const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ message, type, visible: true });
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500);
+  }, []);
+
+  // Load search history on mount
+  useEffect(() => {
+    AsyncStorage.getItem(SEARCH_HISTORY_KEY).then((data) => {
+      if (data) {
+        try {
+          setSearchHistory(JSON.parse(data));
+        } catch {}
+      }
+    });
+  }, []);
+
+  // Save search history
+  const saveToHistory = useCallback(async (q: string) => {
+    if (!q.trim()) return;
+    setSearchHistory((prev) => {
+      const updated = [q, ...prev.filter((h) => h !== q)].slice(0, SEARCH_HISTORY_MAX);
+      AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    setSearchHistory([]);
+    AsyncStorage.removeItem(SEARCH_HISTORY_KEY);
+  }, []);
+
+  // Enhanced fetch songs with pagination
+  const fetchSongs = useCallback(async (searchQuery: string, page: number, append = false) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=${SONGS_PER_PAGE}`
+      );
+      if (!res.ok) return { tracks: [], hasMore: false, total: 0 };
+      
+      const data = await res.json();
+      const songs = data.data?.results || [];
+      const total = data.data?.total || songs.length;
+
+      // Parse songs
+      const offset = append ? results.length : 0;
+      const tracks: Track[] = songs
+        .map((s: any, i: number) => {
+          if (!s.downloadUrl?.length) return null;
+          const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+          const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+          const url320 = s.downloadUrl.find((d: any) => d.quality === "320kbps")?.link;
+          const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+          if (!bestUrl) return null;
+          return {
+            id: 80000 + offset + i,
+            title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+            artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: any) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
+            src: bestUrl,
+            duration: parseInt(String(s.duration)) || 0,
+            type: "audio" as const,
+            songId: s.id,
+            audioUrls: {
+              ...(url96 ? { "96kbps": url96 } : {}),
+              ...(url160 ? { "160kbps": url160 } : {}),
+              ...(url320 ? { "320kbps": url320 } : {}),
+            },
+          };
+        })
+        .filter((t: Track | null): t is Track => t !== null);
+
+      return { tracks, hasMore: songs.length >= SONGS_PER_PAGE, total };
+    } catch {
+      return { tracks: [], hasMore: false, total: 0 };
+    }
+  }, []);
 
   // Debounced search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!query.trim()) {
       setResults([]);
+      setArtistResults([]);
+      setTotalResults(0);
+      setCurrentPage(1);
+      setHasMore(true);
       return;
     }
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
-      const tracks = await fetchJioSaavn(query, 80000, 20);
-      setResults(tracks);
+      setCurrentPage(1);
+      if (activeFilter === "songs") {
+        const { tracks, hasMore, total } = await fetchSongs(query, 1);
+        setResults(tracks);
+        setHasMore(hasMore);
+        setTotalResults(total);
+        setArtistResults([]);
+      } else if (activeFilter === "artists") {
+        try {
+          const res = await fetch(`${API_BASE}/search/artists?query=${encodeURIComponent(query)}&page=1&limit=30`);
+          if (res.ok) {
+            const data = await res.json();
+            setArtistResults(data.data?.results || []);
+          }
+        } catch {}
+        setResults([]);
+        setTotalResults(0);
+      } else if (activeFilter === "albums") {
+        try {
+          const res = await fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(query)}&page=1&limit=30`);
+          if (res.ok) {
+            const data = await res.json();
+            const albums = data.data?.results || [];
+            // Store raw album data for later use
+            setRawAlbums(albums);
+            
+            const albumTracks: Track[] = albums.map((a: any, i: number) => {
+              // Extract string values from API response - handle both string and object formats
+              const albumName = typeof a.name === 'string' ? a.name : a.name?.name || a.name?.id || "Unknown Album";
+              const artistName = typeof a.music === 'string' ? a.music :
+                                 typeof a.primaryArtists === 'string' ? a.primaryArtists :
+                                 a.music?.name || a.primaryArtists?.name || a.primaryArtists?.id || "Unknown";
+              const coverUrl = Array.isArray(a.image) ?
+                               (a.image[0]?.link || a.image[a.image.length - 1]?.link || "") :
+                               (typeof a.image === 'string' ? a.image : "");
+              return {
+                id: 90000 + i,
+                title: albumName,
+                artist: artistName,
+                album: albumName,
+                cover: coverUrl,
+                src: "",
+                duration: 0,
+                type: "audio" as const,
+                songId: a.id,
+              };
+            });
+            setResults(albumTracks);
+            setTotalResults(albums.length);
+          }
+        } catch {}
+        setArtistResults([]);
+        setHasMore(false);
+      }
       setLoading(false);
-    }, 500);
+    }, 400);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query]);
+  }, [query, activeFilter, fetchSongs]);
+
+  // Load more songs
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || activeFilter !== "songs") return;
+    setLoadingMore(true);
+    const nextPage = currentPage + 1;
+    const { tracks, hasMore: more } = await fetchSongs(query, nextPage, true);
+    setResults((prev) => [...prev, ...tracks]);
+    setHasMore(more);
+    setCurrentPage(nextPage);
+    setLoadingMore(false);
+  }, [loadingMore, hasMore, currentPage, query, activeFilter, fetchSongs]);
+
+  const handleSearch = (q: string) => {
+    setQuery(q);
+    saveToHistory(q);
+  };
 
   const handleSearchPlay = async (track: Track) => {
-    if (track.type === "youtube") {
-      setResolvingId(track.songId || null);
-      const resolved = await resolveYtAudio(track);
-      setResolvingId(null);
-      playTrackList([resolved], 0);
-    } else {
-      playTrackList([track], 0);
+    playTrackList([track], 0);
+  };
+
+  const handleArtistPress = (artist: any) => {
+    // Extract artist name - handle both string and object formats
+    const artistName = typeof artist.name === 'string' ? artist.name : artist.name?.id || artist.name?.name || 'Unknown Artist';
+    handleSearch(artistName);
+    // Switch to songs filter to show the artist's songs
+    setActiveFilter("songs");
+  };
+
+  // Fetch songs from a specific album/playlist
+  const fetchAlbumSongs = useCallback(async (albumId: string, albumName: string) => {
+    setLoadingAlbum(true);
+    setSelectedAlbum({ id: albumId, name: albumName });
+    setAlbumSongs([]);
+    
+    try {
+      // Try albums endpoint first
+      const res = await fetch(`${API_BASE}/albums?id=${albumId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const songs = data.data?.songs || [];
+        if (songs.length > 0) {
+          const tracks: Track[] = songs
+            .map((s: any, i: number) => {
+              if (!s.downloadUrl?.length) return null;
+              const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+              const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+              const url320 = s.downloadUrl.find((d: any) => d.quality === "320kbps")?.link;
+              const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+              if (!bestUrl) return null;
+              return {
+                id: 95000 + i,
+                title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+                artist: s.primaryArtists || "Unknown",
+                album: albumName,
+                cover: s.image?.find((img: any) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
+                src: bestUrl,
+                duration: parseInt(String(s.duration)) || 0,
+                type: "audio" as const,
+                songId: s.id,
+                audioUrls: {
+                  ...(url96 ? { "96kbps": url96 } : {}),
+                  ...(url160 ? { "160kbps": url160 } : {}),
+                  ...(url320 ? { "320kbps": url320 } : {}),
+                },
+              };
+            })
+            .filter((t: Track | null): t is Track => t !== null);
+          setAlbumSongs(tracks);
+          setLoadingAlbum(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.log('Album fetch error:', e);
+    }
+    
+    // Fallback: try playlists endpoint
+    try {
+      const res = await fetch(`${API_BASE}/playlists?id=${albumId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const songs = data.data?.songs || [];
+        if (songs.length > 0) {
+          const tracks: Track[] = songs
+            .map((s: any, i: number) => {
+              if (!s.downloadUrl?.length) return null;
+              const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+              const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+              const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+              return {
+                id: 95000 + i,
+                title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+                artist: s.primaryArtists || "Unknown",
+                album: albumName,
+                cover: s.image?.find((img: any) => img.quality === "500x500")?.link || "",
+                src: bestUrl,
+                duration: parseInt(String(s.duration)) || 0,
+                type: "audio" as const,
+                songId: s.id,
+              };
+            })
+            .filter((t: Track | null): t is Track => t !== null);
+          setAlbumSongs(tracks);
+          setLoadingAlbum(false);
+          return;
+        }
+      }
+    } catch {}
+    
+    // Last fallback: search for album name
+    try {
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(albumName)}&page=1&limit=50`);
+      if (res.ok) {
+        const data = await res.json();
+        const songs = data.data?.results || [];
+        const tracks: Track[] = songs
+          .map((s: any, i: number) => {
+            if (!s.downloadUrl?.length) return null;
+            const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+            const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+            const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+            return {
+              id: 95000 + i,
+              title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+              artist: s.primaryArtists || "Unknown",
+              album: albumName,
+              cover: s.image?.find((img: any) => img.quality === "500x500")?.link || "",
+              src: bestUrl,
+              duration: parseInt(String(s.duration)) || 0,
+              type: "audio" as const,
+              songId: s.id,
+            };
+          })
+          .filter((t: Track | null): t is Track => t !== null);
+        setAlbumSongs(tracks);
+      }
+    } catch {}
+    setLoadingAlbum(false);
+  }, []);
+
+  const handleAlbumPress = (index: number) => {
+    const rawAlbum = rawAlbums[index];
+    if (rawAlbum && rawAlbum.id) {
+      const albumName = typeof rawAlbum.name === 'string' ? rawAlbum.name : rawAlbum.name?.name || rawAlbum.name?.id || "Unknown Album";
+      fetchAlbumSongs(rawAlbum.id, albumName);
     }
   };
 
+  const backToAlbums = () => {
+    setSelectedAlbum(null);
+    setAlbumSongs([]);
+  };
+
+  const FILTERS = [
+    { key: "songs" as const, label: "Songs", icon: "musical-notes" },
+    { key: "artists" as const, label: "Artists", icon: "people" },
+    { key: "albums" as const, label: "Albums", icon: "disc" },
+  ];
+
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
+      {/* Toast Notification */}
+      <Toast message={toast.message} type={toast.type} visible={toast.visible} />
+      
       {/* Search Bar */}
       <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginHorizontal: 16, marginTop: 12, marginBottom: 8, gap: 10 }}>
         <Ionicons name="search" size={18} color="#555" />
@@ -1257,76 +1622,480 @@ const SearchScreen = () => {
         )}
       </View>
 
-      {/* Results */}
-      {!query ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="search-outline" size={64} color="#333" />
-          <Text style={{ color: '#555', fontSize: 14, marginTop: 12 }}>Search for songs to start playing</Text>
-        </View>
-      ) : loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color="#1DB954" />
-        </View>
-      ) : results.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="musical-notes-outline" size={64} color="#333" />
-          <Text style={{ color: '#555', fontSize: 14, marginTop: 12 }}>No results found</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={results}
-          keyExtractor={(item, index) => String(item.id) + index}
-          contentContainerStyle={{ paddingBottom: 140 }}
-          renderItem={({ item }) => {
-            const isPlaying = currentTrack?.id === item.id;
-            const isResolving = resolvingId === item.songId;
-            return (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 140 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Filter Chips */}
+        {query.length > 0 && (
+          <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginBottom: 12, gap: 8 }}>
+            {FILTERS.map((f) => (
               <TouchableOpacity
-                style={[{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 12 }, isPlaying && { backgroundColor: '#0d1f0d' }]}
-                onPress={() => handleSearchPlay(item)}
+                key={f.key}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 14,
+                  paddingVertical: 6,
+                  borderRadius: 20,
+                  backgroundColor: activeFilter === f.key ? '#1DB954' : '#1a1a1a',
+                  gap: 6,
+                }}
+                onPress={() => setActiveFilter(f.key)}
                 activeOpacity={0.7}
               >
-                <View style={{ position: 'relative' }}>
-                  <Image
-                    source={{ uri: item.cover }}
-                    style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: '#1a1a1a' }}
-                    defaultSource={require('./assets/icon.png')}
-                  />
-                  {isResolving && (
-                    <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
-                      <ActivityIndicator size="small" color="#fff" />
-                    </View>
-                  )}
-                  {isPlaying && !isResolving && (
-                    <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
-                      <Ionicons name={isPlaying && isPlaying ? "pause" : "play"} size={20} color="#fff" />
-                    </View>
-                  )}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[{ fontSize: 14, color: '#fff', fontWeight: 'bold' }, isPlaying && { color: '#1DB954' }]} numberOfLines={1}>{item.title}</Text>
-                  <Text style={{ fontSize: 12, color: '#888', marginTop: 2 }} numberOfLines={1}>{item.artist}</Text>
-                </View>
-                <TouchableOpacity style={{ padding: 6 }} onPress={() => addToQueue(item)} activeOpacity={0.7}>
-                  <Ionicons name="add" size={22} color="#1DB954" />
-                </TouchableOpacity>
+                <Ionicons name={f.icon as any} size={14} color={activeFilter === f.key ? '#000' : '#888'} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: activeFilter === f.key ? '#000' : '#888' }}>
+                  {f.label}
+                </Text>
               </TouchableOpacity>
-            );
-          }}
-        />
-      )}
+            ))}
+          </View>
+        )}
+
+        {/* Empty State - No Query */}
+        {!query ? (
+          <>
+            {/* Trending Searches */}
+            <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 12 }}>
+                🔥 Trending Searches
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {TRENDING_SEARCHES.map((t, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={{
+                      backgroundColor: t.color,
+                      borderRadius: 12,
+                      paddingHorizontal: 14,
+                      paddingVertical: 10,
+                      borderWidth: 1,
+                      borderColor: '#222',
+                    }}
+                    onPress={() => handleSearch(t.query)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#fff' }}>{t.title}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Top Artists Grid */}
+            <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 12 }}>
+                🎤 Top Artists
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                {[...HINDI_ARTISTS, ...BENGALI_ARTISTS].slice(0, 8).map((artist, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={{ width: (width - 56) / 4 - 9, alignItems: 'center' }}
+                    onPress={() => handleSearch(artist.query)}
+                    activeOpacity={0.7}
+                  >
+                    <Image
+                      source={{ uri: artist.image }}
+                      style={{
+                        width: '100%',
+                        aspectRatio: 1,
+                        borderRadius: 999,
+                        backgroundColor: '#1a1a1a',
+                        marginBottom: 6,
+                      }}
+                    />
+                    <Text
+                      style={{ fontSize: 11, color: '#ccc', textAlign: 'center' }}
+                      numberOfLines={1}
+                    >
+                      {artist.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Search History */}
+            {searchHistory.length > 0 && (
+              <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
+                    🕐 Recent Searches
+                  </Text>
+                  <TouchableOpacity onPress={clearHistory} activeOpacity={0.7}>
+                    <Text style={{ fontSize: 12, color: '#1DB954' }}>Clear All</Text>
+                  </TouchableOpacity>
+                </View>
+                {searchHistory.map((h, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 10,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#1a1a1a',
+                      gap: 12,
+                    }}
+                    onPress={() => handleSearch(h)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="time-outline" size={18} color="#555" />
+                    <Text style={{ flex: 1, fontSize: 14, color: '#ccc' }} numberOfLines={1}>{h}</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const updated = searchHistory.filter((_, idx) => idx !== i);
+                        setSearchHistory(updated);
+                        AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated));
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="close" size={18} color="#555" />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </>
+        ) : loading ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+            <ActivityIndicator size="large" color="#1DB954" />
+            <Text style={{ color: '#555', fontSize: 14, marginTop: 12 }}>Searching...</Text>
+          </View>
+        ) : results.length === 0 && artistResults.length === 0 ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+            <Ionicons name="musical-notes-outline" size={64} color="#333" />
+            <Text style={{ color: '#555', fontSize: 14, marginTop: 12 }}>No results found for "{query}"</Text>
+          </View>
+        ) : (
+          <>
+            {/* Songs Results */}
+            {activeFilter === "songs" && results.length > 0 && (
+              <View style={{ paddingHorizontal: 16 }}>
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={{ fontSize: 14, color: '#888', marginBottom: 8 }}>
+                    Showing {results.length} of {totalResults}+ results
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {/* Add to Queue Button */}
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1a1a1a', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 }}
+                      onPress={() => {
+                        results.forEach(track => addToQueue(track));
+                        showToast(`Added ${results.length} songs to queue`, 'success');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="list" size={14} color="#1DB954" />
+                      <Text style={{ fontSize: 12, color: '#1DB954', fontWeight: '600' }}>Add to Queue</Text>
+                    </TouchableOpacity>
+                    {/* Shuffle/Next Button */}
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1a1a1a', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 }}
+                      onPress={async () => {
+                        // Fetch a fresh set of different songs by using a random page
+                        setLoading(true);
+                        const randomPage = Math.floor(Math.random() * 10) + 1;
+                        try {
+                          const res = await fetch(
+                            `${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=${randomPage}&limit=${SONGS_PER_PAGE}`
+                          );
+                          if (res.ok) {
+                            const data = await res.json();
+                            const songs = data.data?.results || [];
+                            const tracks: Track[] = songs
+                              .map((s: any, i: number) => {
+                                if (!s.downloadUrl?.length) return null;
+                                const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
+                                const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
+                                const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
+                                return {
+                                  id: 80000 + i,
+                                  title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
+                                  artist: s.primaryArtists || "Unknown",
+                                  album: typeof s.album === "string" ? s.album : s.album?.name || "",
+                                  cover: s.image?.find((img: any) => img.quality === "500x500")?.link || "",
+                                  src: bestUrl,
+                                  duration: parseInt(String(s.duration)) || 0,
+                                  type: "audio" as const,
+                                  songId: s.id,
+                                };
+                              })
+                              .filter((t: Track | null): t is Track => t !== null);
+                            setResults(tracks);
+                            setCurrentPage(1);
+                            setHasMore(true);
+                            showToast(`Loaded ${tracks.length} new songs`, 'info');
+                          }
+                        } catch {
+                          showToast('Failed to load more songs', 'error');
+                        }
+                        setLoading(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="shuffle" size={14} color="#1DB954" />
+                      <Text style={{ fontSize: 12, color: '#1DB954', fontWeight: '600' }}>Next</Text>
+                    </TouchableOpacity>
+                    {/* Play All Button */}
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1DB954', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16 }}
+                      onPress={() => {
+                        playTrackList(results, 0);
+                        showToast(`Playing ${results.length} songs`, 'success');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="play" size={14} color="#000" />
+                      <Text style={{ fontSize: 12, color: '#000', fontWeight: '600' }}>Play All</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {results.map((item, index) => {
+                  const isCurrentTrack = currentTrack?.id === item.id;
+                  return (
+                    <TouchableOpacity
+                      key={`${item.id}-${index}`}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingVertical: 10,
+                        gap: 12,
+                        borderBottomWidth: 1,
+                        borderBottomColor: '#1a1a1a',
+                        ...(isCurrentTrack ? { backgroundColor: '#0d1f0d', borderRadius: 8, paddingHorizontal: 8 } : {}),
+                      }}
+                      onPress={() => handleSearchPlay(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ position: 'relative' }}>
+                        <Image
+                          source={{ uri: item.cover || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' }}
+                          style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: '#1a1a1a' }}
+                        />
+                        {isCurrentTrack && (
+                          <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
+                            <Ionicons name={isPlaying ? ("play-back" as any) : "play"} size={20} color="#1DB954" />
+                          </View>
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: isCurrentTrack ? '#1DB954' : '#fff',
+                            fontWeight: '600',
+                          }}
+                          numberOfLines={1}
+                        >
+                          {item.title}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#888', marginTop: 2 }} numberOfLines={1}>
+                          {item.artist}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={{ padding: 8 }}
+                        onPress={() => addToQueue(item)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="add-circle-outline" size={24} color="#1DB954" />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {/* Load More Button */}
+                {hasMore && activeFilter === "songs" && (
+                  <TouchableOpacity
+                    style={{
+                      marginTop: 16,
+                      paddingVertical: 12,
+                      backgroundColor: '#1a1a1a',
+                      borderRadius: 8,
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: '#1DB954',
+                    }}
+                    onPress={loadMore}
+                    disabled={loadingMore}
+                    activeOpacity={0.7}
+                  >
+                    {loadingMore ? (
+                      <ActivityIndicator size="small" color="#1DB954" />
+                    ) : (
+                      <Text style={{ fontSize: 14, color: '#1DB954', fontWeight: '600' }}>
+                        Load More Songs
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+                {!hasMore && results.length > 0 && (
+                  <Text style={{ textAlign: 'center', fontSize: 12, color: '#555', marginTop: 16, marginBottom: 8 }}>
+                    No more results
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {/* Artists Results */}
+            {activeFilter === "artists" && artistResults.length > 0 && (
+              <View style={{ paddingHorizontal: 16 }}>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 12 }}>
+                  Artists ({artistResults.length})
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                  {artistResults.map((artist: any, i: number) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={{ width: (width - 56) / 3 - 8, alignItems: 'center' }}
+                      onPress={() => handleArtistPress(artist)}
+                      activeOpacity={0.7}
+                    >
+                      <Image
+                        source={{ uri: artist.image?.[0]?.link || '' }}
+                        style={{
+                          width: '100%',
+                          aspectRatio: 1,
+                          borderRadius: 999,
+                          backgroundColor: '#1a1a1a',
+                          marginBottom: 6,
+                        }}
+                      />
+                      <Text style={{ fontSize: 12, color: '#ccc', textAlign: 'center' }} numberOfLines={1}>
+                        {artist.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Albums Results / Album Songs View */}
+            {activeFilter === "albums" && (
+              <View style={{ paddingHorizontal: 16 }}>
+                {selectedAlbum && albumSongs.length > 0 ? (
+                  // Show songs from selected album
+                  <>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <TouchableOpacity onPress={backToAlbums} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="arrow-back" size={18} color="#1DB954" />
+                        <Text style={{ fontSize: 14, color: '#1DB954' }}>Back to Albums</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                        onPress={() => playTrackList(albumSongs, 0)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="play" size={16} color="#1DB954" />
+                        <Text style={{ fontSize: 12, color: '#1DB954', fontWeight: '600' }}>Play All</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 4 }}>{selectedAlbum.name}</Text>
+                    <Text style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>{albumSongs.length} songs</Text>
+                    {loadingAlbum ? (
+                      <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                        <ActivityIndicator size="large" color="#1DB954" />
+                      </View>
+                    ) : (
+                      albumSongs.map((track, index) => {
+                        const isCurrentTrack = currentTrack?.id === track.id;
+                        return (
+                          <TouchableOpacity
+                            key={`${track.id}-${index}`}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              paddingVertical: 10,
+                              gap: 12,
+                              borderBottomWidth: 1,
+                              borderBottomColor: '#1a1a1a',
+                              ...(isCurrentTrack ? { backgroundColor: '#0d1f0d', borderRadius: 8, paddingHorizontal: 8 } : {}),
+                            }}
+                            onPress={() => playTrackList(albumSongs, index)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={{ position: 'relative' }}>
+                              <Image
+                                source={{ uri: track.cover || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' }}
+                                style={{ width: 48, height: 48, borderRadius: 6, backgroundColor: '#1a1a1a' }}
+                              />
+                              {isCurrentTrack && (
+                                <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 6, justifyContent: 'center', alignItems: 'center' }}>
+                                  <Ionicons name={isPlaying ? ("play-back" as any) : "play"} size={18} color="#1DB954" />
+                                </View>
+                              )}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 14, color: isCurrentTrack ? '#1DB954' : '#fff', fontWeight: '600' }} numberOfLines={1}>
+                                {track.title}
+                              </Text>
+                              <Text style={{ fontSize: 12, color: '#888', marginTop: 2 }} numberOfLines={1}>
+                                {track.artist}
+                              </Text>
+                            </View>
+                            <TouchableOpacity style={{ padding: 8 }} onPress={() => addToQueue(track)} activeOpacity={0.7}>
+                              <Ionicons name="add-circle-outline" size={22} color="#1DB954" />
+                            </TouchableOpacity>
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </>
+                ) : loadingAlbum ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                    <ActivityIndicator size="large" color="#1DB954" />
+                    <Text style={{ color: '#888', marginTop: 8 }}>Loading album...</Text>
+                  </View>
+                ) : (
+                  // Show album grid
+                  <>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 12 }}>
+                      Albums ({results.length})
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                      {results.map((album, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={{ width: (width - 56) / 3 - 8 }}
+                          onPress={() => handleAlbumPress(i)}
+                          activeOpacity={0.7}
+                        >
+                          <Image
+                            source={{ uri: album.cover || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' }}
+                            style={{
+                              width: '100%',
+                              aspectRatio: 1,
+                              borderRadius: 8,
+                              backgroundColor: '#1a1a1a',
+                              marginBottom: 6,
+                            }}
+                          />
+                          <Text style={{ fontSize: 12, color: '#ccc', fontWeight: '600' }} numberOfLines={1}>
+                            {album.title}
+                          </Text>
+                          <Text style={{ fontSize: 10, color: '#888' }} numberOfLines={1}>
+                            {album.artist}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
+          </>
+        )}
+      </ScrollView>
     </View>
   );
 };
 
 // ==================== LibraryScreen ====================
-const LibraryScreen = () => (
-  <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
-    <Ionicons name="library-outline" size={64} color="#1DB954" />
-    <Text style={{ fontSize: 24, color: '#fff', fontWeight: 'bold', marginTop: 16 }}>Your Library</Text>
-    <Text style={{ fontSize: 14, color: '#555', marginTop: 8 }}>Liked songs and playlists coming soon</Text>
-  </View>
-);
+import { LikedSongsScreen } from './src/screens/LikedSongsScreen';
+const LibraryScreen = () => <LikedSongsScreen />;
 
 // ==================== ProfileScreen ====================
 const ProfileScreen = () => (
@@ -1473,7 +2242,9 @@ const styles = StyleSheet.create({
 
   // Mini Player
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  miniPlayer: { position: 'absolute', bottom: 60, left: 0, right: 0, zIndex: 999, backgroundColor: '#1a1a1a', borderTopWidth: 1, borderTopColor: '#2a2a2a', paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center' },
+  miniPlayer: { position: 'absolute', bottom: 60, left: 0, right: 0, zIndex: 999, backgroundColor: '#1a1a1a', borderTopWidth: 1, borderTopColor: '#2a2a2a', paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
+  miniProgressTrack: { position: 'absolute', top: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(255,255,255,0.1)' },
+  miniProgressFill: { height: '100%', backgroundColor: '#1DB954' },
   miniCover: { width: 44, height: 44, borderRadius: 6, backgroundColor: '#2a2a2a' },
   miniInfo: { flex: 1, marginLeft: 10 },
   miniTitle: { fontSize: 13, fontWeight: 'bold', color: '#fff' },

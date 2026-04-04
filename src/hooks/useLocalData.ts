@@ -1,43 +1,80 @@
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Track } from "@/data/playlist";
 import { supabase } from "@/lib/supabase";
 
 const HISTORY_KEY = "sonic_search_history";
 const FAVORITES_KEY = "sonic_favorites";
 
+const getUserId = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id ?? null;
+};
+
 export const useLocalData = () => {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
-  const pendingSyncRef = useRef<Set<string>>(new Set());
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount, then sync from Supabase if logged in
   useEffect(() => {
-    try {
-      const history = localStorage.getItem(HISTORY_KEY);
-      if (history) setSearchHistory(JSON.parse(history));
-      const favs = localStorage.getItem(FAVORITES_KEY);
-      if (favs) setFavorites(JSON.parse(favs));
-    } catch {
-      // ignore
-    }
-    setLoading(false);
+    const load = async () => {
+      try {
+        const history = localStorage.getItem(HISTORY_KEY);
+        if (history) setSearchHistory(JSON.parse(history));
+        const favs = localStorage.getItem(FAVORITES_KEY);
+        if (favs) setFavorites(JSON.parse(favs));
+      } catch { /* ignore */ }
+
+      // Pull liked songs from Supabase for logged-in user
+      const userId = await getUserId();
+      if (userId) {
+        try {
+          const { data } = await supabase
+            .from('liked_songs')
+            .select('track_id, tracks(id, title, artist, album, duration, youtube_id, cover_url, audio_url)')
+            .eq('user_id', userId)
+            .order('added_at', { ascending: false });
+
+          if (data && data.length > 0) {
+            const remoteFavs: Track[] = data
+              .map((row: any) => {
+                const t = row.tracks;
+                if (!t) return null;
+                return {
+                  id: Number(t.id) || 0,
+                  title: t.title,
+                  artist: t.artist,
+                  album: t.album ?? '',
+                  cover: t.cover_url ?? '',
+                  src: t.audio_url ?? '',
+                  duration: t.duration ?? 0,
+                  type: 'youtube' as const,
+                  songId: t.youtube_id ?? undefined,
+                };
+              })
+              .filter(Boolean) as Track[];
+            setFavorites(remoteFavs);
+            localStorage.setItem(FAVORITES_KEY, JSON.stringify(remoteFavs));
+          }
+        } catch { /* silent — use local fallback */ }
+      }
+
+      setLoading(false);
+    };
+    load();
   }, []);
 
   // Sync favorites to Supabase in background
   const syncFavoriteToSupabase = useCallback(async (track: Track, action: 'add' | 'remove') => {
     try {
+      const userId = await getUserId();
+      if (!userId) return; // not logged in, skip cloud sync
       const trackId = String(track.id);
-      
-      if (action === 'add') {
-        // First ensure track exists in Supabase
-        const { data: existingTrack } = await supabase
-          .from('tracks')
-          .select('id')
-          .eq('id', trackId)
-          .single();
 
+      if (action === 'add') {
+        // Ensure track exists
+        const { data: existingTrack } = await supabase.from('tracks').select('id').eq('id', trackId).single();
         if (!existingTrack) {
           await supabase.from('tracks').upsert({
             id: trackId,
@@ -47,17 +84,12 @@ export const useLocalData = () => {
             duration: track.duration,
             youtube_id: track.songId,
             cover_url: track.cover,
-            audio_url: track.src
+            audio_url: track.src,
           });
         }
-
-        // Add to liked_songs
-        await supabase.from('liked_songs').upsert({
-          track_id: trackId,
-          user_id: null
-        });
+        await supabase.from('liked_songs').upsert({ track_id: trackId, user_id: userId });
       } else {
-        await supabase.from('liked_songs').delete().eq('track_id', trackId);
+        await supabase.from('liked_songs').delete().eq('track_id', trackId).eq('user_id', userId);
       }
     } catch (err) {
       console.error('Failed to sync favorite to Supabase:', err);

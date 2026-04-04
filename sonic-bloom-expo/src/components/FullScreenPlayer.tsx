@@ -1,302 +1,528 @@
-
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, { useRef, useCallback, useState } from 'react';
 import {
-  Play, Pause, SkipBack, SkipForward,
-  Shuffle, Repeat, Repeat1,
-  ChevronDown, Heart, Music2, ListMusic,
-  Volume2, Volume1, VolumeX,
-  Moon, Sun, Sliders, Settings,
-} from "lucide-react-native";
-import { usePlayer } from "@/context/PlayerContext";
-import { useLocalData } from "@/hooks/useLocalData";
-import { useTheme } from "@/hooks/useTheme";
-import { SyncedLyrics } from "@/components/SyncedLyrics";
-import { parseLyrics } from "@/lib/lyricsParser";
-import { fetchLyrics } from "@/lib/lyricsFetcher";
-import { ShareButton } from "@/components/ShareButton";
+  View, Text, Image, TouchableOpacity, Modal,
+  Dimensions, PanResponder, Animated, StyleSheet,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { usePlayer } from '../context/PlayerContext';
+import { QueueManager } from './QueueManager';
+import { SleepTimerSheet } from './SleepTimerSheet';
+import { PlaybackSettingsSheet } from './PlaybackSettingsSheet';
+
+const { width, height } = Dimensions.get('window');
 
 const formatTime = (s: number) => {
+  if (!s || isNaN(s)) return '0:00';
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, "0")}`;
+  return `${m}:${sec.toString().padStart(2, '0')}`;
 };
 
-interface FullScreenPlayerProps {
+interface Props {
+  visible: boolean;
   onClose: () => void;
-  onShowPlaylist: () => void;
-  onShowLyrics: () => void;
-  onShowEqualizer?: () => void;
 }
 
-export const FullScreenPlayer = ({
-  onClose, onShowPlaylist, onShowLyrics, onShowEqualizer,
-}: FullScreenPlayerProps) => {
+export const FullScreenPlayer: React.FC<Props> = ({ visible, onClose }) => {
   const {
     currentTrack, isPlaying, progress, duration,
     shuffle, repeat, togglePlay, next, prev, seek,
-    toggleShuffle, toggleRepeat, tracks, currentIndex,
-    volume, setVolume, quality,
+    toggleShuffle, toggleRepeat, volume, setVolume,
+    isCurrentTrackLiked, likeCurrentTrack, unlikeCurrentTrack,
+    queue, sleepMinutes, playbackSpeed, quality,
   } = usePlayer();
 
-  const { isFavorite, toggleFavorite } = useLocalData();
-  const { theme, toggleTheme } = useTheme();
-  const [showLyrics, setShowLyrics] = useState(false);
-  const [rawLyrics, setRawLyrics] = useState<string | null>(null);
-  const [lyricsSynced, setLyricsSynced] = useState(false);
-  const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [queueVisible, setQueueVisible] = useState(false);
+  const [sleepVisible, setSleepVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
-  useEffect(() => {
-    if (!showLyrics || !currentTrack?.songId) return;
-    let cancelled = false;
-    setLyricsLoading(true);
-    setRawLyrics(null);
-    setLyricsSynced(false);
-    fetchLyrics(currentTrack.songId, currentTrack.title, currentTrack.artist)
-      .then((r) => { if (!cancelled && r) { setRawLyrics(r.lyrics); setLyricsSynced(r.synced); } })
-      .catch(() => { if (!cancelled) setRawLyrics(null); })
-      .finally(() => { if (!cancelled) setLyricsLoading(false); });
-    return () => { cancelled = true; };
-  }, [showLyrics, currentTrack?.songId, currentTrack?.title, currentTrack?.artist]);
+  // Swipe down to close
+  const translateY = useRef(new Animated.Value(0)).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 10 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => {
+        if (g.dy > 0) translateY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 100) {
+          Animated.timing(translateY, { toValue: height, duration: 200, useNativeDriver: true }).start(onClose);
+        } else {
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+    })
+  ).current;
 
-  const lyricLines = useMemo(() => {
-    if (!rawLyrics) return [];
-    if (lyricsSynced) return parseLyrics(rawLyrics, duration);
-    return duration > 0 ? parseLyrics(rawLyrics, duration) : [];
-  }, [rawLyrics, lyricsSynced, duration]);
+  const handleModalShow = useCallback(() => {
+    translateY.setValue(0);
+  }, [translateY]);
 
-  // Swipe-to-dismiss gesture
-  const touchStart = useRef<{ y: number; x: number } | null>(null);
-  const [swipeOffset, setSwipeOffset] = useState(0);
+  // Seek bar drag
+  const [seeking, setSeeking] = useState(false);
+  const [seekValue, setSeekValue] = useState(0);
+  const progressBarRef = useRef<View>(null);
+  const progressBarWidth = useRef(width - 48);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStart.current = { y: e.touches[0].clientY, x: e.touches[0].clientX };
-  }, []);
+  const handleProgressTouch = useCallback((pageX: number, barX: number) => {
+    const relX = Math.max(0, Math.min(pageX - barX, progressBarWidth.current));
+    const ratio = relX / progressBarWidth.current;
+    return ratio * duration;
+  }, [duration]);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchStart.current) return;
-    const dy = e.touches[0].clientY - touchStart.current.y;
-    const dx = e.touches[0].clientX - touchStart.current.x;
-    if (dy > 10 && Math.abs(dy) > Math.abs(dx)) {
-      setSwipeOffset(dy);
-    }
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    if (swipeOffset > 100) {
-      onClose();
-    } else {
-      setSwipeOffset(0);
-    }
-    touchStart.current = null;
-  }, [swipeOffset, onClose]);
+  const progressPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        setSeeking(true);
+        progressBarRef.current?.measure((_, __, ___, ____, pageX) => {
+          const val = handleProgressTouch(e.nativeEvent.pageX, pageX);
+          setSeekValue(val);
+        });
+      },
+      onPanResponderMove: (e) => {
+        progressBarRef.current?.measure((_, __, ___, ____, pageX) => {
+          const val = handleProgressTouch(e.nativeEvent.pageX, pageX);
+          setSeekValue(val);
+        });
+      },
+      onPanResponderRelease: (e) => {
+        progressBarRef.current?.measure((_, __, ___, ____, pageX) => {
+          const val = handleProgressTouch(e.nativeEvent.pageX, pageX);
+          seek(val);
+          setSeeking(false);
+        });
+      },
+    })
+  ).current;
 
   if (!currentTrack) return null;
 
-  const liked = isFavorite(currentTrack.src);
-  const progressPercent = duration ? (progress / duration) * 100 : 0;
+  const displayProgress = seeking ? seekValue : progress;
+  const progressPercent = duration > 0 ? (displayProgress / duration) * 100 : 0;
 
   return (
-    <div
-      className="fixed inset-0 z-[110] animate-slide-up bg-background"
-      style={swipeOffset > 0 ? { transform: `translateY(${swipeOffset}px)` } : undefined}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={false}
+      statusBarTranslucent
+      onShow={handleModalShow}
+      onRequestClose={onClose}
     >
-      {/* Blurred background */}
-      <div className="absolute inset-0">
-        <img src={currentTrack.cover} alt="" className="w-full h-full object-cover scale-110 blur-3xl brightness-[0.3]" />
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-xl" />
-      </div>
+      <Animated.View style={[styles.container, { transform: [{ translateY }] }]} {...panResponder.panHandlers}>
+        {/* Blurred Background */}
+        <Image source={{ uri: currentTrack.cover }} style={styles.bgImage} blurRadius={25} />
+        <View style={styles.bgOverlay} />
 
-      <div className="relative z-10 flex flex-col h-full w-full">
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.headerBtn} activeOpacity={0.7}>
+            <Ionicons name="chevron-down" size={28} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerLabel}>NOW PLAYING</Text>
+          <TouchableOpacity onPress={() => setQueueVisible(true)} style={styles.headerBtn} activeOpacity={0.7}>
+            <View>
+              <Ionicons name="list" size={22} color="rgba(255,255,255,0.7)" />
+              {queue.length > 0 && (
+                <View style={styles.queueBadge}>
+                  <Text style={styles.queueBadgeText}>{queue.length > 9 ? '9+' : queue.length}</Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
 
-        {/* ===== 1. HEADER ===== */}
-        <header className="flex-shrink-0 flex items-center justify-between px-5 pt-4 pb-2 safe-top">
-          <button onClick={onClose} className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
-            <ChevronDown size={24} />
-          </button>
-          <p className="text-[10px] text-white/50 uppercase tracking-[0.2em] font-medium">Now Playing</p>
-          <button onClick={onShowPlaylist} className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
-            <ListMusic size={20} />
-          </button>
-        </header>
+        {/* Album Art */}
+        <View style={styles.artContainer}>
+          <Image
+            source={{ uri: currentTrack.cover }}
+            style={[styles.albumArt, { transform: [{ scale: isPlaying ? 1 : 0.92 }] }]}
+          />
+        </View>
 
-        {/* ===== 2. MAIN CONTENT ===== */}
-        <main className="flex-1 min-h-0 overflow-hidden">
-
-          {/* --- Mobile (< md) --- */}
-          <div className="md:hidden h-full px-6">
-            {showLyrics ? (
-              <div className="h-full">
-                {lyricsLoading && <p className="text-sm text-white/40 text-center pt-12 animate-pulse">Loading lyrics...</p>}
-                {!lyricsLoading && lyricLines.length === 0 && <p className="text-sm text-white/40 text-center pt-12">Lyrics not available</p>}
-                {lyricLines.length > 0 && (
-                  <SyncedLyrics lines={lyricLines} currentTime={progress} isPlaying={isPlaying} onSeek={seek} className="h-full" variant="dark" synced={lyricsSynced} />
-                )}
-              </div>
-            ) : (
-              <div className="h-full flex items-center justify-center px-4">
-                <img
-                  src={currentTrack.cover} alt={currentTrack.title}
-                  className={`w-full max-w-[300px] aspect-square object-cover rounded-2xl shadow-2xl transition-transform duration-700 ${isPlaying ? "scale-100" : "scale-[0.97]"}`}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* --- Desktop (>= md) --- */}
-          <div className="hidden md:block h-full px-6">
-            {showLyrics ? (
-              /* Lyrics ON → two-column split */
-              <div className="h-full flex gap-6">
-                {/* Left: Album art */}
-                <div className="w-[38%] flex items-center justify-center flex-shrink-0">
-                  <div className="w-full max-w-[300px] aspect-square relative group">
-                    <img
-                      src={currentTrack.cover} alt={currentTrack.title}
-                      className={`w-full h-full object-contain rounded-3xl shadow-2xl transition-transform duration-700 ${isPlaying ? "scale-100" : "scale-95"}`}
-                    />
-                    {isPlaying && (
-                      <div className="absolute bottom-4 left-4 flex items-end gap-1">
-                        <span className="w-1 h-4 bg-white/80 rounded-full animate-pulse-glow" />
-                        <span className="w-1 h-6 bg-white/80 rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
-                        <span className="w-1 h-3 bg-white/80 rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
-                        <span className="w-1 h-5 bg-white/80 rounded-full animate-pulse-glow" style={{ animationDelay: "0.45s" }} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {/* Right: Lyrics */}
-                <div className="flex-1 min-h-0">
-                  {lyricsLoading && <p className="text-sm text-white/40 text-center pt-12 animate-pulse">Loading lyrics...</p>}
-                  {!lyricsLoading && lyricLines.length === 0 && <p className="text-sm text-white/40 text-center pt-12">Lyrics not available</p>}
-                  {lyricLines.length > 0 && (
-                    <SyncedLyrics lines={lyricLines} currentTime={progress} isPlaying={isPlaying} onSeek={seek} className="h-full" variant="dark" synced={lyricsSynced} />
-                  )}
-                </div>
-              </div>
-            ) : (
-              /* Lyrics OFF → album art perfectly centered */
-              <div className="h-full flex items-center justify-center">
-                <div className="w-full max-w-[340px] aspect-square relative group">
-                  <img
-                    src={currentTrack.cover} alt={currentTrack.title}
-                    className={`w-full h-full object-contain rounded-3xl shadow-2xl transition-transform duration-700 ${isPlaying ? "scale-100" : "scale-95"}`}
-                  />
-                  {isPlaying && (
-                    <div className="absolute -inset-1 rounded-3xl bg-gradient-to-t from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  )}
-                  {isPlaying && (
-                    <div className="absolute bottom-4 left-4 flex items-end gap-1">
-                      <span className="w-1 h-4 bg-white/80 rounded-full animate-pulse-glow" />
-                      <span className="w-1 h-6 bg-white/80 rounded-full animate-pulse-glow" style={{ animationDelay: "0.15s" }} />
-                      <span className="w-1 h-3 bg-white/80 rounded-full animate-pulse-glow" style={{ animationDelay: "0.3s" }} />
-                      <span className="w-1 h-5 bg-white/80 rounded-full animate-pulse-glow" style={{ animationDelay: "0.45s" }} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </main>
-
-        {/* ===== 3. PLAYER CONTROLS ===== */}
-        <footer className="flex-shrink-0 w-full px-6 md:px-8 pt-3 pb-8 md:pb-5 safe-bottom">
-
-          {/* Song info + heart */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-base md:text-lg font-bold text-white truncate leading-tight">{currentTrack.title}</h2>
-              <p className="text-xs text-white/50 truncate">{currentTrack.artist}</p>
-            </div>
-            <button
-              onClick={() => currentTrack && toggleFavorite(currentTrack)}
-              className="p-2.5 rounded-full hover:bg-white/10 active:scale-90 transition-all flex-shrink-0"
-            >
-              <Heart size={22} className={liked ? "text-red-500" : "text-white/40"} fill={liked ? "currentColor" : "none"} />
-            </button>
-            <ShareButton track={currentTrack} className="text-white/40 hover:text-white flex-shrink-0" iconSize={20} />
-          </div>
-
-          {/* Progress bar */}
-          <div className="mb-4">
-            <input
-              type="range" min={0} max={duration || 0} value={progress}
-              onChange={(e) => seek(Number(e.target.value))}
-              onWheel={(e) => {
-                e.preventDefault();
-                const delta = e.deltaY > 0 ? -5 : 5;
-                const newProgress = Math.max(0, Math.min(duration || 0, progress + delta));
-                seek(newProgress);
-              }}
-              className="w-full h-1.5 cursor-pointer appearance-none
-                [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:shadow-lg
-                [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-white/20"
-              style={{ background: `linear-gradient(to right, white ${progressPercent}%, rgba(255,255,255,0.2) ${progressPercent}%)` }}
+        {/* Track Info + Like */}
+        <View style={styles.infoRow}>
+          <View style={styles.infoText}>
+            <Text style={styles.trackTitle} numberOfLines={1}>{currentTrack.title}</Text>
+            <Text style={styles.trackArtist} numberOfLines={1}>{currentTrack.artist}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => isCurrentTrackLiked ? unlikeCurrentTrack() : likeCurrentTrack()}
+            activeOpacity={0.7}
+            style={styles.likeBtn}
+          >
+            <Ionicons
+              name={isCurrentTrackLiked ? 'heart' : 'heart-outline'}
+              size={26}
+              color={isCurrentTrackLiked ? '#ef4444' : 'rgba(255,255,255,0.5)'}
             />
-            <div className="flex justify-between mt-1.5">
-              <span className="text-[11px] text-white/40 tabular-nums">{formatTime(progress)}</span>
-              <span className="text-[11px] text-white/40 tabular-nums">{formatTime(duration)}</span>
-            </div>
-          </div>
+          </TouchableOpacity>
+        </View>
 
-          {/* Controls: shuffle | prev/play/next | repeat */}
-          <div className="flex items-center justify-center gap-6 mb-4">
-            <button onClick={toggleShuffle} className={`p-2 transition-colors active:scale-90 ${shuffle ? "text-primary" : "text-white/35 hover:text-white"}`}>
-              <Shuffle size={20} />
-            </button>
-            <button onClick={prev} className="text-white/70 hover:text-white transition-colors active:scale-90 p-2">
-              <SkipBack size={30} fill="currentColor" />
-            </button>
-            <button onClick={togglePlay} className="w-16 h-16 rounded-full bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-xl">
-              {isPlaying ? <Pause size={28} className="text-black" /> : <Play size={28} className="text-black ml-0.5" />}
-            </button>
-            <button onClick={next} className="text-white/70 hover:text-white transition-colors active:scale-90 p-2">
-              <SkipForward size={30} fill="currentColor" />
-            </button>
-            <button onClick={toggleRepeat} className={`p-2 transition-colors active:scale-90 ${repeat !== "off" ? "text-primary" : "text-white/35 hover:text-white"}`}>
-              {repeat === "one" ? <Repeat1 size={20} /> : <Repeat size={20} />}
-            </button>
-          </div>
+        {/* Progress Bar */}
+        <View style={styles.progressSection}>
+          <View
+            ref={progressBarRef}
+            style={styles.progressTrack}
+            {...progressPanResponder.panHandlers}
+            onLayout={(e) => { progressBarWidth.current = e.nativeEvent.layout.width; }}
+          >
+            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+            <View style={[styles.progressThumb, { left: `${progressPercent}%` }]} />
+          </View>
+          <View style={styles.timeRow}>
+            <Text style={styles.timeText}>{formatTime(displayProgress)}</Text>
+            <Text style={styles.timeText}>{formatTime(duration)}</Text>
+          </View>
+        </View>
 
-          {/* Bottom row: tools + volume */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button onClick={() => onShowEqualizer?.()} className="text-white/35 hover:text-white transition-colors p-2 active:scale-90" title="Equalizer">
-                <Sliders size={18} />
-              </button>
-              <button onClick={() => setShowLyrics(!showLyrics)} className={`transition-colors p-2 active:scale-90 ${showLyrics ? "text-primary" : "text-white/35 hover:text-white"}`} title="Lyrics">
-                <Music2 size={18} />
-              </button>
-              <button onClick={toggleTheme} className="text-white/25 hover:text-white transition-colors p-2 active:scale-90" title={theme === "dark" ? "Light mode" : "Dark mode"}>
-                {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-              </button>
-            </div>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setVolume(volume === 0 ? 0.7 : 0)} className="text-white/35 hover:text-white transition-colors active:scale-90">
-                {volume === 0 ? <VolumeX size={18} /> : volume < 0.5 ? <Volume1 size={18} /> : <Volume2 size={18} />}
-              </button>
-              <input type="range" min={0} max={1} step={0.01} value={volume}
-                onChange={(e) => setVolume(Number(e.target.value))}
-                onWheel={(e) => {
-                  e.preventDefault();
-                  const delta = e.deltaY > 0 ? -0.05 : 0.05;
-                  setVolume(Math.max(0, Math.min(1, volume + delta)));
-                }}
-                className="w-20 h-1.5 cursor-pointer appearance-none
-                  [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none
-                  [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-white/15"
-                style={{ background: `linear-gradient(to right, white ${volume * 100}%, rgba(255,255,255,0.15) ${volume * 100}%)` }}
-              />
-              <div className="flex items-center gap-0.5 text-white/25">
-                <Settings size={12} /><span className="text-[9px] font-bold">{quality.replace("kbps", "")}</span>
-              </div>
-            </div>
-          </div>
-        </footer>
-      </div>
-    </div>
+        {/* Controls */}
+        <View style={styles.controls}>
+          <TouchableOpacity onPress={toggleShuffle} activeOpacity={0.7} style={styles.controlBtn}>
+            <Ionicons name="shuffle" size={22} color={shuffle ? '#1DB954' : 'rgba(255,255,255,0.4)'} />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={prev} activeOpacity={0.7} style={styles.controlBtn}>
+            <Ionicons name="play-skip-back" size={32} color="#fff" />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={togglePlay} activeOpacity={0.85} style={styles.playBtn}>
+            <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color="#000" style={isPlaying ? undefined : { marginLeft: 3 }} />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={next} activeOpacity={0.7} style={styles.controlBtn}>
+            <Ionicons name="play-skip-forward" size={32} color="#fff" />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={toggleRepeat} activeOpacity={0.7} style={styles.controlBtn}>
+            <Ionicons
+              name={repeat === 'one' ? 'repeat' : 'repeat'}
+              size={22}
+              color={repeat !== 'off' ? '#1DB954' : 'rgba(255,255,255,0.4)'}
+            />
+            {repeat === 'one' && (
+              <View style={styles.repeatOneDot} />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Volume */}
+        <View style={styles.volumeRow}>
+          <Ionicons name="volume-low" size={18} color="rgba(255,255,255,0.4)" />
+          <View style={styles.volumeTrack}>
+            <View style={[styles.volumeFill, { width: `${volume * 100}%` }]} />
+            <TouchableOpacity
+              style={[styles.volumeThumb, { left: `${volume * 100}%` }]}
+              onPress={() => {}}
+            />
+          </View>
+          <Ionicons name="volume-high" size={18} color="rgba(255,255,255,0.4)" />
+        </View>
+
+        {/* Volume tap zones */}
+        <View style={styles.volumeTapRow}>
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setVolume(Math.max(0, volume - 0.1))} activeOpacity={0.5} />
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setVolume(Math.min(1, volume + 0.1))} activeOpacity={0.5} />
+        </View>
+
+        {/* Toolbar: Sleep + Settings */}
+        <View style={styles.toolbar}>
+          {/* Sleep Timer */}
+          <TouchableOpacity
+            style={[styles.toolbarBtn, sleepMinutes !== null && styles.toolbarBtnActive]}
+            onPress={() => setSleepVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="moon" size={16} color={sleepMinutes !== null ? '#a78bfa' : 'rgba(255,255,255,0.4)'} />
+            <Text style={[styles.toolbarLabel, sleepMinutes !== null && styles.toolbarLabelActive]}>
+              {sleepMinutes !== null ? 'Sleep On' : 'Sleep'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Playback Speed */}
+          <TouchableOpacity
+            style={[styles.toolbarBtn, playbackSpeed !== 1 && styles.toolbarBtnBlue]}
+            onPress={() => setSettingsVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="speedometer-outline" size={16} color={playbackSpeed !== 1 ? '#60a5fa' : 'rgba(255,255,255,0.4)'} />
+            <Text style={[styles.toolbarLabel, playbackSpeed !== 1 && styles.toolbarLabelBlue]}>
+              {playbackSpeed}x
+            </Text>
+          </TouchableOpacity>
+
+          {/* Audio Quality */}
+          <TouchableOpacity
+            style={styles.toolbarBtn}
+            onPress={() => setSettingsVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="musical-note-outline" size={16} color="rgba(255,255,255,0.4)" />
+            <Text style={styles.toolbarLabel}>{quality.replace('kbps', '')} kbps</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Drag indicator */}
+        <View style={styles.dragHandle} />
+
+        {/* Queue Manager */}
+        <QueueManager visible={queueVisible} onClose={() => setQueueVisible(false)} />
+
+        {/* Sleep Timer */}
+        <SleepTimerSheet visible={sleepVisible} onClose={() => setSleepVisible(false)} />
+
+        {/* Playback Settings */}
+        <PlaybackSettingsSheet visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
+      </Animated.View>
+    </Modal>
   );
 };
 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+  },
+  bgImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  bgOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 56,
+    paddingBottom: 8,
+  },
+  headerBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  artContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+  },
+  albumArt: {
+    width: width - 80,
+    height: width - 80,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 20,
+  },
+  infoText: {
+    flex: 1,
+  },
+  trackTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  trackArtist: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.55)',
+  },
+  likeBtn: {
+    padding: 8,
+    marginLeft: 12,
+  },
+  progressSection: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  progressTrack: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 2,
+  },
+  progressThumb: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#fff',
+    marginLeft: -7,
+    top: -5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  timeText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    fontVariant: ['tabular-nums'],
+  },
+  controls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    marginBottom: 28,
+  },
+  controlBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playBtn: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  repeatOneDot: {
+    position: 'absolute',
+    bottom: 6,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#1DB954',
+  },
+  volumeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    gap: 10,
+    marginBottom: 4,
+  },
+  volumeTrack: {
+    flex: 1,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  volumeFill: {
+    height: '100%',
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 2,
+  },
+  volumeThumb: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    marginLeft: -6,
+    top: -4,
+  },
+  volumeTapRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    height: 24,
+    marginBottom: 16,
+  },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 24,
+  },
+  queueBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#1DB954',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  queueBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#000',
+  },
+  toolbar: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 8,
+    gap: 12,
+  },
+  toolbarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  toolbarBtnActive: {
+    backgroundColor: 'rgba(167,139,250,0.12)',
+    borderColor: 'rgba(167,139,250,0.3)',
+  },
+  toolbarLabel: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '600',
+  },
+  toolbarLabelActive: {
+    color: '#a78bfa',
+  },
+  toolbarBtnBlue: {
+    backgroundColor: 'rgba(96,165,250,0.12)',
+    borderColor: 'rgba(96,165,250,0.3)',
+  },
+  toolbarLabelBlue: {
+    color: '#60a5fa',
+  },
+});
