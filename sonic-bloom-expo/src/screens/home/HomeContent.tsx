@@ -44,7 +44,12 @@ export const HomeContent: React.FC<HomeContentProps> = ({
           <View style={styles.sectionHeaderWithBadge}>
             <View style={styles.headerLeft}>
               <Text style={styles.headerEmoji}>🎙️</Text>
-              <Text style={styles.headerTitle}>Sunday Suspense Vibes</Text>
+              <View>
+                <Text style={styles.headerTitle}>Sunday Suspense Vibes</Text>
+                {suspense.length > 0 && (
+                  <Text style={styles.countText}>{suspense.length} episodes</Text>
+                )}
+              </View>
               <View style={styles.ytBadge}>
                 <Text style={styles.ytBadgeText}>YT</Text>
               </View>
@@ -124,7 +129,12 @@ export const HomeContent: React.FC<HomeContentProps> = ({
           <View style={styles.sectionHeaderWithBadge}>
             <View style={styles.headerLeft}>
               <Text style={styles.headerEmoji}>▶️</Text>
-              <Text style={styles.headerTitle}>YouTube Trending</Text>
+              <View>
+                <Text style={styles.headerTitle}>YouTube Trending</Text>
+                {ytTrending.length > 0 && (
+                  <Text style={styles.countText}>{ytTrending.length} videos</Text>
+                )}
+              </View>
               <View style={styles.ytBadge}>
                 <Text style={styles.ytBadgeText}>YT</Text>
               </View>
@@ -192,9 +202,10 @@ const styles = StyleSheet.create({
   dividerLine: { flex: 1, height: 1, backgroundColor: '#222' },
   dividerText: { color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 2, marginHorizontal: 10, textTransform: 'uppercase' },
   sectionHeaderWithBadge: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, marginTop: 4 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   headerEmoji: { fontSize: 18, marginRight: 6 },
   headerTitle: { fontSize: 17, color: '#fff', fontWeight: 'bold' },
+  countText: { fontSize: 11, color: '#1DB954', marginTop: 1, fontWeight: '600' },
   viewAllText: { fontSize: 12, color: '#1DB954' },
   ytBadge: { backgroundColor: '#dc2626', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, marginLeft: 8 },
   ytBadgeText: { fontSize: 9, color: '#fff', fontWeight: 'bold' },

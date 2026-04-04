@@ -6,7 +6,7 @@ export interface AudioUrls {
 }
 
 export interface Track {
-  id: number;
+  id: number | string; // Support both number and string IDs
   title: string;
   artist: string;
   album: string;

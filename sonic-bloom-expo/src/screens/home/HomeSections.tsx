@@ -32,6 +32,7 @@ export const HomeSections: React.FC<HomeSectionsProps> = ({
         <SectionHeader
           title="Trending Now"
           emoji="🔥"
+          count={trending.length}
           onViewAll={() => onViewAll("Trending Now", "latest bollywood hits", 1000)}
         />
         {loadingTrending ? (
@@ -61,6 +62,7 @@ export const HomeSections: React.FC<HomeSectionsProps> = ({
         <SectionHeader
           title="New Releases"
           emoji="🎵"
+          count={newReleases.length}
           onViewAll={() => onViewAll("New Releases", "new hindi songs 2025", 2000)}
         />
         {loadingNewReleases ? (
@@ -88,7 +90,7 @@ export const HomeSections: React.FC<HomeSectionsProps> = ({
       {/* Recently Played */}
       {recentlyPlayed.length > 0 && (
         <View style={styles.section}>
-          <SectionHeader title="Recently Played" emoji="🕐" />
+          <SectionHeader title="Recently Played" emoji="🕐" count={recentlyPlayed.length} />
           <View style={styles.clearBtnContainer}>
             <TouchableOpacity onPress={onClearRecentlyPlayed} activeOpacity={0.7}>
               <Text style={styles.clearBtnText}>Clear</Text>

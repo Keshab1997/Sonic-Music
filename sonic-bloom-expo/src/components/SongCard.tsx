@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback } from 'react';
 import { TouchableOpacity, Text, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Track } from '../data/playlist';
@@ -17,14 +17,24 @@ interface SongCardProps {
   cardWidth?: number;
 }
 
-export const SongCard: React.FC<SongCardProps> = ({
+export const SongCard: React.FC<SongCardProps> = memo(({
   track, index, allTracks, currentTrack, isPlaying, onPlay, onAddToQueue, badge, badgeColor, cardWidth = 120
 }) => {
   const isCurrentTrack = currentTrack?.id === track.id;
+  
+  const handlePress = useCallback(() => {
+    onPlay(track, allTracks, index);
+  }, [track, allTracks, index, onPlay]);
+
+  const handleAddToQueue = useCallback((e: any) => {
+    e.stopPropagation();
+    onAddToQueue(track);
+  }, [track, onAddToQueue]);
+
   return (
     <TouchableOpacity
       style={[styles.card, { width: cardWidth }]}
-      onPress={() => onPlay(track, allTracks, index)}
+      onPress={handlePress}
       activeOpacity={0.7}
     >
       <View style={styles.cardImageContainer}>
@@ -45,7 +55,7 @@ export const SongCard: React.FC<SongCardProps> = ({
         )}
         <TouchableOpacity
           style={styles.cardQueueBtn}
-          onPress={(e) => { e.stopPropagation(); onAddToQueue(track); }}
+          onPress={handleAddToQueue}
           activeOpacity={0.7}
         >
           <Ionicons name="add" size={16} color="#fff" />
@@ -55,7 +65,12 @@ export const SongCard: React.FC<SongCardProps> = ({
       <Text style={styles.cardArtist} numberOfLines={1}>{track.artist}</Text>
     </TouchableOpacity>
   );
-};
+}, (prev, next) => {
+  // Only re-render if track changes or playing state changes for this specific track
+  const prevIsPlaying = prev.currentTrack?.id === prev.track.id && prev.isPlaying;
+  const nextIsPlaying = next.currentTrack?.id === next.track.id && next.isPlaying;
+  return prev.track.id === next.track.id && prevIsPlaying === nextIsPlaying;
+});
 
 const styles = StyleSheet.create({
   card: { marginRight: 12 },

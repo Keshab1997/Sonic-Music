@@ -21,21 +21,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let mounted = true;
+    // Timeout fallback - if auth takes more than 10 seconds, stop loading
+    const timeoutId = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth loading timed out after 10 seconds');
+        setLoading(false);
+      }
+    }, 10000);
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
+      if (mounted) {
+        setSession(session)
+        setUser(session?.user ?? null)
+        setLoading(false)
+        clearTimeout(timeoutId);
+      }
+    }).catch((error) => {
+      if (mounted) {
+        console.error('Failed to get session:', error);
+        setLoading(false)
+        clearTimeout(timeoutId);
+      }
     })
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
+      if (mounted) {
+        setSession(session)
+        setUser(session?.user ?? null)
+        setLoading(false)
+      }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+    }
   }, [])
 
   const signIn = useCallback(async (email: string, password: string) => {

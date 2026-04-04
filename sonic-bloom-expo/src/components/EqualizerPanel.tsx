@@ -56,6 +56,12 @@ export const EqualizerPanel: React.FC<Props> = ({ visible, onClose }) => {
             </TouchableOpacity>
           </View>
 
+          {/* EQ Disclaimer */}
+          <View style={styles.disclaimerContainer}>
+            <Ionicons name="information-circle" size={16} color="#f59e0b" />
+            <Text style={styles.disclaimerText}>EQ is a visual placeholder. Audio EQ requires react-native-track-player.</Text>
+          </View>
+
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {/* Presets */}
             <View style={styles.presetsContainer}>
@@ -90,6 +96,8 @@ const styles = StyleSheet.create({
   panel: { backgroundColor: '#1a1a1a', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 40, maxHeight: height * 0.6 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#333' },
   title: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
+  disclaimerContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, gap: 8, backgroundColor: 'rgba(245,158,11,0.1)', marginHorizontal: 20, marginTop: 12, borderRadius: 8 },
+  disclaimerText: { fontSize: 11, color: '#f59e0b', flex: 1, lineHeight: 16 },
   content: { padding: 20 },
   presetsContainer: { marginBottom: 24 },
   presetsLabel: { fontSize: 14, color: '#888', marginBottom: 10 },

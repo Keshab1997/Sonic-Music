@@ -1,16 +1,20 @@
 import { Track } from '../data/playlist';
 import { API_BASE, YT_API, YT_STREAM_API } from '../data/constants';
 
-// JioSaavn song parser — id must be unique per section
-export const parseSong = (s: any, id: number): Track | null => {
+// JioSaavn song parser — use actual song ID for uniqueness
+export const parseSong = (s: any, fallbackId: number): Track | null => {
   if (!s.downloadUrl?.length) return null;
   const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
   const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
   const url320 = s.downloadUrl.find((d: any) => d.quality === "320kbps")?.link;
   const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
   if (!bestUrl) return null;
+  
+  // Use JioSaavn's actual song ID if available, otherwise use fallback
+  const uniqueId = s.id ? `jiosaavn_${s.id}` : fallbackId;
+  
   return {
-    id,
+    id: uniqueId,
     title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
     artist: s.primaryArtists || "Unknown",
     album: typeof s.album === "string" ? s.album : s.album?.name || "",
@@ -59,7 +63,7 @@ export const fetchYouTube = async (query: string, offset: number): Promise<Track
     if (!res.ok) return [];
     const videos: any[] = await res.json();
     return videos.slice(0, 12).map((v, i) => ({
-      id: offset + i,
+      id: `youtube_${v.videoId}`, // Use actual video ID for uniqueness
       title: v.title,
       artist: v.author || "YouTube",
       album: "",

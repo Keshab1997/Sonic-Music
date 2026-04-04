@@ -5,16 +5,22 @@ import { Ionicons } from '@expo/vector-icons';
 interface SectionHeaderProps {
   title: string;
   emoji?: string;
+  count?: number;
   onViewAll?: () => void;
   onRefresh?: () => void;
   refreshing?: boolean;
 }
 
-export const SectionHeader: React.FC<SectionHeaderProps> = ({ title, emoji, onViewAll, onRefresh, refreshing }) => (
+export const SectionHeader: React.FC<SectionHeaderProps> = ({ title, emoji, count, onViewAll, onRefresh, refreshing }) => (
   <View style={styles.header}>
     <View style={styles.headerLeft}>
       {emoji && <Text style={styles.emoji}>{emoji}</Text>}
-      <Text style={styles.title}>{title}</Text>
+      <View>
+        <Text style={styles.title}>{title}</Text>
+        {count !== undefined && count > 0 && (
+          <Text style={styles.count}>{count} {count === 1 ? 'song' : 'songs'}</Text>
+        )}
+      </View>
     </View>
     {onViewAll && (
       <TouchableOpacity onPress={onViewAll} activeOpacity={0.7}>
@@ -48,8 +54,9 @@ export const SectionSkeleton: React.FC<SectionSkeletonProps> = ({ count = 4, car
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, marginTop: 4 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   emoji: { fontSize: 18, marginRight: 6 },
   title: { fontSize: 17, color: '#fff', fontWeight: 'bold' },
+  count: { fontSize: 11, color: '#1DB954', marginTop: 1, fontWeight: '600' },
   viewAllText: { fontSize: 12, color: '#1DB954' },
 });

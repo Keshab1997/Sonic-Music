@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import { TouchableOpacity, Text, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayer } from '../context/PlayerContext';
@@ -11,10 +11,29 @@ interface MiniPlayerProps {
   onExpand?: () => void;
 }
 
+// Memoized button components
+const MiniButton = memo(({ icon, color, onPress }: { icon: string; color: string; onPress: () => void }) => (
+  <TouchableOpacity style={styles.miniBtn} onPress={onPress} activeOpacity={0.7}>
+    <Ionicons name={icon as any} size={icon === 'pause' || icon === 'play' ? 26 : 20} color={color} />
+  </TouchableOpacity>
+));
+
 export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
   const { currentTrack, isPlaying, togglePlay, next, prev, progress, duration } = usePlayer();
   const { isLiked, toggleLike } = useLikedSongsContext();
   const [fsVisible, setFsVisible] = useState(false);
+
+  const handleExpand = useCallback(() => { onExpand?.(); setFsVisible(true); lightHaptic(); }, [onExpand]);
+  
+  const handleToggleLike = useCallback((e: any) => {
+    e.stopPropagation();
+    if (currentTrack) { toggleLike(currentTrack); lightHaptic(); }
+  }, [currentTrack, toggleLike]);
+
+  const handlePrev = useCallback((e: any) => { e.stopPropagation(); prev(); lightHaptic(); }, [prev]);
+  const handleTogglePlay = useCallback((e: any) => { e.stopPropagation(); togglePlay(); lightHaptic(); }, [togglePlay]);
+  const handleNext = useCallback((e: any) => { e.stopPropagation(); next(); lightHaptic(); }, [next]);
+  const handleClose = useCallback(() => setFsVisible(false), []);
 
   if (!currentTrack) return null;
 
@@ -22,61 +41,25 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
   const trackId = currentTrack?.id ? String(currentTrack.id) : '';
   const liked = trackId ? isLiked(trackId) : false;
 
-  const handleToggleLike = (e: any) => {
-    e.stopPropagation();
-    if (currentTrack) {
-      toggleLike(currentTrack);
-      lightHaptic();
-    }
-  };
-
   return (
     <>
-      <TouchableOpacity
-        style={styles.miniPlayer}
-        activeOpacity={0.9}
-        onPress={() => { onExpand?.(); setFsVisible(true); lightHaptic(); }}
-      >
-        {/* Progress bar at top of mini player */}
+      <TouchableOpacity style={styles.miniPlayer} activeOpacity={0.9} onPress={handleExpand}>
         <View style={styles.miniProgressTrack}>
           <View style={[styles.miniProgressFill, { width: `${progressPercent}%` }]} />
         </View>
-
-        <CachedImage
-          source={{ uri: currentTrack.cover }}
-          style={styles.miniCover}
-          defaultSource={require('../../assets/icon.png')}
-        />
+        <CachedImage source={{ uri: currentTrack.cover }} style={styles.miniCover} defaultSource={require('../../assets/icon.png')} />
         <View style={styles.miniInfo}>
-          <Text style={styles.miniTitle} numberOfLines={1}>
-            {currentTrack.title}
-          </Text>
-          <Text style={styles.miniArtist} numberOfLines={1}>
-            {currentTrack.artist}
-          </Text>
+          <Text style={styles.miniTitle} numberOfLines={1}>{currentTrack.title}</Text>
+          <Text style={styles.miniArtist} numberOfLines={1}>{currentTrack.artist}</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.miniBtn} 
-          onPress={handleToggleLike}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={styles.miniBtn} onPress={handleToggleLike} activeOpacity={0.7}>
           <Ionicons name={liked ? "heart" : "heart-outline"} size={22} color={liked ? "#1DB954" : "#fff"} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); prev(); lightHaptic(); }} activeOpacity={0.7}>
-          <Ionicons name="play-skip-back" size={20} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); togglePlay(); lightHaptic(); }} activeOpacity={0.7}>
-          <Ionicons name={isPlaying ? "pause" : "play"} size={26} color="#1DB954" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.miniBtn} onPress={(e) => { e.stopPropagation(); next(); lightHaptic(); }} activeOpacity={0.7}>
-          <Ionicons name="play-skip-forward" size={20} color="#fff" />
-        </TouchableOpacity>
+        <MiniButton icon="play-skip-back" color="#fff" onPress={handlePrev} />
+        <MiniButton icon={isPlaying ? "pause" : "play"} color="#1DB954" onPress={handleTogglePlay} />
+        <MiniButton icon="play-skip-forward" color="#fff" onPress={handleNext} />
       </TouchableOpacity>
-
-      <FullScreenPlayer
-        visible={fsVisible}
-        onClose={() => setFsVisible(false)}
-      />
+      <FullScreenPlayer visible={fsVisible} onClose={handleClose} />
     </>
   );
 };

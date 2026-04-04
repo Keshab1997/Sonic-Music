@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { View, ScrollView, StyleSheet, RefreshControl, Text } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
 import { RECENTLY_PLAYED_KEY } from '../data/constants';
 import { fetchJioSaavn, fetchYouTube } from '../lib/api';
+import { useOfflineCache } from '../hooks/useOfflineCache';
 import { HomeCarousel } from './home/HomeCarousel';
 import { HomeQuickPicks } from './home/HomeQuickPicks';
 import { HomeSections } from './home/HomeSections';
@@ -14,6 +15,7 @@ import { BottomSheetModal } from '../components/BottomSheetModal';
 
 export const HomeScreen: React.FC = () => {
   const { playTrackList, currentTrack, isPlaying, addToQueue } = usePlayer();
+  const { saveToCache, cachedData, isOffline } = useOfflineCache();
 
   // Section tracks
   const [trending, setTrending] = useState<Track[]>([]);
@@ -71,40 +73,78 @@ export const HomeScreen: React.FC = () => {
   // Auto-advance carousel
   useEffect(() => {
     if (trending.length === 0) return;
+    // Clear any existing interval before creating a new one
+    if (carouselTimer.current) {
+      clearInterval(carouselTimer.current);
+      carouselTimer.current = null;
+    }
     carouselTimer.current = setInterval(() => {
       setCarouselIndex(prev => (prev + 1) % Math.min(trending.length, 5));
     }, 5000);
     return () => {
-      if (carouselTimer.current) clearInterval(carouselTimer.current);
+      if (carouselTimer.current) {
+        clearInterval(carouselTimer.current);
+        carouselTimer.current = null;
+      }
     };
   }, [trending.length]);
 
-  // Fetch all data
+  // Fetch all data with offline caching
   const fetchAllData = useCallback(async () => {
-    fetchJioSaavn("latest bollywood hits", 1000)
-      .then(setTrending)
-      .finally(() => setLoadingTrending(false));
+    const results = {
+      trending: [] as Track[],
+      newReleases: [] as Track[],
+      bengaliHits: [] as Track[],
+      forYou: [] as Track[],
+      suspense: [] as Track[],
+      ytTrending: [] as Track[],
+    };
 
-    fetchJioSaavn("new hindi songs 2025", 2000)
-      .then(setNewReleases)
-      .finally(() => setLoadingNewReleases(false));
+    try {
+      results.trending = await fetchJioSaavn("latest bollywood hits", 1000);
+      setTrending(results.trending);
+    } finally {
+      setLoadingTrending(false);
+    }
 
-    fetchJioSaavn("bengali top hits", 7000, 15, "bengali")
-      .then(setBengaliHits)
-      .finally(() => setLoadingBengali(false));
+    try {
+      results.newReleases = await fetchJioSaavn("new hindi songs 2025", 2000);
+      setNewReleases(results.newReleases);
+    } finally {
+      setLoadingNewReleases(false);
+    }
 
-    fetchJioSaavn("bollywood romantic hits", 9000)
-      .then(setForYou)
-      .finally(() => setLoadingForYou(false));
+    try {
+      results.bengaliHits = await fetchJioSaavn("bengali top hits", 7000, 15, "bengali");
+      setBengaliHits(results.bengaliHits);
+    } finally {
+      setLoadingBengali(false);
+    }
 
-    fetchYouTube("Sunday Suspense Mirchi Bangla", 11000)
-      .then(setSuspense)
-      .finally(() => setLoadingSuspense(false));
+    try {
+      results.forYou = await fetchJioSaavn("bollywood romantic hits", 9000);
+      setForYou(results.forYou);
+    } finally {
+      setLoadingForYou(false);
+    }
 
-    fetchYouTube("top hindi songs 2026 trending", 60000)
-      .then(setYtTrending)
-      .finally(() => setLoadingYtTrending(false));
-  }, []);
+    try {
+      results.suspense = await fetchYouTube("Sunday Suspense Mirchi Bangla", 11000);
+      setSuspense(results.suspense);
+    } finally {
+      setLoadingSuspense(false);
+    }
+
+    try {
+      results.ytTrending = await fetchYouTube("top hindi songs 2026 trending", 60000);
+      setYtTrending(results.ytTrending);
+    } finally {
+      setLoadingYtTrending(false);
+    }
+
+    // Save to offline cache
+    await saveToCache(results);
+  }, [saveToCache]);
 
   // Initial Data Fetching
   useEffect(() => {
@@ -187,6 +227,12 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      {/* Offline Indicator */}
+      {isOffline && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineText}>📡 Showing cached content - Offline mode</Text>
+        </View>
+      )}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -270,5 +316,7 @@ export const HomeScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a0a' },
+  offlineBanner: { backgroundColor: '#f59e0b', paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center' },
+  offlineText: { fontSize: 12, fontWeight: '600', color: '#000' },
   scrollContent: { paddingBottom: 140 },
 });
