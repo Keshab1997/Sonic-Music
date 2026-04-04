@@ -809,6 +809,72 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [currentTrack?.type, isPlaying]);
 
+  // Control YouTube playback when isPlaying changes
+  useEffect(() => {
+    if (currentTrack?.type === "youtube" && ytPlayerRef.current) {
+      const player = ytPlayerRef.current.getInternalPlayer();
+      if (!player || typeof player.getPlayerState !== "function") return;
+
+      const state = player.getPlayerState();
+      
+      if (isPlaying) {
+        // If we should be playing but aren't, start playing
+        if (state !== 1 && state !== 3) {
+          const startPlayback = () => {
+            player.playVideo?.();
+            player.unMute?.();
+            // On mobile, retry to handle autoplay restrictions
+            if (isMobile()) {
+              setTimeout(() => {
+                player.playVideo?.();
+                player.unMute?.();
+              }, 300);
+            }
+          };
+          startPlayback();
+        }
+      } else {
+        // If we should be paused but aren't, pause
+        if (state === 1 || state === 3) {
+          player.pauseVideo?.();
+        }
+      }
+    }
+  }, [isPlaying, currentTrack?.type]);
+
+  // Control YouTube playback when isPlaying changes
+  useEffect(() => {
+    if (currentTrack?.type === "youtube" && ytPlayerRef.current) {
+      const player = ytPlayerRef.current.getInternalPlayer();
+      if (!player || typeof player.getPlayerState !== "function") return;
+
+      const state = player.getPlayerState();
+      
+      if (isPlaying) {
+        // If we should be playing but aren't, start playing
+        if (state !== 1 && state !== 3) {
+          const startPlayback = () => {
+            player.playVideo?.();
+            player.unMute?.();
+            // On mobile, retry to handle autoplay restrictions
+            if (isMobile()) {
+              setTimeout(() => {
+                player.playVideo?.();
+                player.unMute?.();
+              }, 300);
+            }
+          };
+          startPlayback();
+        }
+      } else {
+        // If we should be paused but aren't, pause
+        if (state === 1 || state === 3) {
+          player.pauseVideo?.();
+        }
+      }
+    }
+  }, [isPlaying, currentTrack?.type]);
+
   // Keep YouTube player alive on route changes - more aggressive on mobile
   useEffect(() => {
     if (currentTrack?.type === "youtube" && isPlaying && ytPlayerRef.current) {
@@ -1049,8 +1115,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               if (!isPlaying) setIsPlaying(true);
             }}
             onPause={() => {
-              // Sync state only — don't auto-resume to avoid infinite loop
-              if (isPlaying) setIsPlaying(false);
+              // Don't sync pause state automatically - YouTube pauses for many reasons
+              // Only sync if we explicitly want to pause
+            }}
+            onPlay={() => {
+              // Keep playing state in sync
+              if (!isPlaying) setIsPlaying(true);
+            }}
+            onPause={() => {
+              // Don't sync pause state automatically - YouTube pauses for many reasons
+              // Only sync if we explicitly want to pause
             }}
             onEnded={() => {
               if (repeat === "one") {
