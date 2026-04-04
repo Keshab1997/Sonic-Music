@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
@@ -46,6 +46,7 @@ export const HomeScreen: React.FC = () => {
   const [loadingQuickPick, setLoadingQuickPick] = useState<string | null>(null);
   const [loadingLabel, setLoadingLabel] = useState<string | null>(null);
   const [loadingYtPick, setLoadingYtPick] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Load recently played from AsyncStorage on mount
   useEffect(() => {
@@ -78,8 +79,8 @@ export const HomeScreen: React.FC = () => {
     };
   }, [trending.length]);
 
-  // Initial Data Fetching
-  useEffect(() => {
+  // Fetch all data
+  const fetchAllData = useCallback(async () => {
     fetchJioSaavn("latest bollywood hits", 1000)
       .then(setTrending)
       .finally(() => setLoadingTrending(false));
@@ -104,6 +105,24 @@ export const HomeScreen: React.FC = () => {
       .then(setYtTrending)
       .finally(() => setLoadingYtTrending(false));
   }, []);
+
+  // Initial Data Fetching
+  useEffect(() => {
+    fetchAllData();
+  }, [fetchAllData]);
+
+  // Pull to refresh
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setLoadingTrending(true);
+    setLoadingNewReleases(true);
+    setLoadingBengali(true);
+    setLoadingForYou(true);
+    setLoadingSuspense(true);
+    setLoadingYtTrending(true);
+    fetchAllData();
+    setTimeout(() => setRefreshing(false), 2000);
+  }, [fetchAllData]);
 
   // Open bottom sheet with a query
   const openSheet = useCallback(async (title: string, query: string, offset: number, isYoutube = false, langFilter?: string) => {
@@ -171,6 +190,9 @@ export const HomeScreen: React.FC = () => {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1DB954" />
+        }
       >
         {/* Hero Carousel */}
         <HomeCarousel
