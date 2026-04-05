@@ -1,7 +1,7 @@
 import React, { useRef, useCallback } from 'react';
 import {
   View, Text, Image, TouchableOpacity, Modal,
-  FlatList, Animated, PanResponder, StyleSheet,
+  FlatList, Animated, PanResponder, StyleSheet, ScrollView,
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -132,14 +132,9 @@ export const QueueManager: React.FC<Props> = ({ visible, onClose }) => {
     })
   ).current;
 
-  // Up next = queue + remaining tracks after current
+  // Up next = only queue items (user added)
   const upNext: Track[] = [...queue];
-  const remainingFromList = tracks.slice(currentIndex + 1);
-  // Show queue items first, then remaining playlist tracks (not duplicating queue items)
-  const queueIds = new Set(queue.map((t) => t.id));
-  const playlistNext = remainingFromList.filter((t) => !queueIds.has(t.id));
-
-  const totalCount = upNext.length + playlistNext.length;
+  const totalCount = upNext.length;
 
   return (
     <Modal
@@ -192,89 +187,48 @@ export const QueueManager: React.FC<Props> = ({ visible, onClose }) => {
           </View>
         </View>
 
-        {/* Currently Playing */}
-        {currentTrack && (
-          <View style={styles.nowPlayingSection}>
-            <Text style={styles.sectionLabel}>NOW PLAYING</Text>
-            <View style={styles.nowPlayingRow}>
-              <View style={styles.nowPlayingIndicator} />
-              <Image source={{ uri: currentTrack.cover }} style={styles.nowPlayingCover} />
-              <View style={styles.nowPlayingInfo}>
-                <Text style={styles.nowPlayingTitle} numberOfLines={1}>{currentTrack.title}</Text>
-                <Text style={styles.nowPlayingArtist} numberOfLines={1}>{currentTrack.artist}</Text>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Currently Playing */}
+          {currentTrack && (
+            <View style={styles.nowPlayingSection}>
+              <Text style={styles.sectionLabel}>NOW PLAYING</Text>
+              <View style={styles.nowPlayingRow}>
+                <View style={styles.nowPlayingIndicator} />
+                <Image source={{ uri: currentTrack.cover }} style={styles.nowPlayingCover} />
+                <View style={styles.nowPlayingInfo}>
+                  <Text style={styles.nowPlayingTitle} numberOfLines={1}>{currentTrack.title}</Text>
+                  <Text style={styles.nowPlayingArtist} numberOfLines={1}>{currentTrack.artist}</Text>
+                </View>
+                <Ionicons name="musical-notes" size={16} color="#1DB954" />
               </View>
-              <Ionicons name="musical-notes" size={16} color="#1DB954" />
             </View>
-          </View>
-        )}
+          )}
 
-        {/* Queue list */}
-        {totalCount === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name="list-outline" size={48} color="#333" />
-            <Text style={styles.emptyTitle}>Queue is empty</Text>
-            <Text style={styles.emptySub}>Add songs using the + button</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={[
-              // Queue items (user-added, shown first with label)
-              ...upNext.map((t, i) => ({ ...t, _section: 'queue' as const, _queueIndex: i })),
-              // Playlist next items
-              ...playlistNext.map((t) => ({ ...t, _section: 'playlist' as const, _queueIndex: -1 })),
-            ]}
-            keyExtractor={(item, i) => `${item.id}-${i}`}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            ListHeaderComponent={upNext.length > 0 ? (
-              <Text style={styles.sectionLabel}>IN QUEUE</Text>
-            ) : null}
-            renderItem={({ item, index }) => {
-              const isQueueItem = item._section === 'queue';
-              const showPlaylistHeader =
-                item._section === 'playlist' &&
-                (index === 0 || (index > 0 && (item as any)._section !== (playlistNext[index - 1] as any)?._section));
+          {/* Queue Section - User Added */}
+          {upNext.length > 0 && (
+            <View style={styles.queueSection}>
+              <Text style={styles.sectionLabel}>YOUR QUEUE</Text>
+              {upNext.map((t, i) => (
+                <QueueRow
+                  key={`queue-${t.id}-${i}`}
+                  track={t}
+                  index={i}
+                  onRemove={removeFromQueue}
+                  onPlay={playTrack}
+                />
+              ))}
+            </View>
+          )}
 
-              // Show "Next from playlist" header before first playlist item
-              const isFirstPlaylistItem =
-                item._section === 'playlist' &&
-                (index === 0 || upNext.length === index);
-
-              return (
-                <>
-                  {isFirstPlaylistItem && (
-                    <Text style={[styles.sectionLabel, { marginTop: upNext.length > 0 ? 16 : 0 }]}>
-                      NEXT FROM PLAYLIST
-                    </Text>
-                  )}
-                  {isQueueItem ? (
-                    <QueueRow
-                      track={item}
-                      index={item._queueIndex}
-                      onRemove={removeFromQueue}
-                      onPlay={playTrack}
-                    />
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.playlistRow}
-                      onPress={() => playTrack(item)}
-                      activeOpacity={0.7}
-                    >
-                      <Image source={{ uri: item.cover }} style={styles.cover} />
-                      <View style={styles.info}>
-                        <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-                        <Text style={styles.artist} numberOfLines={1}>{item.artist}</Text>
-                      </View>
-                      {item.duration > 0 && (
-                        <Text style={styles.duration}>{formatTime(item.duration)}</Text>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </>
-              );
-            }}
-          />
-        )}
+          {/* Empty State */}
+          {totalCount === 0 && (
+            <View style={styles.empty}>
+              <Ionicons name="list-outline" size={48} color="#333" />
+              <Text style={styles.emptyTitle}>Queue is empty</Text>
+              <Text style={styles.emptySub}>Add songs using the + button</Text>
+            </View>
+          )}
+        </ScrollView>
       </Animated.View>
     </Modal>
   );
@@ -295,6 +249,12 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: 'hidden',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   dragArea: {
     alignItems: 'center',
@@ -472,6 +432,13 @@ const styles = StyleSheet.create({
   },
   removeBtn: {
     padding: 4,
+  },
+  queueSection: {
+    paddingHorizontal: 16,
+  },
+  playlistSection: {
+    paddingHorizontal: 16,
+    marginTop: 16,
   },
   empty: {
     flex: 1,

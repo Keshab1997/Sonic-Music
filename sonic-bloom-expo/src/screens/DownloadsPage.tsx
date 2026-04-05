@@ -11,6 +11,8 @@ export const DownloadsPage: React.FC = () => {
   const { playTrackList, currentTrack, isPlaying, addToQueue } = usePlayer();
   const [searchQuery, setSearchQuery] = useState('');
 
+  console.log('[DownloadsPage] downloads:', downloads.length, downloads.map(d => d.track?.title));
+
   const handleDelete = (trackId: string) => {
     Alert.alert(
       'Delete Download',

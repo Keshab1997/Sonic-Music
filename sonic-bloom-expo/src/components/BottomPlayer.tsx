@@ -35,7 +35,8 @@ import {
 import { usePlayer, AudioQuality } from "@/context/PlayerContext";
 import { useLocalData } from "@/hooks/useLocalData";
 import { useDownloads } from "@/hooks/useDownloads";
-import { usePlaylists } from "@/hooks/usePlaylists";
+import { useDownloadsContext } from "@/context/DownloadsContext";
+  import { usePlaylists } from "@/hooks/usePlaylists";
 import { FullScreenPlayer } from "@/components/FullScreenPlayer";
 import { Equalizer } from "@/components/Equalizer";
 import { SyncedLyrics } from "@/components/SyncedLyrics";
@@ -104,7 +105,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer: _onShowEqualiz
 
   const { isFavorite, toggleFavorite } = useLocalData();
   const { playlists, createPlaylist, addToPlaylist } = usePlaylists();
-  const { downloadTrack, isDownloaded, isDownloading } = useDownloads();
+  const { downloadTrack, isDownloaded, isDownloading } = useDownloadsContext();
 
   const [openPanel, setOpenPanel] = useState<"queue" | "sleep" | "quality" | "speed" | null>(null);
   const [showLyrics, setShowLyrics] = useState(false);

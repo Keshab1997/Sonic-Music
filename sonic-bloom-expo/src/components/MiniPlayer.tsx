@@ -3,29 +3,32 @@ import { TouchableOpacity, Text, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayer } from '../context/PlayerContext';
 import { useLikedSongsContext } from '../context/LikedSongsContext';
-import { useDownloads } from '../hooks/useDownloads';
+import { useDownloadsContext } from '../context/DownloadsContext';
 import { FullScreenPlayer } from './FullScreenPlayer';
+import { QueueManager } from './QueueManager';
 import { CachedImage } from './CachedImage';
 import { lightHaptic } from '../lib/haptics';
 
 interface MiniPlayerProps {
   onExpand?: () => void;
+  onClose?: () => void;
 }
 
-// Memoized button components
 const MiniButton = memo(({ icon, color, onPress }: { icon: string; color: string; onPress: () => void }) => (
   <TouchableOpacity style={styles.miniBtn} onPress={onPress} activeOpacity={0.7}>
     <Ionicons name={icon as any} size={icon === 'pause' || icon === 'play' ? 26 : 20} color={color} />
   </TouchableOpacity>
 ));
 
-export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
-  const { currentTrack, isPlaying, togglePlay, next, prev, progress, duration } = usePlayer();
+export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand, onClose }) => {
+  const { currentTrack, isPlaying, togglePlay, next, prev, progress, duration, queue, tracks, currentIndex } = usePlayer();
   const { isLiked, toggleLike } = useLikedSongsContext();
-  const { downloadTrack, isDownloaded, isDownloading, getDownloadProgress } = useDownloads();
+  const { downloadTrack, isDownloaded, isDownloading, getDownloadProgress } = useDownloadsContext();
   const [fsVisible, setFsVisible] = useState(false);
+  const [queueVisible, setQueueVisible] = useState(false);
 
   const handleExpand = useCallback(() => { onExpand?.(); setFsVisible(true); lightHaptic(); }, [onExpand]);
+  const handleClose = useCallback(() => { onClose?.(); setFsVisible(false); }, [onClose]);
   
   const handleToggleLike = useCallback(() => {
     if (currentTrack) { toggleLike(currentTrack); lightHaptic(); }
@@ -41,7 +44,6 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
   const handlePrev = useCallback(() => { prev(); lightHaptic(); }, [prev]);
   const handleTogglePlay = useCallback(() => { togglePlay(); lightHaptic(); }, [togglePlay]);
   const handleNext = useCallback(() => { next(); lightHaptic(); }, [next]);
-  const handleClose = useCallback(() => setFsVisible(false), []);
 
   if (!currentTrack) return null;
 
@@ -68,11 +70,22 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
         <TouchableOpacity style={styles.miniBtn} onPress={handleToggleLike} activeOpacity={0.7}>
           <Ionicons name={liked ? "heart" : "heart-outline"} size={22} color={liked ? "#1DB954" : "#fff"} />
         </TouchableOpacity>
-        <MiniButton icon="play-skip-back" color="#fff" onPress={handlePrev} />
+<MiniButton icon="play-skip-back" color="#fff" onPress={handlePrev} />
         <MiniButton icon={isPlaying ? "pause" : "play"} color="#1DB954" onPress={handleTogglePlay} />
         <MiniButton icon="play-skip-forward" color="#fff" onPress={handleNext} />
+        <TouchableOpacity style={styles.miniBtn} onPress={() => setQueueVisible(true)} activeOpacity={0.7}>
+          <View>
+            <Ionicons name="list" size={22} color="#fff" />
+            {queue.length > 0 && (
+              <View style={styles.queueBadgeMini}>
+                <Text style={styles.queueBadgeTextMini}>{queue.length}</Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
       </TouchableOpacity>
-      <FullScreenPlayer visible={fsVisible} onClose={handleClose} />
+      <FullScreenPlayer visible={fsVisible} onClose={() => setFsVisible(false)} />
+      <QueueManager visible={queueVisible} onClose={() => setQueueVisible(false)} />
     </>
   );
 };
@@ -86,4 +99,6 @@ const styles = StyleSheet.create({
   miniTitle: { fontSize: 13, fontWeight: 'bold', color: '#fff' },
   miniArtist: { fontSize: 11, color: '#888' },
   miniBtn: { padding: 8 },
+  queueBadgeMini: { position: 'absolute', top: -2, right: -4, backgroundColor: '#1DB954', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
+  queueBadgeTextMini: { fontSize: 9, fontWeight: 'bold', color: '#000' },
 });

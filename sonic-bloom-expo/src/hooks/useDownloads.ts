@@ -18,6 +18,7 @@ export const useDownloads = () => {
   const [downloads, setDownloads] = useState<DownloadedTrack[]>([]);
   const [downloading, setDownloading] = useState<Record<string, number>>({});
   const prevUserIdRef = useRef<string | null>(null);
+  const validDownloadsRef = useRef<DownloadedTrack[]>([]);
 
   // Get user-specific storage key
   const getStorageKey = useCallback(() => {
@@ -36,29 +37,73 @@ export const useDownloads = () => {
 
   const loadDownloads = async () => {
     try {
+      // First, determine which key to use
+      let localKey = getStorageKey();
+      
+      // If no user, try guest key
+      if (!localKey) {
+        localKey = `${DOWNLOADS_KEY_PREFIX}guest`;
+      }
+      
+      const localData = await AsyncStorage.getItem(localKey);
+      if (localData) {
+        try {
+          const parsed = JSON.parse(localData);
+          console.log('[useDownloads] Loaded from local AsyncStorage:', parsed.length, 'songs, key:', localKey);
+          // Check if local files still exist
+          const validDownloads: DownloadedTrack[] = [];
+          for (const d of parsed) {
+            if (d.localUri) {
+              try {
+                const exists = await FileSystem.getInfoAsync(d.localUri);
+                if ((exists as any).exists) {
+                  validDownloads.push(d);
+                }
+              } catch {}
+            }
+          }
+          if (validDownloads.length > 0) {
+            setDownloads(validDownloads);
+            validDownloadsRef.current = validDownloads;
+            console.log('[useDownloads] Valid local downloads:', validDownloads.length);
+          }
+        } catch {}
+      } else {
+        console.log('[useDownloads] No local data found, key:', localKey);
+      }
+      
+      // Then load from Supabase and merge with local (for logged-in users)
       if (user) {
-        // Load from Supabase for logged-in users (RLS ensures user-specific)
         const { data, error } = await supabase
           .from('downloads')
           .select('*');
         
-        if (!error && data) {
-          const mapped = data.map(d => ({
+        console.log('[useDownloads] Load from Supabase:', { count: data?.length, error });
+        
+        if (!error && data && data.length > 0) {
+          const supabaseDownloads = data.map((d: any) => ({
             track: d.track_data,
             localUri: d.local_uri,
             downloadedAt: new Date(d.downloaded_at).getTime(),
           }));
-          setDownloads(mapped);
-          // Cache to user-specific AsyncStorage
-          const key = getStorageKey();
-          if (key) {
-            await AsyncStorage.setItem(key, JSON.stringify(mapped));
+          
+          // Get current downloads from local variable (not state)
+          const currentDownloads = validDownloadsRef.current;
+          // Merge: add supabase entries that don't exist locally
+          const existingIds = new Set(currentDownloads.map(d => String(d.track.id)));
+          const newFromSupabase = supabaseDownloads.filter((d: any) => !existingIds.has(String(d.track.id)));
+          
+          if (newFromSupabase.length > 0) {
+            console.log('[useDownloads] Adding from Supabase:', newFromSupabase.length);
+            setDownloads(prev => [...prev, ...newFromSupabase]);
+            // Update local cache with merged data
+            const merged = [...currentDownloads, ...newFromSupabase];
+            const key = getStorageKey();
+            if (key) {
+              await AsyncStorage.setItem(key, JSON.stringify(merged));
+            }
           }
-          return;
         }
-      } else {
-        // No user logged in, clear data
-        setDownloads([]);
       }
     } catch (e) {
       console.error('Failed to load downloads:', e);

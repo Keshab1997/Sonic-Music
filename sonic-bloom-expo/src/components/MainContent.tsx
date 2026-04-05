@@ -50,7 +50,8 @@ import {
 } from "@/data/homeData";
 import { useArtistFavorites } from "@/hooks/useArtistFavorites";
 import { useDownloads } from "@/hooks/useDownloads";
-import { usePlaylists } from "@/hooks/usePlaylists";
+import { useDownloadsContext } from "@/context/DownloadsContext";
+  import { usePlaylists } from "@/hooks/usePlaylists";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 
@@ -338,7 +339,7 @@ export const MainContent = () => {
   const trendingInitialized = useRef(false);
   const newReleasesInitialized = useRef(false);
   const { favorites: artistFavorites } = useArtistFavorites();
-  const { downloadTrack, isDownloaded, isDownloading, getDownloadProgress } = useDownloads();
+  const { downloadTrack, isDownloaded, isDownloading, getDownloadProgress } = useDownloadsContext();
   const { playlists, createPlaylist, addTrackToPlaylist } = usePlaylists();
 
   const [bengaliHits, setBengaliHits] = useState<Track[]>([]);

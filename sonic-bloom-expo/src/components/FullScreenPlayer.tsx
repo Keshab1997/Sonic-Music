@@ -9,7 +9,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
 import { useDownloads } from '../hooks/useDownloads';
-import { usePlaylists } from '../hooks/usePlaylists';
+import { useDownloadsContext } from '../context/DownloadsContext';
+  import { usePlaylists } from '../hooks/usePlaylists';
 import { supabase } from '../lib/supabase';
 import { QueueManager } from './QueueManager';
 import { SleepTimerSheet } from './SleepTimerSheet';
@@ -133,7 +134,7 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
   } = usePlayer();
 
   const { user } = useAuth();
-  const { downloadTrack, isDownloaded, isDownloading, getDownloadProgress } = useDownloads();
+  const { downloadTrack, isDownloaded, isDownloading, getDownloadProgress } = useDownloadsContext();
   const { playlists, createPlaylist, addTrackToPlaylist } = usePlaylists();
 
   const [queueVisible, setQueueVisible] = useState(false);
