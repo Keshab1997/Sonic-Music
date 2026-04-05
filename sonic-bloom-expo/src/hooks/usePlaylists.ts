@@ -1,153 +1,148 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import type { Track } from '../data/playlist';
 
-import { useState, useCallback, useEffect } from "react";
-import { Track, Playlist } from "@/data/playlist";
-import { supabase } from "@/lib/supabase";
+const PLAYLISTS_KEY_PREFIX = 'sonic_playlists_';
 
-const PLAYLISTS_KEY = "sonic_playlists";
+export interface Playlist {
+  id: string;
+  name: string;
+  cover?: string;
+  trackCount: number;
+  tracks: Track[];
+}
 
 export const usePlaylists = () => {
+  const { user } = useAuth();
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [loading, setLoading] = useState(true);
+  const prevUserIdRef = useRef<string | null>(null);
+
+  const getStorageKey = useCallback(() => {
+    return user ? `${PLAYLISTS_KEY_PREFIX}${user.id}` : null;
+  }, [user]);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(PLAYLISTS_KEY);
-      if (stored) setPlaylists(JSON.parse(stored));
-    } catch { /* ignore */ }
-  }, []);
+    if (prevUserIdRef.current && prevUserIdRef.current !== user?.id) {
+      setPlaylists([]);
+    }
+    prevUserIdRef.current = user?.id || null;
+    loadPlaylists();
+  }, [user]);
 
-  // Sync playlist to Supabase in background
-  const syncPlaylistToSupabase = useCallback(async (playlist: Playlist, action: 'create' | 'delete' | 'rename' | 'add_track' | 'remove_track', track?: Track) => {
+  const loadPlaylists = async () => {
     try {
-      if (action === 'create') {
-        await supabase.from('playlists').upsert({
-          id: playlist.id,
-          name: playlist.name,
-          tracks_count: 0
-        });
-      } else if (action === 'delete') {
-        await supabase.from('playlists').delete().eq('id', playlist.id);
-      } else if (action === 'rename') {
-        await supabase.from('playlists').update({ name: playlist.name }).eq('id', playlist.id);
-      } else if (action === 'add_track' && track) {
-        // Ensure track exists
-        const trackId = String(track.id);
-        const { data: existingTrack } = await supabase.from('tracks').select('id').eq('id', trackId).single();
-        if (!existingTrack) {
-          await supabase.from('tracks').upsert({
-            id: trackId,
-            title: track.title,
-            artist: track.artist,
-            album: track.album,
-            duration: track.duration,
-            youtube_id: track.songId,
-            cover_url: track.cover,
-            audio_url: track.src
-          });
+      setLoading(true);
+      if (user) {
+        const { data, error } = await supabase
+          .from('playlists')
+          .select('*, playlist_tracks(*)')
+          .order('created_at', { ascending: false });
+        
+        if (!error && data) {
+          const mapped: Playlist[] = data.map(p => ({
+            id: p.id,
+            name: p.name,
+            cover: p.cover_url,
+            trackCount: p.playlist_tracks?.length || 0,
+            tracks: (p.playlist_tracks || []).sort((a: any, b: any) => a.position - b.position).map((t: any) => t.track_data),
+          }));
+          setPlaylists(mapped);
+          const key = getStorageKey();
+          if (key) await AsyncStorage.setItem(key, JSON.stringify(mapped));
+          return;
         }
-        // Add to playlist_tracks
-        const { data: existing } = await supabase.from('playlist_tracks').select('id').eq('playlist_id', playlist.id).eq('track_id', trackId).single();
-        if (!existing) {
-          const { data: count } = await supabase.from('playlist_tracks').select('id', { count: 'exact' }).eq('playlist_id', playlist.id);
-          await supabase.from('playlist_tracks').insert({
-            playlist_id: playlist.id,
-            track_id: trackId,
-            position: count?.length ?? 0
-          });
-        }
-      } else if (action === 'remove_track' && track) {
-        await supabase.from('playlist_tracks').delete().eq('playlist_id', playlist.id).eq('track_id', String(track.id));
+      } else {
+        setPlaylists([]);
       }
-    } catch (err) {
-      console.error('Failed to sync playlist to Supabase:', err);
+    } catch (e) {
+      console.error('Failed to load playlists:', e);
+    } finally {
+      setLoading(false);
     }
-  }, []);
-
-  const createPlaylist = useCallback((name: string) => {
-    const newPlaylist: Playlist = {
-      id: `pl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      name,
-      tracks: [],
-      createdAt: Date.now(),
-    };
-    // Instant UI update
-    setPlaylists((prev) => {
-      const updated = [...prev, newPlaylist];
-      localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    // Background sync
-    syncPlaylistToSupabase(newPlaylist, 'create');
-    return newPlaylist;
-  }, [syncPlaylistToSupabase]);
-
-  const deletePlaylist = useCallback((id: string) => {
-    // Instant UI update
-    setPlaylists((prev) => {
-      const updated = prev.filter((p) => p.id !== id);
-      localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    // Background sync
-    syncPlaylistToSupabase({ id, name: '', tracks: [], createdAt: 0 }, 'delete');
-  }, [syncPlaylistToSupabase]);
-
-  const renamePlaylist = useCallback((id: string, name: string) => {
-    // Instant UI update
-    setPlaylists((prev) => {
-      const updated = prev.map((p) => (p.id === id ? { ...p, name } : p));
-      localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    // Background sync
-    const playlist = playlists.find(p => p.id === id);
-    if (playlist) {
-      syncPlaylistToSupabase({ ...playlist, name }, 'rename');
-    }
-  }, [playlists, syncPlaylistToSupabase]);
-
-  const addToPlaylist = useCallback((playlistId: string, track: Track) => {
-    // Instant UI update
-    setPlaylists((prev) => {
-      const updated = prev.map((p) => {
-        if (p.id !== playlistId) return p;
-        if (p.tracks.some((t) => t.src === track.src)) return p;
-        return { ...p, tracks: [...p.tracks, track] };
-      });
-      localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    // Background sync
-    const playlist = playlists.find(p => p.id === playlistId);
-    if (playlist) {
-      syncPlaylistToSupabase(playlist, 'add_track', track);
-    }
-  }, [playlists, syncPlaylistToSupabase]);
-
-  const removeFromPlaylist = useCallback((playlistId: string, trackSrc: string) => {
-    // Instant UI update
-    setPlaylists((prev) => {
-      const updated = prev.map((p) => {
-        if (p.id !== playlistId) return p;
-        return { ...p, tracks: p.tracks.filter((t) => t.src !== trackSrc) };
-      });
-      localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    // Background sync
-    const playlist = playlists.find(p => p.id === playlistId);
-    const track = playlist?.tracks.find(t => t.src === trackSrc);
-    if (playlist && track) {
-      syncPlaylistToSupabase(playlist, 'remove_track', track);
-    }
-  }, [playlists, syncPlaylistToSupabase]);
-
-  return {
-    playlists,
-    createPlaylist,
-    deletePlaylist,
-    renamePlaylist,
-    addToPlaylist,
-    removeFromPlaylist,
   };
-};
 
+  const createPlaylist = async (name: string): Promise<Playlist | null> => {
+    if (!user || !name.trim()) return null;
+    try {
+      const { data, error } = await supabase
+        .from('playlists')
+        .insert({ user_id: user.id, name: name.trim() })
+        .select()
+        .single();
+      
+      if (!error && data) {
+        const newPlaylist: Playlist = { id: data.id, name: data.name, trackCount: 0, tracks: [] };
+        const updated = [newPlaylist, ...playlists];
+        setPlaylists(updated);
+        const key = getStorageKey();
+        if (key) await AsyncStorage.setItem(key, JSON.stringify(updated));
+        return newPlaylist;
+      }
+    } catch (e) {
+      console.error('Failed to create playlist:', e);
+    }
+    return null;
+  };
+
+  const deletePlaylist = async (id: string) => {
+    try {
+      await supabase.from('playlists').delete().eq('id', id);
+      const updated = playlists.filter(p => p.id !== id);
+      setPlaylists(updated);
+      const key = getStorageKey();
+      if (key) await AsyncStorage.setItem(key, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to delete playlist:', e);
+    }
+  };
+
+  const addTrackToPlaylist = async (playlistId: string, track: Track) => {
+    try {
+      const playlist = playlists.find(p => p.id === playlistId);
+      if (!playlist) return;
+      
+      const position = playlist.tracks.length;
+      await supabase.from('playlist_tracks').insert({
+        playlist_id: playlistId,
+        track_id: String(track.id),
+        track_data: track,
+        position,
+      });
+      
+      const updated = playlists.map(p => {
+        if (p.id === playlistId) {
+          return { ...p, tracks: [...p.tracks, track], trackCount: p.trackCount + 1 };
+        }
+        return p;
+      });
+      setPlaylists(updated);
+      const key = getStorageKey();
+      if (key) await AsyncStorage.setItem(key, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to add track to playlist:', e);
+    }
+  };
+
+  const removeTrackFromPlaylist = async (playlistId: string, trackId: string) => {
+    try {
+      await supabase.from('playlist_tracks').delete().eq('playlist_id', playlistId).eq('track_id', String(trackId));
+      const updated = playlists.map(p => {
+        if (p.id === playlistId) {
+          const tracks = p.tracks.filter((t: Track) => String(t.id) !== String(trackId));
+          return { ...p, tracks, trackCount: tracks.length };
+        }
+        return p;
+      });
+      setPlaylists(updated);
+      const key = getStorageKey();
+      if (key) await AsyncStorage.setItem(key, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to remove track from playlist:', e);
+    }
+  };
+
+  return { playlists, loading, createPlaylist, deletePlaylist, addTrackToPlaylist, removeTrackFromPlaylist };
+};
