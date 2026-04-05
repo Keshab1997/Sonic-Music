@@ -71,6 +71,7 @@ const MainNavigator = () => (
       <RootStack.Screen name="ArtistDetail" component={ArtistDetailScreen} />
       <RootStack.Screen name="AlbumDetail" component={AlbumDetailScreen} />
       <RootStack.Screen name="LikedSongs" component={LikedSongsPage} />
+      <RootStack.Screen name="Downloads" component={DownloadsPage} />
     </RootStack.Navigator>
     <MiniPlayer />
   </View>
