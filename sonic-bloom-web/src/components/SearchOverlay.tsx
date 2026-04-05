@@ -9,17 +9,16 @@ import { toast } from "@/hooks/use-toast";
 import { Track } from "@/data/playlist";
 
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
-const DEBOUNCE_MS = 600;
-const SONGS_PER_PAGE = 50;
-const MAX_CACHE_SIZE = 100;
-const CACHE_EXPIRY_MS = 48 * 60 * 60 * 1000; // 48 hours
+const DEBOUNCE_MS = 500;
+const SONGS_PER_PAGE = 40;
 
 type SearchCategory = "all" | "songs" | "albums" | "artists" | "playlists" | "youtube";
 
 // ==========================================
 // LOCAL STORAGE CACHING (Saves metadata permanently for ultra-fast loading)
 // ==========================================
-const CACHE_KEY = "sonic_search_cache_v3";
+const CACHE_KEY = "sonic_search_cache_v2";
+const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const getInitialCache = () => {
   try {
@@ -166,27 +165,9 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [trending, setTrending] = useState<Track[]>(g_trending);
   const [trendingLoading, setTrendingLoading] = useState(g_trending.length === 0);
-  const [displayedSongsCount, setDisplayedSongsCount] = useState(20);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Infinite scroll observer
-  useEffect(() => {
-    if (!loadMoreRef.current) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !loading && songResults.length > displayedSongsCount && category === "songs" && currentPage < Math.ceil(totalResults / SONGS_PER_PAGE)) {
-          loadSongPage(currentPage + 1);
-        }
-      },
-      { threshold: 0.1 }
-    );
-    observer.observe(loadMoreRef.current);
-    return () => observer.disconnect();
-  }, [loading, displayedSongsCount, currentPage, totalResults]);
 
   useEffect(() => {
     setPageInputValue(currentPage.toString());
@@ -244,11 +225,11 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     setSongResults([]); setYoutubeResults([]); setAlbumResults([]); setArtistResults([]); setPlaylistResults([]);
     setTopResult(null); setArtistSongs(null); setAlbumSongs(null);
     setTotalResults(0); setCurrentPage(1); setYtCurrentPage(1); setActiveMenu(null); g_scrollPos = 0;
-    setIsYoutubeFallback(false); setDisplayedSongsCount(20);
+    setIsYoutubeFallback(false);
   };
 
-  const searchSongs = useCallback(async (q: string, lang: string, page = 1, signal?: AbortSignal) => {
-    const cacheKey = `${q.toLowerCase().trim()}_${lang}_${page}`;
+  const searchSongs = useCallback(async (q: string, lang: string, page = 1) => {
+    const cacheKey = `${q}_${lang}_${page}`;
     
     // Fetch from Cache (Lightning Fast)
     if (g_pageCache.has(cacheKey)) {
@@ -260,7 +241,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=${page}&limit=${SONGS_PER_PAGE}`, { signal });
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=${page}&limit=${SONGS_PER_PAGE}`);
       let tracks: Track[] = [];
       let total = 0; let isYt = false;
       if (res.ok) {
@@ -296,10 +277,13 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
       const result = { tracks, total, isYt };
       
       // Memory management & Save
-      if (g_pageCache.size > MAX_CACHE_SIZE) {
-        const entries = Array.from(g_pageCache.entries()).sort((a, b) => a[1].timestamp - b[1].timestamp);
-        const toRemove = entries.slice(0, Math.floor(MAX_CACHE_SIZE * 0.3));
-        toRemove.forEach(([k]) => g_pageCache.delete(k));
+      if (g_pageCache.size > 50) {
+        let oldestKey = "";
+        let oldestTime = Date.now();
+        for (const [k, v] of g_pageCache.entries()) {
+          if (v.timestamp < oldestTime) { oldestTime = v.timestamp; oldestKey = k; }
+        }
+        if (oldestKey) g_pageCache.delete(oldestKey);
       }
       g_pageCache.set(cacheKey, { data: result, timestamp: Date.now() });
       saveCacheToStorage(); 
@@ -367,10 +351,6 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
   const doSearch = useCallback(async (q: string, cat?: SearchCategory, lang?: string) => {
     if (!q.trim()) { clearResults(); return; }
-    if (abortControllerRef.current) abortControllerRef.current.abort();
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
-    
     setLoading(true); g_scrollPos = 0;
     const activeCat = cat ?? category;
     const activeLang = lang ?? langFilter;
@@ -379,8 +359,8 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     try {
       if (activeCat === "all") {
         const [allRes, songsData, albums, ytData] = await Promise.all([
-          fetch(`${API_BASE}/search/all?query=${encodeURIComponent(q)}`, { signal }).then(r => r.json()).catch(() => null),
-          searchSongs(q, activeLang, 1, signal),
+          fetch(`${API_BASE}/search/all?query=${encodeURIComponent(q)}`).then(r => r.json()).catch(() => null),
+          searchSongs(q, activeLang, 1),
           searchAlbums(q),
           searchYouTubeOnly(q, 1)
         ]);
@@ -421,19 +401,11 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   }, [category, langFilter, searchSongs, searchAlbums, searchArtists, searchPlaylists, searchYouTubeOnly]);
 
   const loadSongPage = useCallback(async (page: number) => {
-    setLoading(true); setActiveMenu(null); 
+    setLoading(true); setActiveMenu(null); g_scrollPos = 0;
     const data = await searchSongs(query, langFilter, page);
-    if (page === 1) {
-      setSongResults(data.tracks); setDisplayedSongsCount(Math.min(data.tracks.length, 20));
-    } else {
-      setSongResults(prev => [...prev, ...data.tracks]); setDisplayedSongsCount(prev => prev + data.tracks.length);
-    }
-    setCurrentPage(page); setTotalResults(data.total);
+    setSongResults(data.tracks); setCurrentPage(page); setTotalResults(data.total);
     setLoading(false);
-    if (page === 1) {
-      g_scrollPos = 0;
-      document.getElementById("search-results-container")?.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    document.getElementById("search-results-container")?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [searchSongs, query, langFilter]);
 
   const loadYoutubePage = useCallback(async (page: number) => {
@@ -449,12 +421,10 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     setQuery(val);
     setShowSuggestions(true);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (abortControllerRef.current) abortControllerRef.current.abort();
     debounceRef.current = setTimeout(() => {
       if (val.trim()) {
         doSearch(val);
-        const suggestionsController = new AbortController();
-        fetch(`${API_BASE}/search/all?query=${encodeURIComponent(val)}`, { signal: suggestionsController.signal })
+        fetch(`${API_BASE}/search/all?query=${encodeURIComponent(val)}`)
           .then(r => r.json())
           .then(j => {
             const top = (j.data?.topQuery?.results || []).map((r: any) => extractText(r.title) || extractText(r.name));
@@ -843,7 +813,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                                     }
                                   } else {
                                     setPageInputValue(currentPage.toString());
-                                    toast({ title: "Invalid page", description: `Valid pages: 1 to ${maxPage}`, variant: "destructive" });
+                                    toast.error(`Valid pages: 1 to ${maxPage}`);
                                   }
                                   e.currentTarget.blur();
                                 }
@@ -865,7 +835,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                             <button
                               onClick={() => {
                                 songResults.forEach(track => addToQueue(track));
-                                toast({ title: "Added to queue", description: `Added ${songResults.length} songs to queue` });
+                                toast.success(`Added ${songResults.length} songs to queue`);
                               }}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-medium mr-1"
                             >
@@ -879,12 +849,11 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                       </div>
                     </div>
                     <div className="space-y-0.5">
-                      {songResults.slice(0, category === "all" ? 8 : displayedSongsCount).map((track, i) => <SongRow key={`${track.src}-${i}`} track={track} tracks={songResults} index={i} isYt={track.type === "youtube"} />)}
+                      {songResults.slice(0, category === "all" ? 8 : SONGS_PER_PAGE).map((track, i) => <SongRow key={`${track.src}-${i}`} track={track} tracks={songResults} index={i} isYt={track.type === "youtube"} />)}
                     </div>
                     {category === "all" && songResults.length > 8 && (
                       <button onClick={() => handleCategoryChange("songs")} className="w-full mt-3 py-2.5 rounded-xl bg-muted/50 text-sm text-foreground hover:bg-muted font-medium transition-colors">Show all {totalResults} songs</button>
                     )}
-                    <div ref={loadMoreRef} className="h-4" />
                     {category === "songs" && songResults.length > 0 && !isYoutubeFallback && (
                       <div className="flex items-center justify-between mt-6 pt-4 border-t border-border px-2">
                         <button onClick={() => loadSongPage(currentPage - 1)} disabled={currentPage === 1 || loading} className="px-4 py-2 rounded-xl bg-muted text-sm font-medium hover:bg-accent disabled:opacity-50 flex items-center gap-2"><ChevronLeft size={16} /> Prev</button>
