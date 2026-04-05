@@ -42,20 +42,29 @@ export const ArtistDetailScreen: React.FC = () => {
 
   const fetchArtistSongs = async () => {
     setLoading(true);
+    const allTracks: Track[] = [];
+    const seenIds = new Set<string>();
     try {
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(artistName)}&page=1&limit=50`);
-      if (res.ok) {
+      // 1. Fetch from JioSaavn
+      for (let page = 1; page <= 10; page++) {
+        const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(artistName)}&page=${page}&limit=50`);
+        if (!res.ok) break;
         const data = await res.json();
         const results = data.data?.results || [];
+        if (results.length === 0) break;
+        
         const tracks: Track[] = results
           .map((s: any, i: number) => {
             if (!s.downloadUrl?.length) return null;
+            if (seenIds.has(String(s.id))) return null;
+            seenIds.add(String(s.id));
+            
             const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
             const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
             const url320 = s.downloadUrl.find((d: any) => d.quality === "320kbps")?.link;
             const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
             return {
-              id: 70000 + i,
+              id: s.id ? `jiosaavn_${s.id}` : `js_${page}_${i}`,
               title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
               artist: s.primaryArtists || "Unknown",
               album: typeof s.album === "string" ? s.album : s.album?.name || "",
@@ -72,8 +81,41 @@ export const ArtistDetailScreen: React.FC = () => {
             };
           })
           .filter((t: Track | null): t is Track => t !== null);
-        setSongs(tracks);
+        allTracks.push(...tracks);
+        if (results.length < 50) break;
       }
+      
+      // 2. Fetch from YouTube for more songs
+      try {
+        const ytRes = await fetch(`https://sonic-bloom-player.vercel.app/api/youtube-search?q=${encodeURIComponent(artistName + ' songs')}`);
+        if (ytRes.ok) {
+          const ytData = await ytRes.json();
+          const ytTracks: Track[] = (ytData || [])
+            .slice(0, 50)
+            .map((v: any, i: number) => {
+              const trackId = `yt_${v.videoId}`;
+              if (seenIds.has(trackId)) return null;
+              seenIds.add(trackId);
+              return {
+                id: trackId,
+                title: v.title || "Unknown",
+                artist: v.author || artistName,
+                album: "",
+                cover: v.thumbnail || "",
+                src: `https://www.youtube.com/watch?v=${v.videoId}`,
+                duration: 0,
+                type: "youtube" as const,
+                songId: v.videoId,
+              };
+            })
+            .filter((t: Track | null): t is Track => t !== null);
+          allTracks.push(...ytTracks);
+        }
+      } catch (e) {
+        console.log('YouTube fetch failed:', e);
+      }
+      
+      setSongs(allTracks);
     } catch (e) {
       console.error('Failed to fetch artist songs:', e);
     }

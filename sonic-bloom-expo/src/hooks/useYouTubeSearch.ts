@@ -30,16 +30,23 @@ export const useMusicSearch = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [hasMore, setHasMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingMoreRef = useRef(false);
 
-  const executeSearch = useCallback(async (searchQuery: string) => {
+  const executeSearch = useCallback(async (searchQuery: string, page: number = 1, append: boolean = false) => {
     if (!searchQuery.trim()) return;
-    setLoading(true);
+    
+    if (!append) {
+      setLoading(true);
+    } else {
+      loadingMoreRef.current = true;
+    }
     setError(null);
-    setResults([]);
 
     try {
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=1&limit=20`);
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=20`);
       if (!res.ok) throw new Error("Search failed");
 
       const data = await res.json();
@@ -54,7 +61,7 @@ export const useMusicSearch = () => {
           const bestUrl = url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "";
 
           return {
-            id: 2000 + i,
+            id: s.id ? `jiosaavn_${s.id}` : 2000 + (page - 1) * 20 + i,
             title: s.name,
             artist: s.primaryArtists || "Unknown",
             album: typeof s.album === "string" ? s.album : s.album?.name || "",
@@ -73,12 +80,27 @@ export const useMusicSearch = () => {
           };
         });
 
-      setResults(tracks);
+      if (append) {
+        setResults(prev => [...prev, ...tracks]);
+      } else {
+        setResults(tracks);
+      }
+      
+      // Check if there are more results
+      setHasMore(songs.length === 20);
+      setCurrentPage(page);
     } catch {
       setError("Search failed. Try again.");
     }
     setLoading(false);
+    loadingMoreRef.current = false;
   }, []);
+
+  // Load more results
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMore || !query.trim()) return;
+    await executeSearch(query, currentPage + 1, true);
+  }, [query, currentPage, hasMore, executeSearch]);
 
   // Debounced search - automatically triggers when query changes
   useEffect(() => {
@@ -87,11 +109,12 @@ export const useMusicSearch = () => {
     if (!query.trim()) {
       setResults([]);
       setLoading(false);
+      setHasMore(false);
       return;
     }
 
     debounceRef.current = setTimeout(() => {
-      executeSearch(query);
+      executeSearch(query, 1, false);
     }, DEBOUNCE_MS);
 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
@@ -104,10 +127,10 @@ export const useMusicSearch = () => {
 
   // Immediate search without debounce (for explicit triggers)
   const searchImmediate = useCallback(async (searchQuery: string) => {
-    await executeSearch(searchQuery);
+    await executeSearch(searchQuery, 1, false);
   }, [executeSearch]);
 
-  return { results, loading, error, search, searchImmediate, query, setQuery };
+  return { results, loading, error, search, searchImmediate, query, setQuery, loadMore, hasMore };
 };
 
 // Backward compatibility

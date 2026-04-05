@@ -36,14 +36,37 @@ export const ArtistsPage: React.FC = () => {
         const results = data.data?.results || [];
         const artistMap = new Map<string, Artist>();
         results.forEach((song: any) => {
-          const artistName = song.artist || 'Unknown';
+          // Extract artist name from primaryArtists or artists array
+          let artistName = song.primaryArtists || '';
+          if (!artistName && song.artists && song.artists.length > 0) {
+            artistName = song.artists.map((a: any) => a.name).join(', ');
+          }
+          if (!artistName) artistName = 'Unknown';
+          
+          // Get artist image from song's image as fallback
+          let artistImage = '';
+          if (song.artists && song.artists.length > 0 && song.artists[0].image) {
+            const images = song.artists[0].image;
+            artistImage = images.find((img: any) => img.quality === '500x500')?.link ||
+                          images[images.length - 1]?.link || '';
+          }
+          // Fallback to song image if no artist image
+          if (!artistImage && song.image) {
+            const songImages = song.image;
+            artistImage = songImages.find((img: any) => img.quality === '500x500')?.link ||
+                          songImages[songImages.length - 1]?.link || '';
+          }
+          
           if (!artistMap.has(artistName)) {
             artistMap.set(artistName, {
               id: artistName,
               name: artistName,
-              image: song.image || '',
+              image: artistImage,
               songCount: 1,
             });
+          } else {
+            const existing = artistMap.get(artistName)!;
+            existing.songCount++;
           }
         });
         setSearchResults(Array.from(artistMap.values()));

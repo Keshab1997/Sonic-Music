@@ -1,8 +1,9 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Track } from "@/data/playlist";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/context/AuthContext";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Track } from "../data/playlist";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "../context/AuthContext";
 
 const HISTORY_KEY = "sonic_search_history";
 const FAVORITES_KEY = "sonic_favorites";
@@ -24,21 +25,21 @@ export const useLocalData = () => {
     return FAVORITES_KEY;
   }, [user]);
 
-  // Load from localStorage on mount and when user changes
+  // Load from AsyncStorage on mount and when user changes
   useEffect(() => {
     const loadData = async () => {
       try {
         // Load search history (shared)
-        const history = localStorage.getItem(HISTORY_KEY);
+        const history = await AsyncStorage.getItem(HISTORY_KEY);
         if (history) setSearchHistory(JSON.parse(history));
 
         // Load favorites (user-specific)
-        const favs = localStorage.getItem(getFavoritesKey());
+        const favs = await AsyncStorage.getItem(getFavoritesKey());
         if (favs) {
           setFavorites(JSON.parse(favs));
         } else if (!user) {
           // Try legacy key for non-logged in users
-          const legacyFavs = localStorage.getItem(FAVORITES_KEY);
+          const legacyFavs = await AsyncStorage.getItem(FAVORITES_KEY);
           if (legacyFavs) setFavorites(JSON.parse(legacyFavs));
         }
       } catch {
@@ -102,20 +103,20 @@ export const useLocalData = () => {
     setSearchHistory((prev) => {
       const filtered = prev.filter((h) => h.toLowerCase() !== query.toLowerCase());
       const updated = [query, ...filtered].slice(0, 10);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+      AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
       return updated;
     });
   }, []);
 
   const clearHistory = useCallback(() => {
     setSearchHistory([]);
-    localStorage.removeItem(HISTORY_KEY);
+    AsyncStorage.removeItem(HISTORY_KEY);
   }, []);
 
   const removeHistoryItem = useCallback((query: string) => {
     setSearchHistory((prev) => {
       const updated = prev.filter((h) => h !== query);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+      AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
       return updated;
     });
   }, []);
@@ -125,7 +126,7 @@ export const useLocalData = () => {
     setFavorites((prev) => {
       if (prev.some((t) => t.src === track.src)) return prev;
       const updated = [track, ...prev];
-      localStorage.setItem(getFavoritesKey(), JSON.stringify(updated));
+      AsyncStorage.setItem(getFavoritesKey(), JSON.stringify(updated));
       return updated;
     });
     
@@ -139,7 +140,7 @@ export const useLocalData = () => {
     // Instant UI update - optimistic update
     setFavorites((prev) => {
       const updated = prev.filter((t) => t.src !== trackSrc);
-      localStorage.setItem(getFavoritesKey(), JSON.stringify(updated));
+      AsyncStorage.setItem(getFavoritesKey(), JSON.stringify(updated));
       return updated;
     });
     

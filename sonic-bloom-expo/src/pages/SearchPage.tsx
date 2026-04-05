@@ -187,7 +187,7 @@ const SearchPage = () => {
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"search" | "favorites">("search");
   const [searchSource, setSearchSource] = useState<"saavn" | "ytmusic">("saavn");
-  const { results, loading, error, search } = useMusicSearch();
+  const { results, loading, error, search, loadMore, hasMore } = useMusicSearch();
   const { playTrackList } = usePlayer();
   const {
     searchHistory,
@@ -205,17 +205,20 @@ const SearchPage = () => {
   const [showActressesModal, setShowActressesModal] = useState(false);
   const [actressPlaylist, setActressPlaylist] = useState<{ name: string; query: string } | null>(null);
 
-  const doYtSearch = useCallback(async (q: string) => {
+  const doYtSearch = useCallback(async (q: string, page: number = 1, append: boolean = false) => {
     if (!q.trim()) return;
-    setYtLoading(true);
+    
+    if (!append) {
+      setYtLoading(true);
+    }
     setYtError(null);
-    setYtResults([]);
+    
     try {
-      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}&page=${page}`);
       if (!res.ok) throw new Error("Search failed");
       const videos = await res.json();
       const tracks: Track[] = videos.map((v: { videoId: string; title: string; author: string; duration: number; thumbnail: string }, i: number) => ({
-        id: 60000 + i,
+        id: v.videoId ? `youtube_${v.videoId}` : 60000 + (page - 1) * 20 + i,
         title: v.title,
         artist: v.author || "Unknown",
         album: "",
@@ -225,7 +228,12 @@ const SearchPage = () => {
         type: "youtube" as const,
         songId: v.videoId,
       }));
-      setYtResults(tracks);
+      
+      if (append) {
+        setYtResults(prev => [...prev, ...tracks]);
+      } else {
+        setYtResults(tracks);
+      }
     } catch {
       setYtError("YouTube search failed. Try again.");
     }
@@ -463,6 +471,18 @@ const SearchPage = () => {
                     onToggleFavorite={toggleFavorite}
                   />
                 ))}
+                {/* Load More Button for JioSaavn */}
+                {searchSource === "saavn" && hasMore && (
+                  <div className="py-4">
+                    <button
+                      onClick={loadMore}
+                      disabled={loading}
+                      className="w-full py-3 rounded-lg bg-muted text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                    >
+                      {loading ? "Loading more..." : "Load More Results"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>
