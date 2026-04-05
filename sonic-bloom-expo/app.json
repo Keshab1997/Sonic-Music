@@ -17,7 +17,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.sonicbloom.player",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "NSPhotoLibraryUsageDescription": "Allow Sonic Bloom to access your photos to upload a profile picture.",
         "NSCameraUsageDescription": "Allow Sonic Bloom to use your camera to take a profile picture.",
         "NSDownloadsFolderUsageDescription": "Allow Sonic Bloom to save downloaded music to your device."
@@ -40,16 +42,20 @@
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION",
         "android.permission.ACCESS_MEDIA_LOCATION"
-      ],
-      "enableProguardInReleaseBuilds": true,
-      "enableShrinkResourcesInReleaseBuilds": true
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      ["expo-av", { "microphonePermission": false }],
-      "expo-file-system"
+      [
+        "expo-av",
+        {
+          "microphonePermission": false
+        }
+      ],
+      "expo-file-system",
+      "expo-font"
     ]
   }
 }
