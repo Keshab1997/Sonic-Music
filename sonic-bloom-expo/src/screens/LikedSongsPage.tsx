@@ -23,28 +23,30 @@ export const LikedSongsPage: React.FC = () => {
   };
 
   const handlePlay = (index: number) => {
-    const tracks = filteredLikedSongs.map(s => s.track);
+    const tracks = filteredLikedSongs.map(s => s.track).filter(t => t && t.id);
+    if (tracks.length === 0) return;
     playTrackList(tracks, index);
   };
 
   const handleUnlike = (trackId: string) => {
-    const song = likedSongs.find(s => String(s.track.id) === String(trackId));
-    if (song) {
+    const song = likedSongs.find(s => s.track && s.track.id && String(s.track.id) === String(trackId));
+    if (song && song.track) {
       toggleLike(song.track);
     }
   };
 
   const filteredLikedSongs = useMemo(() => {
-    if (!searchQuery.trim()) return likedSongs;
+    if (!searchQuery.trim()) return likedSongs.filter(s => s.track && s.track.id);
     const query = searchQuery.toLowerCase();
-    return likedSongs.filter(s =>
+    return likedSongs.filter(s => s.track && s.track.id && (
       s.track.title.toLowerCase().includes(query) ||
       s.track.artist.toLowerCase().includes(query) ||
       s.track.album?.toLowerCase().includes(query)
-    );
+    ));
   }, [likedSongs, searchQuery]);
 
   const renderItem = ({ item, index }: { item: { track: any; likedAt: number }; index: number }) => {
+    if (!item.track || !item.track.id) return null;
     const isCurrentTrack = currentTrack?.id === item.track.id;
     return (
       <TouchableOpacity
@@ -142,7 +144,7 @@ export const LikedSongsPage: React.FC = () => {
       {/* Liked Songs List */}
       <FlatList
         data={filteredLikedSongs}
-        keyExtractor={(item) => String(item.track.id)}
+        keyExtractor={(item) => item.track?.id ? String(item.track.id) : Math.random().toString()}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
