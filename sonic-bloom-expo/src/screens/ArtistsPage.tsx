@@ -73,7 +73,7 @@ export const ArtistsPage: React.FC = () => {
       onPress={() => handleArtistPress(item)}
       activeOpacity={0.7}
     >
-      <CachedImage source={{ uri: item.image || 'https://via.placeholder.com/150' }} style={styles.avatar} contentFit="cover" />
+      <CachedImage source={{ uri: item.image && item.image.startsWith('http') ? item.image : 'https://via.placeholder.com/150' }} style={styles.avatar} contentFit="cover" />
       <View style={styles.cardInfo}>
         <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.cardSubtitle}>Artist</Text>
@@ -97,7 +97,7 @@ export const ArtistsPage: React.FC = () => {
       onPress={() => handleArtistPress({ id: item.artistId, name: item.name, image: item.image || '', songCount: 0 })}
       activeOpacity={0.7}
     >
-      <CachedImage source={{ uri: item.image || 'https://via.placeholder.com/150' }} style={styles.avatar} contentFit="cover" />
+      <CachedImage source={{ uri: item.image && item.image.startsWith('http') ? item.image : 'https://via.placeholder.com/150' }} style={styles.avatar} contentFit="cover" />
       <View style={styles.cardInfo}>
         <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.cardSubtitle}>Followed</Text>
