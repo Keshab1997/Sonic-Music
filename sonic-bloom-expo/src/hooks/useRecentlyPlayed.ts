@@ -1,5 +1,6 @@
 
 import { useState, useCallback, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Track } from "@/data/playlist";
 
 const HISTORY_KEY = "sonic_play_history";
@@ -14,25 +15,23 @@ export const useRecentlyPlayed = () => {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(HISTORY_KEY);
+    AsyncStorage.getItem(HISTORY_KEY).then(stored => {
       if (stored) setHistory(JSON.parse(stored));
-    } catch { /* ignore */ }
+    }).catch(() => {});
   }, []);
 
   const addToHistory = useCallback((track: Track) => {
     setHistory((prev) => {
-      // Remove duplicate if exists
       const filtered = prev.filter((h) => h.track.src !== track.src);
       const updated = [{ track, playedAt: Date.now() }, ...filtered].slice(0, MAX_HISTORY);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+      AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updated)).catch(() => {});
       return updated;
     });
   }, []);
 
   const clearHistory = useCallback(() => {
     setHistory([]);
-    localStorage.removeItem(HISTORY_KEY);
+    AsyncStorage.removeItem(HISTORY_KEY).catch(() => {});
   }, []);
 
   return { history, addToHistory, clearHistory };

@@ -1,5 +1,6 @@
 
 import { useState, useCallback, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STATS_KEY = "sonic_listening_stats";
 
@@ -27,17 +28,15 @@ export const useListeningStats = () => {
   const [stats, setStats] = useState<ListeningStats>(defaultStats);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STATS_KEY);
+    AsyncStorage.getItem(STATS_KEY).then(stored => {
       if (stored) {
         const parsed: ListeningStats = JSON.parse(stored);
-        // Reset daily counter if new day
         if (parsed.lastPlayDate !== getToday()) {
           parsed.songsPlayedToday = 0;
         }
         setStats(parsed);
       }
-    } catch { /* ignore */ }
+    }).catch(() => {});
   }, []);
 
   const recordPlay = useCallback((artist: string, durationSeconds: number) => {
@@ -46,7 +45,6 @@ export const useListeningStats = () => {
       const isNewDay = prev.lastPlayDate !== today;
       const minutes = Math.floor(durationSeconds / 60);
 
-      // Calculate streak
       let streak = prev.streakDays;
       if (isNewDay && prev.lastPlayDate) {
         const lastDate = new Date(prev.lastPlayDate);
@@ -58,7 +56,6 @@ export const useListeningStats = () => {
         streak = 1;
       }
 
-      // Update artist count
       const artists = { ...prev.topArtists };
       const artistName = artist.split(",")[0].trim();
       artists[artistName] = (artists[artistName] || 0) + 1;
@@ -72,7 +69,7 @@ export const useListeningStats = () => {
         streakDays: streak,
       };
 
-      localStorage.setItem(STATS_KEY, JSON.stringify(updated));
+      AsyncStorage.setItem(STATS_KEY, JSON.stringify(updated)).catch(() => {});
       return updated;
     });
   }, []);

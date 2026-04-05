@@ -1,8 +1,23 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  StyleSheet,
+  Dimensions,
+  ActivityIndicator,
+  RefreshControl,
+  FlatList,
+  Modal,
+  Pressable,
+} from "react-native";
 import { Play, ChevronRight, Music2, Sparkles, TrendingUp, Clock, RefreshCw, ChevronLeft, Pause, ListMusic, Eye, Trash2, Search, Loader2, Plus, Download, CheckCircle } from "lucide-react-native";
 import { toast } from "sonner";
 import { usePlayer } from "@/context/PlayerContext";
+import { useAuth } from "@/context/AuthContext";
 import { useHomeData } from "@/hooks/useHomeData";
 import { useRecentlyPlayed } from "@/hooks/useRecentlyPlayed";
 import { useListeningStats } from "@/hooks/useListeningStats";
@@ -35,8 +50,14 @@ import {
 } from "@/data/homeData";
 import { useArtistFavorites } from "@/hooks/useArtistFavorites";
 import { useDownloads } from "@/hooks/useDownloads";
+import { usePlaylists } from "@/hooks/usePlaylists";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_SIZE = SCREEN_WIDTH < 380 ? 112 : 144;
+const CARD_SIZE_SMALL = SCREEN_WIDTH < 380 ? 96 : 112;
 
 const formatDuration = (s: number) => {
   const m = Math.floor(s / 60);
@@ -50,16 +71,227 @@ const getSongOfDayIndex = (max: number) => {
   return seed % Math.max(max, 1);
 };
 
+// ─── Reusable Components ──────────────────────────────────────────────────────
+
+const parseGradient = (gradient: string): [string, string] => {
+  const parts = gradient.replace("from-", "").replace("to-", "").split(" ");
+  const colorMap: Record<string, string> = {
+    "rose-600": "#e11d48", "pink-600": "#db2777", "purple-600": "#9333ea",
+    "indigo-600": "#4f46e5", "blue-600": "#2563eb", "cyan-600": "#0891b2",
+    "teal-600": "#0d9488", "green-600": "#16a34a", "amber-600": "#d97706",
+    "orange-600": "#ea580c", "red-600": "#dc2626", "slate-600": "#475569",
+  };
+  return [colorMap[parts[0]] || parts[0], colorMap[parts[1]] || parts[1]] as [string, string];
+};
+
+const SectionHeader = ({ title, icon, rightAction, subtitle }: {
+  title: string;
+  icon?: React.ReactNode;
+  rightAction?: { label: string; onPress: () => void };
+  subtitle?: string;
+}) => (
+  <View style={styles.sectionHeader}>
+    <View style={styles.sectionHeaderLeft}>
+      {icon}
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}
+    </View>
+    {rightAction && (
+      <TouchableOpacity onPress={rightAction.onPress} style={styles.sectionHeaderRight}>
+        <Text style={styles.viewAllText}>{rightAction.label}</Text>
+        <ChevronRight size={12} color="#1DB954" />
+      </TouchableOpacity>
+    )}
+  </View>
+);
+
+const TrackCard = ({ track, index, tracks, onPress, showRank, showBadge, badgeText, badgeColor, onAddToQueue, onDownload, isDownloaded, isDownloading, downloadProgress }: {
+  track: Track;
+  index: number;
+  tracks: Track[];
+  onPress: () => void;
+  showRank?: boolean;
+  showBadge?: boolean;
+  badgeText?: string;
+  badgeColor?: string;
+  onAddToQueue?: () => void;
+  onDownload?: () => void;
+  isDownloaded?: boolean;
+  isDownloading?: boolean;
+  downloadProgress?: number;
+}) => (
+  <TouchableOpacity onPress={onPress} style={styles.trackCard} activeOpacity={0.7}>
+    <View style={styles.trackCardImageContainer}>
+      <Image
+        source={{ uri: track.cover }}
+        style={styles.trackCardImage}
+        resizeMode="cover"
+      />
+      <View style={styles.trackCardOverlay}>
+        <View style={styles.playButton}>
+          <Play size={14} color="#fff" fill="#fff" style={{ marginLeft: 2 }} />
+        </View>
+      </View>
+      {showRank && (
+        <View style={styles.rankBadge}>
+          <Text style={styles.rankText}>#{index + 1}</Text>
+        </View>
+      )}
+      {showBadge && badgeText && (
+        <View style={[styles.badge, { backgroundColor: badgeColor || "#16a34a" }]}>
+          <Text style={styles.badgeText}>{badgeText}</Text>
+        </View>
+      )}
+      {onAddToQueue && (
+        <TouchableOpacity
+          onPress={(e) => { e.stopPropagation(); onAddToQueue(); }}
+          style={styles.queueButton}
+          activeOpacity={0.7}
+        >
+          <Plus size={12} color="#fff" />
+        </TouchableOpacity>
+      )}
+      {onDownload && (
+        <TouchableOpacity
+          onPress={(e) => { e.stopPropagation(); onDownload(); }}
+          disabled={isDownloaded || isDownloading}
+          style={[
+            styles.downloadButton,
+            isDownloaded && styles.downloadButtonDownloaded,
+            isDownloading && styles.downloadButtonDownloading,
+          ]}
+          activeOpacity={0.7}
+        >
+          {isDownloading ? (
+            <Loader2 size={10} color="#fff" />
+          ) : isDownloaded ? (
+            <CheckCircle size={10} color="#fff" />
+          ) : (
+            <Download size={10} color="#fff" />
+          )}
+        </TouchableOpacity>
+      )}
+    </View>
+    <Text style={styles.trackCardTitle} numberOfLines={1}>{track.title}</Text>
+    <Text style={styles.trackCardArtist} numberOfLines={1}>{track.artist}</Text>
+  </TouchableOpacity>
+);
+
+const ArtistCircle = ({ image, name, onPress, ringColor }: {
+  image: string;
+  name: string;
+  onPress: () => void;
+  ringColor?: string;
+}) => (
+  <TouchableOpacity onPress={onPress} style={styles.artistCircle} activeOpacity={0.7}>
+    <View style={[styles.artistImageContainer, ringColor && { borderWidth: 2, borderColor: ringColor }]}>
+      <Image source={{ uri: image }} style={styles.artistImage} resizeMode="cover" />
+      <View style={styles.artistOverlay}>
+        <Play size={16} color="#fff" />
+      </View>
+    </View>
+    <Text style={styles.artistName} numberOfLines={2}>{name}</Text>
+  </TouchableOpacity>
+);
+
+const MoodCard = ({ mood, onPress }: {
+  mood: MoodCategory;
+  onPress: () => void;
+}) => (
+  <TouchableOpacity onPress={onPress} style={styles.moodCard} activeOpacity={0.7}>
+    <LinearGradient colors={parseGradient(mood.gradient)} style={styles.moodCardInner}>
+      <View style={styles.moodCardOverlay} />
+      <View style={styles.moodCardContent}>
+        <Text style={styles.moodEmoji}>{mood.emoji}</Text>
+        <Text style={styles.moodName}>{mood.name}</Text>
+      </View>
+    </LinearGradient>
+  </TouchableOpacity>
+);
+
+const EraCard = ({ era, onPress }: {
+  era: typeof eraCategories[0];
+  onPress: () => void;
+}) => (
+  <TouchableOpacity onPress={onPress} style={styles.eraCard} activeOpacity={0.7}>
+    <LinearGradient colors={parseGradient(era.gradient)} style={styles.eraCardInner}>
+      <View style={styles.eraCardOverlay} />
+      <View style={styles.eraCardContent}>
+        <Text style={styles.eraName}>{era.name}</Text>
+        <Text style={styles.eraSubtitle}>{era.subtitle}</Text>
+      </View>
+    </LinearGradient>
+  </TouchableOpacity>
+);
+
+const LabelCard = ({ label, onPress, onShuffle, isLoading }: {
+  label: MusicLabel;
+  onPress: () => void;
+  onShuffle: () => void;
+  isLoading: boolean;
+}) => (
+  <TouchableOpacity onPress={onPress} style={styles.labelCard} activeOpacity={0.7}>
+    <LinearGradient colors={parseGradient(label.gradient)} style={styles.labelCardInner}>
+      <View style={styles.labelCardOverlay} />
+      <View style={styles.labelCardContent}>
+        <Text style={[styles.labelName, { color: label.textColor }]}>{label.name}</Text>
+      </View>
+      <TouchableOpacity onPress={onShuffle} style={styles.labelShuffleButton} activeOpacity={0.7}>
+        {isLoading ? (
+          <Loader2 size={12} color="rgba(255,255,255,0.8)" />
+        ) : (
+          <RefreshCw size={12} color="rgba(255,255,255,0.8)" />
+        )}
+      </TouchableOpacity>
+    </LinearGradient>
+  </TouchableOpacity>
+);
+
+const QuickPickButton = ({ title, desc, query, color, onPress, isLoading, iconColor }: {
+  title: string;
+  desc: string;
+  query: string;
+  color: string;
+  onPress: () => void;
+  isLoading: boolean;
+  iconColor?: string;
+}) => {
+  const bgColors = parseGradient(color);
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={isLoading}
+      style={[styles.quickPickButton, { borderColor: "rgba(255,255,255,0.1)" }]}
+      activeOpacity={0.7}
+    >
+      <LinearGradient colors={bgColors} style={StyleSheet.absoluteFill} />
+      <View style={styles.quickPickIcon}>
+        {isLoading ? (
+          <ActivityIndicator size={14} color={iconColor || "#1DB954"} />
+        ) : (
+          <Play size={14} color={iconColor || "#1DB954"} />
+        )}
+      </View>
+      <View style={styles.quickPickText}>
+        <Text style={styles.quickPickTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.quickPickDesc} numberOfLines={1}>{desc}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// ─── Main Content Component ───────────────────────────────────────────────────
+
 export const MainContent = () => {
-  const { currentTrack, isPlaying, playTrackList, playTrack, togglePlay, addToQueue } = usePlayer();
+  const { currentTrack, isPlaying, playTrackList, playTrack, togglePlay, addToQueue, addToListeningHistory } = usePlayer();
+  const { user } = useAuth();
   const { trendingSongs, newReleases, charts, featuredPlaylists: apiFeaturedPlaylists, loading: homeLoading } = useHomeData();
   const [featuredPlaylists, setFeaturedPlaylists] = useState<typeof apiFeaturedPlaylists>([]);
   const [playlistFilter, setPlaylistFilter] = useState<"all" | "hindi" | "bengali">("all");
 
-  // Track shuffle for infinite scroll
   const [shuffleIndex, setShuffleIndex] = useState(0);
 
-  // Sync featured playlists from API and apply language filter + shuffle
   useEffect(() => {
     if (apiFeaturedPlaylists.length > 0) {
       let filtered = [...apiFeaturedPlaylists];
@@ -68,7 +300,6 @@ export const MainContent = () => {
       } else if (playlistFilter === "bengali") {
         filtered = filtered.filter(p => p.language === "bengali");
       }
-      // Apply shuffle based on shuffleIndex using Fisher-Yates
       const shuffled = [...filtered];
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -108,8 +339,8 @@ export const MainContent = () => {
   const newReleasesInitialized = useRef(false);
   const { favorites: artistFavorites } = useArtistFavorites();
   const { downloadTrack, isDownloaded, isDownloading, getProgress } = useDownloads();
+  const { playlists, createPlaylist, addTrackToPlaylist } = usePlaylists();
 
-  // New personalized sections
   const [bengaliHits, setBengaliHits] = useState<Track[]>([]);
   const [forYouTracks, setForYouTracks] = useState<Track[]>([]);
   const [bengaliAlbums, setBengaliAlbums] = useState<{ name: string; cover: string; id: string }[]>([]);
@@ -126,14 +357,11 @@ export const MainContent = () => {
   const DISPLAY_COUNT = 8;
   const DISPLAY_COUNT_MOBILE = 5;
 
-  // Fetch personalized playlists on mount
   useEffect(() => {
     const API = "https://jiosaavn-api-privatecvc2.vercel.app";
     const fetchSection = async (queries: string[], setter: (t: Track[]) => void, offset: number, langFilter?: string) => {
       try {
-        // Pick random query from the list
         const query = queries[Math.floor(Math.random() * queries.length)];
-        // Random page 1-4 for variety
         const page = Math.floor(Math.random() * 4) + 1;
         const res = await fetch(`${API}/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=15`);
         if (!res.ok) return;
@@ -145,71 +373,37 @@ export const MainContent = () => {
         const tracks: Track[] = songs
           .filter((s: { downloadUrl?: unknown[] }) => s.downloadUrl?.length > 0)
           .map((s: { downloadUrl: { quality: string; link: string }[]; name: string; primaryArtists: string; album?: { name?: string } | string; image: { quality: string; link: string }[]; duration: string | number; id: string }, i: number) => {
-            const url96 = s.downloadUrl?.find((d) => d.quality === "96kbps")?.link;
-            const url160 = s.downloadUrl?.find((d) => d.quality === "160kbps")?.link;
+            const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+            const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
             const bestUrl = url160 || url96 || s.downloadUrl?.[0]?.link || "";
-            return {
-              id: offset + i,
-              title: s.name?.replace(/&quot;/g, '"').replace(/&amp;/g, "&") || "Unknown",
-              artist: s.primaryArtists || "Unknown",
-              album: typeof s.album === "string" ? s.album : s.album?.name || "",
-              cover: s.image?.find((img) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
-              src: bestUrl,
-              duration: parseInt(String(s.duration)) || 0,
-              type: "audio" as const,
-              songId: s.id,
-            } as Track;
+            return { id: offset + i, title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown", artist: s.primaryArtists || "Unknown", album: typeof s.album === "string" ? s.album : s.album?.name || "", cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "", src: bestUrl, duration: parseInt(String(s.duration)) || 0, type: "audio" as const, songId: s.id } as Track;
           });
-        setter(getRandomBatch(tracks, DISPLAY_COUNT));
+        setter(tracks);
       } catch { /* skip */ }
     };
 
-    // Bengali hits — multiple queries, random pick, random page
     fetchSection(
       ["bengali top hits", "bangla gaan arijit", "anupam roy bengali", "bengali modern songs", "bangla adhunik gaan", "kumar sanu bengali", "bengali romantic songs"],
       setBengaliHits, 7000, "bengali"
     );
-    // For You: use top artist from listening history or fallback
-    const topArtist = Object.entries(stats.topArtists).sort((a, b) => b[1] - a[1])[0]?.[0];
-    if (topArtist) {
-      fetchSection([`${topArtist} best songs`, `${topArtist} hits`, `${topArtist} popular`], setForYouTracks, 9000);
-    } else {
-      fetchSection(["bollywood romantic hits", "hindi love songs", "bollywood sad songs", "hindi acoustic"], setForYouTracks, 9000);
-    }
+    fetchSection(["bollywood romantic hits", "hindi love songs", "bollywood sad songs", "hindi acoustic"], setForYouTracks, 9000);
 
-    // Bengali Albums from modules API
-    fetch(`${API}/modules?language=bengali`)
-      .then((r) => r.json())
-      .then((data) => {
-        const mod = data.data || {};
-        const albums = (mod.albums || [])
-          .filter((a: { type: string; id: string; name: string; image: { quality: string; link: string }[] }) => a.type === "album")
-          .map((a: { id: string; name: string; image: { quality: string; link: string }[] }) => ({
-            id: a.id,
-            name: a.name,
-            cover: a.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || a.image?.[a.image.length - 1]?.link || "",
-          }));
-        setBengaliAlbums(albums.slice(0, 8));
-        // Charts
-        const chartItems = (mod.charts || []).slice(0, 3);
-        if (chartItems.length > 0) {
-          fetch(`${API}/playlists?id=${chartItems[0].id}`)
-            .then((r) => r.json())
-            .then((d) => {
-              const songs = d.data?.songs || [];
-              setTopChartTracks(songs.slice(0, 8).map((s: { downloadUrl: { quality: string; link: string }[]; name: string; primaryArtists: string; album?: { name?: string } | string; image: { quality: string; link: string }[]; duration: string | number; id: string }, i: number) => {
-                const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
-                const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
-                return {
-                  id: 10000 + i, title: s.name?.replace(/&quot;/g, '"') || "Unknown", artist: s.primaryArtists || "Unknown",
-                  album: typeof s.album === "string" ? s.album : s.album?.name || "",
-                  cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "",
-                  src: url160 || url96 || "", duration: parseInt(String(s.duration)) || 0, type: "audio" as const, songId: s.id,
-                } as Track;
-              }));
-            }).catch(() => {});
-        }
-      }).catch(() => {});
+    // Top Charts
+    fetch(`${API}/charts`).then(r => r.json()).then(data => {
+      const songs = data.data?.results || [];
+      if (songs.length > 0) {
+        setTopChartTracks(songs.slice(0, 8).map((s: { downloadUrl: { quality: string; link: string }[]; name: string; primaryArtists: string; album?: { name?: string } | string; image: { quality: string; link: string }[]; duration: string | number; id: string }, i: number) => {
+          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+          return {
+            id: 10000 + i, title: s.name?.replace(/"/g, '"') || "Unknown", artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "",
+            src: url160 || url96 || "", duration: parseInt(String(s.duration)) || 0, type: "audio" as const, songId: s.id,
+          } as Track;
+        }));
+      }
+    }).catch(() => {});
 
     // Sunday Suspense / Horror — YouTube
     const suspenseYtQueries = [
@@ -220,52 +414,50 @@ export const MainContent = () => {
       "Sunday Suspense Byomkesh",
     ];
     const suspenseQ = suspenseYtQueries[Math.floor(Math.random() * suspenseYtQueries.length)];
-    fetch(`/api/youtube-search?q=${encodeURIComponent(suspenseQ)}`)
+    fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(suspenseQ)}&page=1&limit=10`)
       .then((r) => r.json())
-      .then((videos: { videoId: string; title: string; author: string; duration: number; thumbnail: string }[]) => {
-        const tracks: Track[] = videos.slice(0, 10).map((v, i) => ({
-          id: 11000 + i,
-          title: v.title,
-          artist: v.author || "YouTube",
-          album: "",
-          cover: v.thumbnail || "",
-          src: `https://www.youtube.com/watch?v=${v.videoId}`,
-          duration: v.duration || 0,
-          type: "youtube" as const,
-          songId: v.videoId,
-        }));
+      .then((data: { data?: { results: { name: string; primaryArtists: string; album: { name: string } | string; duration: string | number; image: { quality: string; link: string }[]; downloadUrl: { quality: string; link: string }[]; id: string }[] } }) => {
+        const songs = data.data?.results || [];
+        const tracks: Track[] = songs.slice(0, 10).map((s, i) => {
+          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+          return {
+            id: 11000 + i,
+            title: s.name?.replace(/"/g, '"') || "Unknown",
+            artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "",
+            src: url160 || url96 || "",
+            duration: parseInt(String(s.duration)) || 0,
+            type: "audio" as const,
+            songId: s.id,
+          };
+        });
         setHorrorPodcast(tracks);
       }).catch(() => {});
 
     // YouTube Trending
     const ytQueries = ["top hindi songs 2026 trending", "viral bengali songs 2026"];
     const ytQ = ytQueries[Math.floor(Math.random() * ytQueries.length)];
-    fetch(`/api/youtube-search?q=${encodeURIComponent(ytQ)}`)
+    fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(ytQ)}&page=1&limit=10`)
       .then((r) => r.json())
-      .then(async (videos: { videoId: string; title: string; author: string; duration: number; thumbnail: string }[]) => {
-        const tracks: Track[] = videos.slice(0, 10).map((v, i) => ({
-          id: 60000 + i,
-          title: v.title,
-          artist: v.author || "YouTube",
-          album: "",
-          cover: v.thumbnail || "",
-          src: `https://www.youtube.com/watch?v=${v.videoId}`,
-          duration: v.duration || 0,
-          type: "youtube" as const,
-          songId: v.videoId,
-        }));
-        // Resolve first track audio for faster playback
-        if (tracks[0]?.songId) {
-          try {
-            const streamRes = await fetch(`/api/yt-stream?id=${tracks[0].songId}`);
-            if (streamRes.ok) {
-              const streamData = await streamRes.json().catch(() => null);
-              if (streamData?.audioUrl) {
-                tracks[0] = { ...tracks[0], src: streamData.audioUrl, type: "audio" as const };
-              }
-            }
-          } catch { /* fallback to youtube type */ }
-        }
+      .then(async (data: { data?: { results: { name: string; primaryArtists: string; album: { name: string } | string; duration: string | number; image: { quality: string; link: string }[]; downloadUrl: { quality: string; link: string }[]; id: string }[] } }) => {
+        const songs = data.data?.results || [];
+        const tracks: Track[] = songs.slice(0, 10).map((s, i) => {
+          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+          return {
+            id: 60000 + i,
+            title: s.name?.replace(/"/g, '"') || "Unknown",
+            artist: s.primaryArtists || "Unknown",
+            album: typeof s.album === "string" ? s.album : s.album?.name || "",
+            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "",
+            src: url160 || url96 || "",
+            duration: parseInt(String(s.duration)) || 0,
+            type: "audio" as const,
+            songId: s.id,
+          };
+        });
         setYtTrending(tracks);
       }).catch(() => {});
   }, []);
@@ -280,9 +472,8 @@ export const MainContent = () => {
     return shuffled.slice(0, count);
   }
 
-  const AUTO_REFRESH_MS = 120000; // 2 minutes (was 30s - too aggressive for mobile)
+  const AUTO_REFRESH_MS = 120000;
 
-  // Initialize displayed batch when master data arrives (run once per dataset)
   useEffect(() => {
     if (trendingSongs.length > 0 && !trendingInitialized.current) {
       trendingInitialized.current = true;
@@ -297,7 +488,6 @@ export const MainContent = () => {
     }
   }, [newReleases.length, getRandomBatch]);
 
-  // Manual refresh handlers
   const refreshTrending = useCallback(() => {
     if (trendingSongs.length === 0) return;
     setShufflingTrending(true);
@@ -316,7 +506,6 @@ export const MainContent = () => {
     }, 500);
   }, [newReleases, getRandomBatch]);
 
-  // Auto-refresh both sections every 30 seconds
   useEffect(() => {
     const API = "https://jiosaavn-api-privatecvc2.vercel.app";
 
@@ -335,7 +524,7 @@ export const MainContent = () => {
             const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
             const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
             const bestUrl = url160 || url96 || s.downloadUrl?.[0]?.link || "";
-            return { id: offset + i, title: s.name?.replace(/&quot;/g, '"').replace(/&amp;/g, "&") || "Unknown", artist: s.primaryArtists || "Unknown", album: typeof s.album === "string" ? s.album : s.album?.name || "", cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "", src: bestUrl, duration: parseInt(String(s.duration)) || 0, type: "audio" as const, songId: s.id } as Track;
+            return { id: offset + i, title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown", artist: s.primaryArtists || "Unknown", album: typeof s.album === "string" ? s.album : s.album?.name || "", cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "", src: bestUrl, duration: parseInt(String(s.duration)) || 0, type: "audio" as const, songId: s.id } as Track;
           });
         setter(getRandomBatch(tracks, DISPLAY_COUNT));
       } catch { /* skip */ }
@@ -348,7 +537,6 @@ export const MainContent = () => {
       if (newReleases.length > DISPLAY_COUNT) {
         setDisplayedNewReleases(getRandomBatch(newReleases, DISPLAY_COUNT));
       }
-      // Re-fetch personalized sections from API for fresh songs
       refreshFromAPI(
         ["bengali top hits", "bangla gaan arijit", "anupam roy bengali", "bengali modern songs", "bangla adhunik gaan", "kumar sanu bengali", "bengali romantic songs"],
         setBengaliHits, 7000, "bengali"
@@ -365,11 +553,11 @@ export const MainContent = () => {
   const timeData = timeSuggestions[timeOfDay];
 
   useEffect(() => {
-    if (currentTrack && isPlaying) {
-      addToHistory(currentTrack);
+    if (currentTrack && isPlaying && currentTrack.songId) {
+      addToListeningHistory(String(currentTrack.songId), currentTrack.duration || 0, false);
       recordPlay(currentTrack.artist, currentTrack.duration || 0);
     }
-  }, [currentTrack?.src, isPlaying]);
+  }, [currentTrack?.src, isPlaying, addToListeningHistory, recordPlay]);
 
   useEffect(() => {
     if (trendingSongs.length === 0) return;
@@ -572,34 +760,35 @@ export const MainContent = () => {
   const handleYtQuickPlay = useCallback(async (query: string) => {
     setYtLoadingQuery(query);
     try {
-      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=15`);
       if (!res.ok) return;
-      const videos: { videoId: string; title: string; author: string; duration: number; thumbnail: string }[] = await res.json();
-      const tracks: Track[] = videos.slice(0, 15).map((v, i) => ({
-        id: 61000 + i,
-        title: v.title,
-        artist: v.author || "YouTube",
-        album: "",
-        cover: v.thumbnail || "",
-        src: `https://www.youtube.com/watch?v=${v.videoId}`,
-        duration: v.duration || 0,
-        type: "youtube" as const,
-        songId: v.videoId,
-      }));
+      const data = await res.json();
+      const songs = data.data?.results || [];
+      const tracks: Track[] = songs.slice(0, 15).map((s: {
+        name: string;
+        primaryArtists: string;
+        album: { name: string } | string;
+        duration: string | number;
+        image: { quality: string; link: string }[];
+        downloadUrl: { quality: string; link: string }[];
+        id: string;
+      }, i: number) => {
+        const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+        const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+        const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
+        return {
+          id: 61000 + i,
+          title: s.name,
+          artist: s.primaryArtists || "Unknown",
+          album: typeof s.album === "string" ? s.album : s.album?.name || "",
+          cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "",
+          src: url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "",
+          duration: parseInt(String(s.duration)) || 0,
+          type: "audio" as const,
+          songId: s.id,
+        };
+      });
       if (tracks.length > 0) {
-        // Try to resolve first track to audio for faster playback
-        const firstId = tracks[0].songId;
-        if (firstId) {
-          try {
-            const streamRes = await fetch(`/api/yt-stream?id=${firstId}`);
-            if (streamRes.ok) {
-              const streamData = await streamRes.json().catch(() => null);
-              if (streamData?.audioUrl) {
-                tracks[0] = { ...tracks[0], src: streamData.audioUrl, type: "audio" as const };
-              }
-            }
-          } catch { /* fallback to youtube type */ }
-        }
         playTrackList(tracks, 0);
       }
     } catch { /* ignore */ }
@@ -645,7 +834,7 @@ export const MainContent = () => {
           const bestUrl = url160 || url96 || s.downloadUrl?.[0]?.link || "";
           return {
             id: 8000 + i,
-            title: s.name?.replace(/&quot;/g, '"').replace(/&amp;/g, "&") || "Unknown",
+            title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
             artist: s.primaryArtists || "Unknown",
             album: typeof s.album === "string" ? s.album : s.album?.name || "",
             cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || s.image?.[s.image.length - 1]?.link || "",
@@ -676,1209 +865,1968 @@ export const MainContent = () => {
     enabled: true,
   });
 
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
   return (
-    <main ref={pullRef} className="flex-1 overflow-y-auto overflow-x-hidden pb-32 md:pb-28">
+    <View style={styles.container}>
       {/* Pull to refresh indicator */}
       {(pullDistance > 0 || isRefreshing) && (
-        <div className="flex justify-center py-3 md:hidden">
+        <View style={styles.pullIndicator}>
           <RefreshCw
             size={20}
-            className={`text-primary transition-transform ${isRefreshing ? "animate-spin" : ""}`}
-            style={{ transform: `rotate(${pullDistance * 3}deg)` }}
+            color="#1DB954"
+            style={{ transform: [{ rotate: `${pullDistance * 3}deg` }] }}
           />
-        </div>
+        </View>
       )}
-      {/* Mobile Search Bar */}
-      <div className="md:hidden sticky top-0 z-10 px-4 pt-3 pb-2 bg-background/80 backdrop-blur-md">
-        <button
-          onClick={() => setShowSearch(true)}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border text-muted-foreground active:bg-accent transition-colors"
-        >
-          <Search size={18} />
-          <span className="text-sm">Search songs, artists, albums...</span>
-        </button>
-      </div>
 
-      {/* Hero Carousel */}
-      {carouselSongs.length > 0 && (
-        <div className="relative h-48 sm:h-56 md:h-80 overflow-hidden mb-4 md:mb-6">
-          {carouselSongs.map((song, i) => (
-            <div
-              key={song.src}
-              className={`absolute inset-0 transition-opacity duration-1000 ${i === carouselIndex ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-            >
-              <div className="absolute inset-0">
-                <img src={song.cover} alt="" decoding="async" width={1280} height={320} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
-              </div>
-              <div className="relative h-full flex items-end px-4 md:px-6 pb-4 md:pb-6">
-                <div className="flex items-center gap-3 md:gap-4">
-                    <img src={song.cover} alt="" decoding="async" width={80} height={80} className="w-12 h-12 md:w-20 md:h-20 rounded-xl shadow-2xl object-cover flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[9px] md:text-xs text-primary font-medium uppercase tracking-wider mb-0.5">
-                      {i === 0 ? "Featured" : `#${i + 1} Trending`}
-                    </p>
-                    <h2 className="text-sm sm:text-base md:text-2xl font-bold text-foreground line-clamp-2">{song.title}</h2>
-                    <p className="text-[10px] md:text-sm text-muted-foreground truncate">{song.artist}</p>
-                    <button
-                      onClick={() => playTrackList(carouselSongs, i)}
-                      className="mt-1.5 md:mt-2 px-3 md:px-4 py-1 md:py-1.5 bg-primary text-primary-foreground text-[10px] md:text-xs font-medium rounded-full hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5"
-                    >
-                      <Play size={10} fill="currentColor" /> Play
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-          <div className="absolute bottom-3 right-4 md:right-6 flex items-center gap-1.5 z-10">
-            <button
-              onClick={() => setCarouselIndex((prev) => (prev - 1 + carouselSongs.length) % carouselSongs.length)}
-              className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            {carouselSongs.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setCarouselIndex(i)}
-                className={`w-2 h-2 rounded-full transition-all ${i === carouselIndex ? "bg-primary w-4" : "bg-white/40 hover:bg-white/60"}`}
-              />
+      <ScrollView
+        ref={pullRef as any}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => {
+              trendingInitialized.current = false;
+              newReleasesInitialized.current = false;
+              setDisplayedTrending([]);
+              setDisplayedNewReleases([]);
+            }}
+            tintColor="#1DB954"
+          />
+        }
+      >
+        {/* Mobile Search Bar */}
+        <View style={styles.searchBarContainer}>
+          <TouchableOpacity
+            onPress={() => setShowSearch(true)}
+            style={styles.searchBar}
+            activeOpacity={0.7}
+          >
+            <Search size={18} color="#888" />
+            <Text style={styles.searchBarText}>Search songs, artists, albums...</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Hero Carousel */}
+        {carouselSongs.length > 0 && (
+          <View style={styles.carouselContainer}>
+            {carouselSongs.map((song, i) => (
+              <View
+                key={song.src}
+                style={[
+                  styles.carouselSlide,
+                  { opacity: i === carouselIndex ? 1 : 0 },
+                  i !== carouselIndex && styles.carouselSlideHidden,
+                ]}
+                pointerEvents={i === carouselIndex ? "auto" : "none"}
+              >
+                <Image source={{ uri: song.cover }} style={styles.carouselImage} resizeMode="cover" />
+                <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.7)", "rgba(0,0,0,0.9)"]} style={styles.carouselGradient} />
+                <View style={styles.carouselContent}>
+                  <View style={styles.carouselInfo}>
+                    <Image source={{ uri: song.cover }} style={styles.carouselThumb} resizeMode="cover" />
+                    <View style={styles.carouselText}>
+                      <Text style={styles.carouselLabel}>
+                        {i === 0 ? "Featured" : `#${i + 1} Trending`}
+                      </Text>
+                      <Text style={styles.carouselTitle} numberOfLines={2}>{song.title}</Text>
+                      <Text style={styles.carouselArtist} numberOfLines={1}>{song.artist}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => playTrackList(carouselSongs, i)}
+                    style={styles.carouselPlayButton}
+                    activeOpacity={0.7}
+                  >
+                    <Play size={10} color="#fff" fill="#fff" style={{ marginLeft: 2 }} />
+                    <Text style={styles.carouselPlayText}>Play</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             ))}
-            <button
-              onClick={() => setCarouselIndex((prev) => (prev + 1) % carouselSongs.length)}
-              className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="px-4 md:px-6">
-        {/* Time Greeting (no carousel) */}
-        {!activeCarouselSong && (
-          <div className="mb-4 md:mb-6 animate-fade-in">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-2xl md:text-4xl">{timeData.emoji}</span>
-              <h2 className="text-xl md:text-3xl font-bold text-foreground">{timeData.title}</h2>
-            </div>
-            <p className="text-muted-foreground text-xs md:text-sm ml-8 md:ml-12">{timeData.subtitle}</p>
-          </div>
+            <View style={styles.carouselControls}>
+              <TouchableOpacity
+                onPress={() => setCarouselIndex((prev) => (prev - 1 + carouselSongs.length) % carouselSongs.length)}
+                style={styles.carouselNavButton}
+                activeOpacity={0.7}
+              >
+                <ChevronLeft size={14} color="#fff" />
+              </TouchableOpacity>
+              {carouselSongs.map((_, i) => (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => setCarouselIndex(i)}
+                  style={[styles.carouselDot, i === carouselIndex && styles.carouselDotActive]}
+                  activeOpacity={0.7}
+                />
+              ))}
+              <TouchableOpacity
+                onPress={() => setCarouselIndex((prev) => (prev + 1) % carouselSongs.length)}
+                style={styles.carouselNavButton}
+                activeOpacity={0.7}
+              >
+                <ChevronRight size={14} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
 
-        {/* Quick Play */}
-        <div
-          onClick={() => handleSearchAndPlay(timeData.searchQuery)}
-          className="mb-6 md:mb-8 p-3 md:p-4 rounded-xl bg-gradient-to-r from-primary/15 to-primary/5 border border-primary/20 cursor-pointer hover:border-primary/40 transition-all group"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors">
-                <Sparkles size={18} className="text-primary" />
-              </div>
-              <div>
-                <p className="font-semibold text-xs md:text-sm text-foreground">{timeData.title} Mix</p>
-                <p className="text-[10px] md:text-xs text-muted-foreground">{timeData.subtitle}</p>
-              </div>
-            </div>
-            <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-primary flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-              {isLoading(timeData.searchQuery) ? (
-                <div className="w-3 h-3 md:w-3.5 md:h-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Play size={14} className="text-primary-foreground ml-0.5" />
-              )}
-            </div>
-          </div>
-        </div>
-
-
-        {/* Song of the Day */}
-        {songOfDay && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center gap-2 mb-2 md:mb-3">
-              <span className="text-base md:text-lg">⭐</span>
-              <h3 className="text-base md:text-lg font-bold text-foreground">Song of the Day</h3>
-            </div>
-            <div
-              onClick={() => playTrack(songOfDay)}
-              className="flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 cursor-pointer hover:border-amber-500/40 transition-all group"
-            >
-              <div className="relative flex-shrink-0">
-                <img src={songOfDay.cover} alt="" loading="lazy" width={64} height={64} className="w-14 h-14 md:w-16 md:h-16 rounded-lg object-cover shadow-md" />
-                <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                  {currentTrack?.src === songOfDay.src && isPlaying ? (
-                    <Pause size={18} className="text-white" />
-                  ) : (
-                    <Play size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  )}
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground text-xs md:text-sm truncate">{songOfDay.title}</p>
-                <p className="text-[10px] md:text-xs text-muted-foreground truncate">{songOfDay.artist}</p>
-                <p className="text-[9px] md:text-[10px] text-amber-400 mt-0.5">Fresh pick for today</p>
-              </div>
-              <span className="text-[10px] md:text-xs text-muted-foreground flex-shrink-0">{formatDuration(songOfDay.duration)}</span>
-            </div>
-          </section>
-        )}
-
-        {/* Visualizer */}
-        <div className="mb-6 md:mb-8 animate-fade-in">
-          <AudioVisualizer />
-          {currentTrack && isPlaying && (
-            <div className="mt-2 md:mt-3 flex items-center gap-2 md:gap-3">
-              <img src={currentTrack.cover} alt="" width={32} height={32} className="w-7 h-7 md:w-8 md:h-8 rounded" />
-              <div className="min-w-0">
-                <p className="text-xs md:text-sm font-semibold text-foreground truncate">{currentTrack.title}</p>
-                <p className="text-[10px] md:text-xs text-muted-foreground truncate">{currentTrack.artist}</p>
-              </div>
-            </div>
+        <View style={styles.contentPadding}>
+          {/* Time Greeting */}
+          {!activeCarouselSong && (
+            <View style={styles.greetingContainer}>
+              <Text style={styles.greetingEmoji}>{timeData.emoji}</Text>
+              <View style={styles.greetingText}>
+                <Text style={styles.greetingTitle}>{timeData.title}</Text>
+                <Text style={styles.greetingSubtitle}>{timeData.subtitle}</Text>
+              </View>
+            </View>
           )}
-        </div>
 
-        {/* ── TRENDING ── */}
-        <div className="flex items-center gap-2 mb-4">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">🔥 Trending</span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-
-        {/* Trending Now */}
-        {displayedTrending.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <TrendingUp size={16} className="text-primary" />
-                <h3 className="text-base md:text-lg font-bold text-foreground">Trending Now</h3>
-                <button
-                  onClick={refreshTrending}
-                  disabled={shufflingTrending}
-                  className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all disabled:opacity-50"
-                  title="Shuffle"
-                >
-                  <RefreshCw size={14} className={shufflingTrending ? "animate-spin" : ""} />
-                </button>
-              </div>
-              <button
-                onClick={() => setShowFullTrending(true)}
-                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
-              >
-                View All <ChevronRight size={12} />
-              </button>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {displayedTrending.map((track, i) => (
-                <div
-                  key={track.src + i}
-                  onClick={() => playTrackList(displayedTrending, i)}
-                  className="flex-shrink-0 w-28 md:w-36 group cursor-pointer"
-                >
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
-                        <Play size={14} className="text-primary-foreground ml-0.5" />
-                      </div>
-                    </div>
-                    {/* Add to Queue button */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                      title="Add to queue"
-                    >
-                      <Plus size={12} className="text-white" />
-                    </button>
-                    {/* Download button */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
-                      disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
-                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                        isDownloaded(track.songId || track.src)
-                          ? "bg-green-600/80"
-                          : isDownloading(track.songId || track.src)
-                          ? "bg-yellow-600/80"
-                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
-                      }`}
-                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : "Download for offline"}
-                    >
-                      {isDownloading(track.songId || track.src) ? (
-                        <Loader2 size={10} className="text-white animate-spin" />
-                      ) : isDownloaded(track.songId || track.src) ? (
-                        <CheckCircle size={10} className="text-white" />
-                      ) : (
-                        <Download size={10} className="text-white" />
-                      )}
-                    </button>
-                    <span className="absolute top-1.5 left-1.5 text-[9px] md:text-[10px] font-bold text-white bg-black/50 px-1.5 py-0.5 rounded">
-                      #{i + 1}
-                    </span>
-                  </div>
-                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {homeLoading && (
-          <div className="mb-6 md:mb-8">
-            <div className="flex items-center gap-2 mb-2 md:mb-3">
-              <div className="w-16 h-4 bg-muted rounded animate-pulse" />
-            </div>
-            <SectionSkeleton count={6} />
-            <div className="flex items-center gap-2 mb-2 md:mb-3 mt-4">
-              <div className="w-24 h-4 bg-muted rounded animate-pulse" />
-            </div>
-            <SectionSkeleton count={6} />
-          </div>
-        )}
-
-        {/* New Releases */}
-        {displayedNewReleases.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <Music2 size={16} className="text-primary" />
-                <h3 className="text-base md:text-lg font-bold text-foreground">New Releases</h3>
-                <button
-                  onClick={refreshNewReleases}
-                  disabled={shufflingNewReleases}
-                  className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all disabled:opacity-50"
-                  title="Shuffle"
-                >
-                  <RefreshCw size={14} className={shufflingNewReleases ? "animate-spin" : ""} />
-                </button>
-              </div>
-              <button
-                onClick={() => setShowFullFeaturedPlaylists(true)}
-                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
-              >
-                View All <ChevronRight size={12} />
-              </button>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {displayedNewReleases.map((track, i) => (
-                <div
-                  key={track.src + i}
-                  onClick={() => playTrackList(displayedNewReleases, i)}
-                  className="flex-shrink-0 w-28 md:w-36 group cursor-pointer"
-                >
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
-                        <Play size={14} className="text-primary-foreground ml-0.5" />
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                      title="Add to queue"
-                    >
-                      <Plus size={12} className="text-white" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
-                      disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
-                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                        isDownloaded(track.songId || track.src)
-                          ? "bg-green-600/80"
-                          : isDownloading(track.songId || track.src)
-                          ? "bg-yellow-600/80"
-                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
-                      }`}
-                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : "Download for offline"}
-                    >
-                      {isDownloading(track.songId || track.src) ? (
-                        <Loader2 size={10} className="text-white animate-spin" />
-                      ) : isDownloaded(track.songId || track.src) ? (
-                        <CheckCircle size={10} className="text-white" />
-                      ) : (
-                        <Download size={10} className="text-white" />
-                      )}
-                    </button>
-                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-green-600/80 px-1.5 py-0.5 rounded">
-                      NEW
-                    </span>
-                  </div>
-                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Recently Played */}
-        {history.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <Clock size={16} className="text-primary" />
-                <h3 className="text-base md:text-lg font-bold text-foreground">Recently Played</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={clearHistory}
-                  className="text-[10px] md:text-xs text-muted-foreground hover:text-destructive font-medium transition-colors flex items-center gap-1"
-                >
-                  <Trash2 size={12} /> Clear
-                </button>
-                <button
-                  onClick={() => setShowFullHistory(true)}
-                  className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
-                >
-                  View All <ChevronRight size={12} />
-                </button>
-              </div>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {history.slice(0, 8).map((entry, i) => (
-                <div
-                  key={`${entry.track.src}-${i}`}
-                  onClick={() => playTrack(entry.track)}
-                  className="flex-shrink-0 w-24 md:w-28 group cursor-pointer"
-                >
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img src={entry.track.cover} alt="" loading="lazy" width={112} height={112} className="w-24 h-24 md:w-28 md:h-28 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-7 h-7 md:w-8 md:h-8 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
-                        {currentTrack?.src === entry.track.src && isPlaying ? (
-                          <Pause size={12} className="text-primary-foreground" />
-                        ) : (
-                          <Play size={12} className="text-primary-foreground ml-0.5" />
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); downloadTrack(entry.track); }}
-                      disabled={isDownloaded(entry.track.songId || entry.track.src) || isDownloading(entry.track.songId || entry.track.src)}
-                      className={`absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
-                        isDownloaded(entry.track.songId || entry.track.src)
-                          ? "bg-green-600/80"
-                          : isDownloading(entry.track.songId || entry.track.src)
-                          ? "bg-yellow-600/80"
-                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
-                      }`}
-                      title={isDownloaded(entry.track.songId || entry.track.src) ? "Downloaded" : "Download for offline"}
-                    >
-                      {isDownloading(entry.track.songId || entry.track.src) ? (
-                        <Loader2 size={8} className="text-white animate-spin" />
-                      ) : isDownloaded(entry.track.songId || entry.track.src) ? (
-                        <CheckCircle size={8} className="text-white" />
-                      ) : (
-                        <Download size={8} className="text-white" />
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-[10px] md:text-[11px] font-medium text-foreground truncate">{entry.track.title}</p>
-                  <p className="text-[8px] md:text-[9px] text-muted-foreground truncate">{entry.track.artist}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Continue Listening — Enhanced Recently Played */}
-        {history.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">▶️</span>
-                <h3 className="text-base md:text-lg font-bold text-foreground">Continue Listening</h3>
-              </div>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {history.slice(0, 6).map((entry, i) => (
-                <div key={`${entry.track.src}-${i}`} onClick={() => playTrack(entry.track)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img src={entry.track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
-                        <Play size={14} className="text-primary-foreground ml-0.5" />
-                      </div>
-                    </div>
-                    {/* Progress bar at bottom */}
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 rounded-b-lg overflow-hidden">
-                      <div className="h-full bg-primary rounded-b-lg" style={{ width: `${Math.random() * 60 + 20}%` }} />
-                    </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); downloadTrack(entry.track); }}
-                      disabled={isDownloaded(entry.track.songId || entry.track.src) || isDownloading(entry.track.songId || entry.track.src)}
-                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                        isDownloaded(entry.track.songId || entry.track.src)
-                          ? "bg-green-600/80"
-                          : isDownloading(entry.track.songId || entry.track.src)
-                          ? "bg-yellow-600/80"
-                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
-                      }`}
-                      title={isDownloaded(entry.track.songId || entry.track.src) ? "Downloaded" : "Download for offline"}
-                    >
-                      {isDownloading(entry.track.songId || entry.track.src) ? (
-                        <Loader2 size={10} className="text-white animate-spin" />
-                      ) : isDownloaded(entry.track.songId || entry.track.src) ? (
-                        <CheckCircle size={10} className="text-white" />
-                      ) : (
-                        <Download size={10} className="text-white" />
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{entry.track.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{entry.track.artist}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Mood Categories */}
-        <DeferredSection>
-        <section className="mb-6 md:mb-8 animate-fade-in">
-          <div className="flex items-center gap-2 mb-2 md:mb-3">
-            <Music2 size={16} className="text-primary" />
-            <h3 className="text-base md:text-lg font-bold text-foreground">Browse by Mood</h3>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 md:gap-2.5">
-            {moodCategories.map((mood) => (
-              <button
-                key={mood.name}
-                onClick={() => { console.log(`[BrowseByMood] 🎯 Mood selected: "${mood.name}" | Search Query: "${mood.searchQuery}"`); setMoodPlaylist(mood); }}
-                className={`relative p-3.5 md:p-3.5 rounded-xl bg-gradient-to-br ${mood.gradient} cursor-pointer hover:scale-[1.03] active:scale-[0.97] transition-transform group overflow-hidden`}
-              >
-                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/5 transition-colors" />
-                <div className="relative text-center">
-                  <span className="text-lg md:text-xl">{mood.emoji}</span>
-                  <p className="text-[10px] md:text-xs font-bold text-white mt-1">{mood.name}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-        </DeferredSection>
-
-        {/* Top Music Labels */}
-        <DeferredSection>
-        <section className="mb-6 md:mb-8 animate-fade-in">
-          <div className="flex items-center gap-2 mb-2 md:mb-3">
-            <Music2 size={16} className="text-primary" />
-            <h3 className="text-base md:text-lg font-bold text-foreground">Top Music Labels</h3>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 md:gap-2.5">
-            {musicLabels.map((label) => (
-              <div
-                key={label.name}
-                onClick={() => loadingLabel !== label.name && playLabelSongs(label)}
-                className={`relative p-4 md:p-3.5 rounded-xl bg-gradient-to-br ${label.gradient} cursor-pointer hover:scale-[1.03] active:scale-[0.97] transition-transform group overflow-hidden`}
-              >
-                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/5 transition-colors" />
-                <div className="relative text-center">
-                  <p className={`text-[11px] md:text-sm font-bold ${label.textColor}`}>{label.name}</p>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (loadingLabel !== label.name) playLabelSongs(label, true);
-                  }}
-                  className="absolute bottom-1.5 right-1.5 p-1 rounded-full bg-black/30 hover:bg-black/50 transition-colors"
-                  title="Shuffle songs"
-                >
-                  {loadingLabel === label.name ? (
-                    <Loader2 size={12} className="text-white/80 animate-spin" />
-                  ) : (
-                    <RefreshCw size={12} className="text-white/80" />
-                  )}
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-        </DeferredSection>
-
-        {/* Featured Playlists from JioSaavn */}
-        {featuredPlaylists.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <Music2 size={16} className="text-primary" />
-                <h3 className="text-base md:text-lg font-bold text-foreground">Featured Playlists</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowPlaylistsModal(true)}
-                  className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
-                  title="Search playlists"
-                >
-                  <Search size={12} />
-                </button>
-                <button
-                  onClick={() => setShowFullTrending(true)}
-                  className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
-                >
-                  View All <ChevronRight size={12} />
-                </button>
-              </div>
-            </div>
-            <div className="flex gap-2 mb-3">
-              <button 
-                onClick={() => setPlaylistFilter("all")}
-                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${playlistFilter === "all" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}
-              >
-                All
-              </button>
-              <button 
-                onClick={() => setPlaylistFilter("hindi")}
-                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${playlistFilter === "hindi" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}
-              >
-                Hindi
-              </button>
-              <button 
-                onClick={() => setPlaylistFilter("bengali")}
-                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${playlistFilter === "bengali" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}
-              >
-                Bengali
-              </button>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide" style={{ minHeight: '200px' }}>
-              {featuredPlaylists.length > 0 ? featuredPlaylists.map((playlist) => (
-                <div
-                  key={playlist.id}
-                  onClick={() => loadingLabel !== playlist.id && playJioSaavnPlaylist(playlist)}
-                  className="flex-shrink-0 w-28 md:w-36 group cursor-pointer"
-                >
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img
-                      src={playlist.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || playlist.image?.[playlist.image.length - 1]?.link || ""}
-                      alt={playlist.title}
-                      loading="lazy"
-                      width={144}
-                      className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow"
-                    />
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
-                        <Play size={14} className="text-primary-foreground ml-0.5" />
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        addToQueue({ id: Date.now(), title: playlist.title, artist: playlist.subtitle, album: "", cover: playlist.image?.[0]?.link || "", src: "", duration: 0, type: "audio" }); 
-                        toast.success("Added to queue", { description: playlist.title });
-                      }}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                      title="Add to queue"
-                    >
-                      <Plus size={12} className="text-white" />
-                    </button>
-                  </div>
-                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{playlist.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{playlist.subtitle}</p>
-                </div>
-              )) : (
-                <div className="flex items-center justify-center w-full py-8">
-                  <p className="text-sm text-muted-foreground">No playlists available</p>
-                </div>
+          {/* Quick Play */}
+          <TouchableOpacity
+            onPress={() => handleSearchAndPlay(timeData.searchQuery)}
+            style={styles.quickPlayCard}
+            activeOpacity={0.7}
+          >
+            <View style={styles.quickPlayLeft}>
+              <View style={styles.quickPlayIcon}>
+                <Sparkles size={18} color="#1DB954" />
+              </View>
+              <View>
+                <Text style={styles.quickPlayTitle}>{timeData.title} Mix</Text>
+                <Text style={styles.quickPlaySubtitle}>{timeData.subtitle}</Text>
+              </View>
+            </View>
+            <View style={styles.quickPlayButton}>
+              {isLoading(timeData.searchQuery) ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Play size={14} color="#fff" style={{ marginLeft: 2 }} />
               )}
-            </div>
-            <div className="flex items-center justify-center mt-2">
-              <button
-                onClick={handleShufflePlaylists}
-                className="flex items-center gap-2 px-4 py-2 text-xs font-medium bg-muted hover:bg-accent rounded-full transition-colors"
+            </View>
+          </TouchableOpacity>
+
+          {/* Song of the Day */}
+          {songOfDay && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionEmoji}>⭐</Text>
+                <Text style={styles.sectionTitle}>Song of the Day</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => playTrack(songOfDay)}
+                style={styles.songOfDayCard}
+                activeOpacity={0.7}
               >
-                <RefreshCw size={14} /> Shuffle All ({apiFeaturedPlaylists.length})
-              </button>
-            </div>
-          </section>
-        )}
+                <View style={styles.songOfDayImageContainer}>
+                  <Image source={{ uri: songOfDay.cover }} style={styles.songOfDayImage} resizeMode="cover" />
+                  <View style={styles.songOfDayOverlay}>
+                    {currentTrack?.src === songOfDay.src && isPlaying ? (
+                      <Pause size={18} color="#fff" />
+                    ) : (
+                      <Play size={18} color="#fff" />
+                    )}
+                  </View>
+                </View>
+                <View style={styles.songOfDayInfo}>
+                  <Text style={styles.songOfDayTitle} numberOfLines={1}>{songOfDay.title}</Text>
+                  <Text style={styles.songOfDayArtist} numberOfLines={1}>{songOfDay.artist}</Text>
+                  <Text style={styles.songOfDayBadge}>Fresh pick for today</Text>
+                </View>
+                <Text style={styles.songOfDayDuration}>{formatDuration(songOfDay.duration)}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-        {featuredPlaylists.length === 0 && !homeLoading && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center gap-2 mb-2 md:mb-3">
-              <Music2 size={16} className="text-primary" />
-              <h3 className="text-base md:text-lg font-bold text-foreground">Featured Playlists</h3>
-            </div>
-            <p className="text-sm text-muted-foreground">Loading playlists...</p>
-          </section>
-        )}
+          {/* Visualizer */}
+          <View style={styles.section}>
+            <AudioVisualizer />
+            {currentTrack && isPlaying && (
+              <View style={styles.nowPlayingInfo}>
+                <Image source={{ uri: currentTrack.cover }} style={styles.nowPlayingImage} resizeMode="cover" />
+                <View>
+                  <Text style={styles.nowPlayingTitle} numberOfLines={1}>{currentTrack.title}</Text>
+                  <Text style={styles.nowPlayingArtist} numberOfLines={1}>{currentTrack.artist}</Text>
+                </View>
+              </View>
+            )}
+          </View>
 
-        {/* Saved Artists (Mobile) */}
-        <DeferredSection>
-        {artistFavorites.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <h3 className="text-base md:text-lg font-bold text-foreground">Saved Artists ({artistFavorites.length})</h3>
-            </div>
-            <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 scrollbar-hide">
-              {artistFavorites.map((artist) => (
-                <button
-                  key={artist.id}
-                  onClick={() => setArtistPlaylist({ name: artist.name, query: artist.name, artistId: artist.id })}
-                  className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 group"
+          {/* ── TRENDING ── */}
+          <View style={styles.sectionDivider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>🔥 Trending</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Trending Now */}
+          {displayedTrending.length > 0 && (
+            <View style={styles.section}>
+              <SectionHeader
+                title="Trending Now"
+                icon={<TrendingUp size={16} color="#1DB954" />}
+                rightAction={{ label: "View All", onPress: () => setShowFullTrending(true) }}
+              />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                {displayedTrending.map((track, i) => (
+                  <TrackCard
+                    key={track.src + i}
+                    track={track}
+                    index={i}
+                    tracks={displayedTrending}
+                    onPress={() => playTrackList(displayedTrending, i)}
+                    showRank
+                    onAddToQueue={() => addToQueue(track)}
+                    onDownload={() => downloadTrack(track)}
+                    isDownloaded={isDownloaded(track.songId || track.src)}
+                    isDownloading={isDownloading(track.songId || track.src)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {homeLoading && (
+            <View style={styles.section}>
+              <View style={styles.skeletonHeader}>
+                <View style={styles.skeletonTitle} />
+              </View>
+              <SectionSkeleton count={6} />
+              <View style={styles.skeletonHeader}>
+                <View style={[styles.skeletonTitle, { width: 96 }]} />
+              </View>
+              <SectionSkeleton count={6} />
+            </View>
+          )}
+
+          {/* New Releases */}
+          {displayedNewReleases.length > 0 && (
+            <View style={styles.section}>
+              <SectionHeader
+                title="New Releases"
+                icon={<Music2 size={16} color="#1DB954" />}
+                rightAction={{ label: "View All", onPress: () => setShowFullFeaturedPlaylists(true) }}
+              />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                {displayedNewReleases.map((track, i) => (
+                  <TrackCard
+                    key={track.src + i}
+                    track={track}
+                    index={i}
+                    tracks={displayedNewReleases}
+                    onPress={() => playTrackList(displayedNewReleases, i)}
+                    showBadge
+                    badgeText="NEW"
+                    badgeColor="#16a34a"
+                    onAddToQueue={() => addToQueue(track)}
+                    onDownload={() => downloadTrack(track)}
+                    isDownloaded={isDownloaded(track.songId || track.src)}
+                    isDownloading={isDownloading(track.songId || track.src)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Recently Played */}
+          {history.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderLeft}>
+                  <Clock size={16} color="#1DB954" />
+                  <Text style={styles.sectionTitle}>Recently Played</Text>
+                </View>
+                <View style={styles.sectionHeaderRight}>
+                  <TouchableOpacity onPress={clearHistory} style={styles.clearButton} activeOpacity={0.7}>
+                    <Trash2 size={12} color="#888" />
+                    <Text style={styles.clearButtonText}>Clear</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setShowFullHistory(true)} style={styles.viewAllButton} activeOpacity={0.7}>
+                    <Text style={styles.viewAllText}>View All</Text>
+                    <ChevronRight size={12} color="#1DB954" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                {history.slice(0, 8).map((entry, i) => (
+                  <TrackCard
+                    key={`${entry.track.src}-${i}`}
+                    track={entry.track}
+                    index={i}
+                    tracks={history.map(h => h.track)}
+                    onPress={() => playTrack(entry.track)}
+                    onDownload={() => downloadTrack(entry.track)}
+                    isDownloaded={isDownloaded(entry.track.songId || entry.track.src)}
+                    isDownloading={isDownloading(entry.track.songId || entry.track.src)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Continue Listening */}
+          {history.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionEmoji}>▶️</Text>
+                <Text style={styles.sectionTitle}>Continue Listening</Text>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                {history.slice(0, 6).map((entry, i) => (
+                  <View key={`${entry.track.src}-${i}`} style={styles.continueCard}>
+                    <TouchableOpacity onPress={() => playTrack(entry.track)} activeOpacity={0.7}>
+                      <View style={styles.continueImageContainer}>
+                        <Image source={{ uri: entry.track.cover }} style={styles.continueImage} resizeMode="cover" />
+                        <View style={styles.continueOverlay}>
+                          <View style={styles.continuePlayButton}>
+                            <Play size={14} color="#fff" style={{ marginLeft: 2 }} />
+                          </View>
+                        </View>
+                        {/* Progress bar */}
+                        <View style={styles.continueProgressBar}>
+                          <View style={[styles.continueProgress, { width: `${Math.random() * 60 + 20}%` }]} />
+                        </View>
+                        <TouchableOpacity
+                          onPress={(e) => { e.stopPropagation(); downloadTrack(entry.track); }}
+                          disabled={isDownloaded(entry.track.songId || entry.track.src) || isDownloading(entry.track.songId || entry.track.src)}
+                          style={[
+                            styles.continueDownloadButton,
+                            isDownloaded(entry.track.songId || entry.track.src) && styles.continueDownloadButtonDownloaded,
+                            isDownloading(entry.track.songId || entry.track.src) && styles.continueDownloadButtonDownloading,
+                          ]}
+                          activeOpacity={0.7}
+                        >
+                          {isDownloading(entry.track.songId || entry.track.src) ? (
+                            <Loader2 size={10} color="#fff" />
+                          ) : isDownloaded(entry.track.songId || entry.track.src) ? (
+                            <CheckCircle size={10} color="#fff" />
+                          ) : (
+                            <Download size={10} color="#fff" />
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableOpacity>
+                    <Text style={styles.continueTitle} numberOfLines={1}>{entry.track.title}</Text>
+                    <Text style={styles.continueArtist} numberOfLines={1}>{entry.track.artist}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Mood Categories */}
+          <DeferredSection>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Music2 size={16} color="#1DB954" />
+                <Text style={styles.sectionTitle}>Browse by Mood</Text>
+              </View>
+              <View style={styles.moodGrid}>
+                {moodCategories.map((mood) => (
+                  <MoodCard
+                    key={mood.name}
+                    mood={mood}
+                    onPress={() => {
+                      console.log(`[BrowseByMood] 🎯 Mood selected: "${mood.name}" | Search Query: "${mood.searchQuery}"`);
+                      setMoodPlaylist(mood);
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+          </DeferredSection>
+
+          {/* Top Music Labels */}
+          <DeferredSection>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Music2 size={16} color="#1DB954" />
+                <Text style={styles.sectionTitle}>Top Music Labels</Text>
+              </View>
+              <View style={styles.labelGrid}>
+                {musicLabels.map((label) => (
+                  <LabelCard
+                    key={label.name}
+                    label={label}
+                    onPress={() => loadingLabel !== label.name && playLabelSongs(label)}
+                    onShuffle={() => {
+                      if (loadingLabel !== label.name) playLabelSongs(label, true);
+                    }}
+                    isLoading={loadingLabel === label.name}
+                  />
+                ))}
+              </View>
+            </View>
+          </DeferredSection>
+
+          {/* Featured Playlists from JioSaavn */}
+          {featuredPlaylists.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderLeft}>
+                  <Music2 size={16} color="#1DB954" />
+                  <Text style={styles.sectionTitle}>Featured Playlists</Text>
+                </View>
+                <View style={styles.sectionHeaderRight}>
+                  <TouchableOpacity onPress={() => setShowPlaylistsModal(true)} style={styles.iconButton} activeOpacity={0.7}>
+                    <Search size={12} color="#1DB954" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setShowFullTrending(true)} style={styles.viewAllButton} activeOpacity={0.7}>
+                    <Text style={styles.viewAllText}>View All</Text>
+                    <ChevronRight size={12} color="#1DB954" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.filterChips}>
+                <TouchableOpacity
+                  onPress={() => setPlaylistFilter("all")}
+                  style={[styles.filterChip, playlistFilter === "all" && styles.filterChipActive]}
+                  activeOpacity={0.7}
                 >
-                  <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-primary transition-all">
-                    <img src={artist.image} alt={artist.name} width={80} height={80} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                      <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </div>
-                  <p className="text-[10px] md:text-xs text-muted-foreground group-hover:text-foreground transition-colors text-center w-16 md:w-20 truncate">{artist.name}</p>
-                </button>
-              ))}
-            </div>
-          </section>
+                  <Text style={[styles.filterChipText, playlistFilter === "all" && styles.filterChipTextActive]}>All</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setPlaylistFilter("hindi")}
+                  style={[styles.filterChip, playlistFilter === "hindi" && styles.filterChipActive]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.filterChipText, playlistFilter === "hindi" && styles.filterChipTextActive]}>Hindi</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setPlaylistFilter("bengali")}
+                  style={[styles.filterChip, playlistFilter === "bengali" && styles.filterChipActive]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.filterChipText, playlistFilter === "bengali" && styles.filterChipTextActive]}>Bengali</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                {featuredPlaylists.map((playlist) => (
+                  <TouchableOpacity
+                    key={playlist.id}
+                    onPress={() => loadingLabel !== playlist.id && playJioSaavnPlaylist(playlist)}
+                    style={styles.playlistCard}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.playlistImageContainer}>
+                      <Image
+                        source={{ uri: playlist.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || playlist.image?.[playlist.image.length - 1]?.link || "" }}
+                        style={styles.playlistImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.playlistOverlay}>
+                        <View style={styles.playlistPlayButton}>
+                          <Play size={14} color="#fff" style={{ marginLeft: 2 }} />
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        onPress={(e) => { 
+                          e.stopPropagation(); 
+                          addToQueue({ id: Date.now(), title: playlist.title, artist: playlist.subtitle, album: "", cover: playlist.image?.[0]?.link || "", src: "", duration: 0, type: "audio" }); 
+                          toast.success("Added to queue", { description: playlist.title });
+                        }}
+                        style={styles.playlistQueueButton}
+                        activeOpacity={0.7}
+                      >
+                        <Plus size={12} color="#fff" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={async (e) => {
+                          e.stopPropagation();
+                          if (!user) {
+                            toast.error("Please login to save playlists");
+                            return;
+                          }
+                          const newPlaylist = await createPlaylist(playlist.title);
+                          if (newPlaylist) {
+                            toast.success("Playlist created", { description: playlist.title });
+                          } else {
+                            toast.error("Failed to create playlist");
+                          }
+                        }}
+                        style={[styles.playlistQueueButton, { right: 36 }]}
+                        activeOpacity={0.7}
+                      >
+                        <Plus size={10} color="#1DB954" style={{ transform: [{ rotate: '45deg' }] }} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.playlistTitle} numberOfLines={1}>{playlist.title}</Text>
+                    <Text style={styles.playlistSubtitle} numberOfLines={1}>{playlist.subtitle}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <View style={styles.shuffleAllContainer}>
+                <TouchableOpacity
+                  onPress={handleShufflePlaylists}
+                  style={styles.shuffleAllButton}
+                  activeOpacity={0.7}
+                >
+                  <RefreshCw size={14} color="#888" />
+                  <Text style={styles.shuffleAllText}>Shuffle All ({apiFeaturedPlaylists.length})</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {featuredPlaylists.length === 0 && !homeLoading && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Music2 size={16} color="#1DB954" />
+                <Text style={styles.sectionTitle}>Featured Playlists</Text>
+              </View>
+              <Text style={styles.loadingText}>Loading playlists...</Text>
+            </View>
+          )}
+
+          {/* Saved Artists */}
+          <DeferredSection>
+            {artistFavorites.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Saved Artists ({artistFavorites.length})</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                  {artistFavorites.map((artist) => (
+                    <ArtistCircle
+                      key={artist.id}
+                      image={artist.image}
+                      name={artist.name}
+                      onPress={() => setArtistPlaylist({ name: artist.name, query: artist.name, artistId: artist.id })}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </DeferredSection>
+
+          {/* Top Hindi Artists */}
+          <DeferredSection>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Hindi Artists</Text>
+                <TouchableOpacity onPress={() => setShowViewAllArtists(true)} style={styles.viewAllButton} activeOpacity={0.7}>
+                  <Text style={styles.viewAllText}>View All</Text>
+                  <ChevronRight size={12} color="#1DB954" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                {hindiArtists.map((artist) => (
+                  <ArtistCircle
+                    key={artist.name}
+                    image={artist.image}
+                    name={artist.name}
+                    onPress={() => setArtistPlaylist({ name: artist.name, query: artist.searchQuery })}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          </DeferredSection>
+
+          {/* Top Bengali Artists */}
+          <DeferredSection>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Bengali Artists</Text>
+                <TouchableOpacity onPress={() => setShowViewAllArtists(true)} style={styles.viewAllButton} activeOpacity={0.7}>
+                  <Text style={styles.viewAllText}>View All</Text>
+                  <ChevronRight size={12} color="#1DB954" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                {bengaliArtists.map((artist) => (
+                  <ArtistCircle
+                    key={artist.name}
+                    image={artist.image}
+                    name={artist.name}
+                    onPress={() => setArtistPlaylist({ name: artist.name, query: artist.searchQuery })}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          </DeferredSection>
+
+          {/* Actresses - Singer All Time Hits */}
+          <DeferredSection>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderLeft}>
+                  <Text style={styles.sectionEmoji}>🎤</Text>
+                  <Text style={styles.sectionTitle}>Actress & Singers</Text>
+                  <View style={styles.newBadge}>
+                    <Text style={styles.newBadgeText}>NEW</Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => setShowActressesModal(true)} style={styles.viewAllButton} activeOpacity={0.7}>
+                  <Text style={styles.viewAllText}>View All</Text>
+                  <ChevronRight size={12} color="#1DB954" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                {actresses.slice(0, 10).map((actress) => (
+                  <TouchableOpacity
+                    key={actress.name}
+                    onPress={() => setActressPlaylist({ name: actress.name, query: actress.searchQuery })}
+                    style={styles.actressCircle}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.actressImageContainer}>
+                      <Image source={{ uri: actress.image }} style={styles.actressImage} resizeMode="cover" />
+                      <View style={styles.artistOverlay}>
+                        <Play size={16} color="#fff" />
+                      </View>
+                    </View>
+                    <Text style={styles.actressName} numberOfLines={2}>{actress.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </DeferredSection>
+
+          {/* Bengali Hits */}
+          <DeferredSection>
+            {bengaliHits.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionEmoji}>🎵</Text>
+                  <Text style={styles.sectionTitle}>Bangla Hits</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                  {bengaliHits.map((track, i) => (
+                    <TrackCard
+                      key={track.src + i}
+                      track={track}
+                      index={i}
+                      tracks={bengaliHits}
+                      onPress={() => playTrackList(bengaliHits, i)}
+                      showBadge
+                      badgeText="BANGLA"
+                      badgeColor="#15803d"
+                      onAddToQueue={() => addToQueue(track)}
+                      onDownload={() => downloadTrack(track)}
+                      isDownloaded={isDownloaded(track.songId || track.src)}
+                      isDownloading={isDownloading(track.songId || track.src)}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </DeferredSection>
+
+          {/* For You — Personalized */}
+          <DeferredSection>
+            {forYouTracks.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Sparkles size={16} color="#1DB954" />
+                  <Text style={styles.sectionTitle}>For You</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                  {forYouTracks.map((track, i) => (
+                    <TrackCard
+                      key={track.src + i}
+                      track={track}
+                      index={i}
+                      tracks={forYouTracks}
+                      onPress={() => playTrackList(forYouTracks, i)}
+                      onAddToQueue={() => addToQueue(track)}
+                      onDownload={() => downloadTrack(track)}
+                      isDownloaded={isDownloaded(track.songId || track.src)}
+                      isDownloading={isDownloading(track.songId || track.src)}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </DeferredSection>
+
+          {/* Sunday Suspense / Horror Thriller — YouTube */}
+          <DeferredSection>
+            {horrorPodcast.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <Text style={styles.sectionEmoji}>🎙️</Text>
+                    <Text style={styles.sectionTitle}>Sunday Suspense Vibes</Text>
+                    <View style={styles.ytBadge}>
+                      <Text style={styles.ytBadgeText}>YT</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity onPress={() => setShowFullSuspense(true)} style={styles.viewAllButton} activeOpacity={0.7}>
+                    <Text style={styles.viewAllText}>View All</Text>
+                    <ChevronRight size={12} color="#1DB954" />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                  {horrorPodcast.map((track, i) => (
+                    <View key={track.src + i} style={styles.trackCard}>
+                      <TouchableOpacity onPress={() => playTrackList(horrorPodcast, i)} activeOpacity={0.7}>
+                        <View style={styles.trackCardImageContainer}>
+                          <Image source={{ uri: track.cover }} style={styles.trackCardImage} resizeMode="cover" />
+                          <View style={styles.suspenseOverlay}>
+                            <View style={styles.suspensePlayButton}>
+                              <Play size={14} color="#fff" style={{ marginLeft: 2 }} />
+                            </View>
+                          </View>
+                          <View style={styles.suspenseBadge}>
+                            <Text style={styles.suspenseBadgeText}>▶ YT</Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={(e) => { e.stopPropagation(); addToQueue(track); }}
+                            style={styles.suspenseQueueButton}
+                            activeOpacity={0.7}
+                          >
+                            <Plus size={12} color="#fff" />
+                          </TouchableOpacity>
+                        </View>
+                      </TouchableOpacity>
+                      <Text style={styles.trackCardTitle} numberOfLines={1}>{track.title}</Text>
+                      <Text style={styles.trackCardArtist} numberOfLines={1}>{track.artist}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </DeferredSection>
+
+          {/* Time Machine */}
+          <DeferredSection>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderLeft}>
+                  <TrendingUp size={16} color="#1DB954" />
+                  <Text style={styles.sectionTitle}>Time Machine</Text>
+                </View>
+                <Text style={styles.sectionSubtitle}>Decades</Text>
+              </View>
+              <View style={styles.eraGrid}>
+                {eraCategories.map((era) => (
+                  <EraCard
+                    key={era.name}
+                    era={era}
+                    onPress={() => setTimeMachineEra(era)}
+                  />
+                ))}
+              </View>
+            </View>
+          </DeferredSection>
+
+          {/* Quick Picks */}
+          <DeferredSection>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Quick Picks</Text>
+              <View style={styles.quickPicksGrid}>
+                <QuickPickButton
+                  title="Arijit Singh Top 20"
+                  desc="Most popular tracks"
+                  query="Arijit Singh top hits"
+                  color="from-rose-600/20 to-pink-600/10"
+                  onPress={() => handleSearchAndPlay("Arijit Singh top hits")}
+                  isLoading={isLoading("Arijit Singh top hits")}
+                />
+                <QuickPickButton
+                  title="Bengali Modern Songs"
+                  desc="Contemporary bengali hits"
+                  query="modern bengali songs"
+                  color="from-green-600/20 to-teal-600/10"
+                  onPress={() => handleSearchAndPlay("modern bengali songs")}
+                  isLoading={isLoading("modern bengali songs")}
+                />
+                <QuickPickButton
+                  title="Bollywood Blockbusters"
+                  desc="Chart-topping movie songs"
+                  query="bollywood blockbuster songs"
+                  color="from-orange-600/20 to-red-600/10"
+                  onPress={() => handleSearchAndPlay("bollywood blockbuster songs")}
+                  isLoading={isLoading("bollywood blockbuster songs")}
+                />
+                <QuickPickButton
+                  title="Lofi & Chill"
+                  desc="Relaxed vibes for focus"
+                  query="lofi hindi songs chill"
+                  color="from-indigo-600/20 to-purple-600/10"
+                  onPress={() => handleSearchAndPlay("lofi hindi songs chill")}
+                  isLoading={isLoading("lofi hindi songs chill")}
+                />
+              </View>
+            </View>
+          </DeferredSection>
+
+          {/* YouTube Trending */}
+          <DeferredSection>
+            {ytTrending.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <Text style={styles.sectionEmoji}>▶️</Text>
+                    <Text style={styles.sectionTitle}>YouTube Trending</Text>
+                    <View style={styles.ytBadge}>
+                      <Text style={styles.ytBadgeText}>YT</Text>
+                    </View>
+                  </View>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                  {ytTrending.map((track, i) => (
+                    <View key={track.src + i} style={styles.trackCard}>
+                      <TouchableOpacity onPress={() => playTrackList(ytTrending, i)} activeOpacity={0.7}>
+                        <View style={styles.trackCardImageContainer}>
+                          <Image source={{ uri: track.cover }} style={styles.trackCardImage} resizeMode="cover" />
+                          <View style={styles.ytOverlay}>
+                            <View style={styles.ytPlayButton}>
+                              <Play size={14} color="#fff" style={{ marginLeft: 2 }} />
+                            </View>
+                          </View>
+                          <View style={styles.ytBadgeAbsolute}>
+                            <Text style={styles.ytBadgeText}>▶ YT</Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={(e) => { e.stopPropagation(); addToQueue(track); }}
+                            style={styles.ytQueueButton}
+                            activeOpacity={0.7}
+                          >
+                            <Plus size={12} color="#fff" />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={(e) => { e.stopPropagation(); downloadTrack(track); }}
+                            disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
+                            style={[
+                              styles.ytDownloadButton,
+                              isDownloaded(track.songId || track.src) && styles.ytDownloadButtonDownloaded,
+                              isDownloading(track.songId || track.src) && styles.ytDownloadButtonDownloading,
+                            ]}
+                            activeOpacity={0.7}
+                          >
+                            {isDownloading(track.songId || track.src) ? (
+                              <Loader2 size={10} color="#fff" />
+                            ) : isDownloaded(track.songId || track.src) ? (
+                              <CheckCircle size={10} color="#fff" />
+                            ) : (
+                              <Download size={10} color="#fff" />
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      </TouchableOpacity>
+                      <Text style={styles.trackCardTitle} numberOfLines={1}>{track.title}</Text>
+                      <Text style={styles.trackCardArtist} numberOfLines={1}>{track.artist}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </DeferredSection>
+
+          {/* YouTube Quick Picks */}
+          <DeferredSection>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionEmoji}>🎬</Text>
+                <Text style={styles.sectionTitle}>YouTube Quick Picks</Text>
+              </View>
+              <View style={styles.quickPicksGrid}>
+                <QuickPickButton
+                  title="Arijit Singh Live"
+                  desc="Top YouTube performances"
+                  query="arijit singh live performance 2024"
+                  color="from-rose-600/20 to-pink-600/10"
+                  onPress={() => handleYtQuickPlay("arijit singh live performance 2024")}
+                  isLoading={ytLoadingQuery === "arijit singh live performance 2024"}
+                  iconColor="#ef4444"
+                />
+                <QuickPickButton
+                  title="Bangla Hits on YT"
+                  desc="Viral Bengali music videos"
+                  query="viral bangla song 2024 2025"
+                  color="from-green-600/20 to-teal-600/10"
+                  onPress={() => handleYtQuickPlay("viral bangla song 2024 2025")}
+                  isLoading={ytLoadingQuery === "viral bangla song 2024 2025"}
+                  iconColor="#ef4444"
+                />
+                <QuickPickButton
+                  title="Bollywood Unplugged"
+                  desc="Acoustic & studio sessions"
+                  query="bollywood unplugged acoustic 2024"
+                  color="from-amber-600/20 to-orange-600/10"
+                  onPress={() => handleYtQuickPlay("bollywood unplugged acoustic 2024")}
+                  isLoading={ytLoadingQuery === "bollywood unplugged acoustic 2024"}
+                  iconColor="#ef4444"
+                />
+                <QuickPickButton
+                  title="Lofi Bengali"
+                  desc="Chill Bengali lofi beats"
+                  query="bengali lofi chill music"
+                  color="from-indigo-600/20 to-purple-600/10"
+                  onPress={() => handleYtQuickPlay("bengali lofi chill music")}
+                  isLoading={ytLoadingQuery === "bengali lofi chill music"}
+                  iconColor="#ef4444"
+                />
+              </View>
+            </View>
+          </DeferredSection>
+        </View>
+
+        {/* Modals */}
+        {artistDetail && (
+          <ArtistDetail
+            artistName={artistDetail.name}
+            searchQuery={artistDetail.query}
+            onClose={() => setArtistDetail(null)}
+          />
         )}
-        </DeferredSection>
-
-        {/* Top Hindi Artists */}
-        <DeferredSection>
-        <section className="mb-6 md:mb-8 animate-fade-in">
-          <div className="flex items-center justify-between mb-2 md:mb-3">
-            <h3 className="text-base md:text-lg font-bold text-foreground">Hindi Artists</h3>
-            <button
-              onClick={() => setShowViewAllArtists(true)}
-              className="text-[11px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
-            >
-              View All <ChevronRight size={12} />
-            </button>
-          </div>
-          <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 scrollbar-hide">
-            {hindiArtists.map((artist) => (
-              <button
-                key={artist.name}
-                onClick={() => setArtistPlaylist({ name: artist.name, query: artist.searchQuery })}
-                className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 group"
-              >
-                <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-primary transition-all">
-                  <img src={artist.image} alt={artist.name} width={80} height={80} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                    <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </div>
-                <p className="text-[10px] md:text-xs text-muted-foreground group-hover:text-foreground transition-colors text-center w-16 md:w-20 truncate">{artist.name}</p>
-              </button>
-            ))}
-          </div>
-        </section>
-        </DeferredSection>
-
-        {/* Top Bengali Artists */}
-        <DeferredSection>
-        <section className="mb-6 md:mb-8 animate-fade-in">
-          <div className="flex items-center justify-between mb-2 md:mb-3">
-            <h3 className="text-base md:text-lg font-bold text-foreground">Bengali Artists</h3>
-            <button
-              onClick={() => setShowViewAllArtists(true)}
-              className="text-[11px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
-            >
-              View All <ChevronRight size={12} />
-            </button>
-          </div>
-          <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 scrollbar-hide">
-            {bengaliArtists.map((artist) => (
-              <button
-                key={artist.name}
-                onClick={() => setArtistPlaylist({ name: artist.name, query: artist.searchQuery })}
-                className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 group"
-              >
-                <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-primary transition-all">
-                  <img src={artist.image} alt={artist.name} width={80} height={80} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                    <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </div>
-                <p className="text-[10px] md:text-xs text-muted-foreground group-hover:text-foreground transition-colors text-center w-16 md:w-20 truncate">{artist.name}</p>
-              </button>
-            ))}
-          </div>
-        </section>
-        </DeferredSection>
-
-        {/* Actresses - Singer All Time Hits */}
-        <DeferredSection>
-        <section className="mb-6 md:mb-8 animate-fade-in">
-          <div className="flex items-center justify-between mb-2 md:mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-base">🎤</span>
-              <h3 className="text-base md:text-lg font-bold text-foreground">Actress & Singers</h3>
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-pink-600/20 text-pink-400 font-bold">NEW</span>
-            </div>
-            <button
-              onClick={() => setShowActressesModal(true)}
-              className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
-            >
-              View All <ChevronRight size={12} />
-            </button>
-          </div>
-          <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 scrollbar-hide">
-            {actresses.slice(0, 10).map((actress) => (
-              <button
-                key={actress.name}
-                onClick={() => setActressPlaylist({ name: actress.name, query: actress.searchQuery })}
-                className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 group"
-              >
-                <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-pink-500 transition-all">
-                  <img src={actress.image} alt={actress.name} width={80} height={80} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                    <Play size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </div>
-                <p className="text-[10px] md:text-xs text-muted-foreground group-hover:text-foreground transition-colors text-center w-16 md:w-20 truncate">{actress.name}</p>
-              </button>
-            ))}
-          </div>
-        </section>
-        </DeferredSection>
-
-        {/* Bengali Hits */}
-        <DeferredSection>
-        {bengaliHits.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🎵</span>
-                <h3 className="text-base md:text-lg font-bold text-foreground">Bangla Hits</h3>
-              </div>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {bengaliHits.map((track, i) => (
-                <div key={track.src + i} onClick={() => playTrackList(bengaliHits, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <button
-                      onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                      title="Add to queue"
-                    >
-                      <Plus size={12} className="text-white" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
-                      disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
-                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                        isDownloaded(track.songId || track.src)
-                          ? "bg-green-600/80"
-                          : isDownloading(track.songId || track.src)
-                          ? "bg-yellow-600/80"
-                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
-                      }`}
-                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : "Download for offline"}
-                    >
-                      {isDownloading(track.songId || track.src) ? (
-                        <Loader2 size={10} className="text-white animate-spin" />
-                      ) : isDownloaded(track.songId || track.src) ? (
-                        <CheckCircle size={10} className="text-white" />
-                      ) : (
-                        <Download size={10} className="text-white" />
-                      )}
-                    </button>
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
-                        <Play size={14} className="text-primary-foreground ml-0.5" />
-                      </div>
-                    </div>
-                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-green-700/80 px-1.5 py-0.5 rounded">
-                      BANGLA
-                    </span>
-                  </div>
-                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                </div>
-              ))}
-            </div>
-          </section>
+        {artistPlaylist && (
+          <ArtistPlaylist
+            artistName={artistPlaylist.name}
+            searchQuery={artistPlaylist.query}
+            artistId={artistPlaylist.artistId}
+            onClose={() => setArtistPlaylist(null)}
+          />
         )}
-        </DeferredSection>
-
-        {/* For You — Personalized */}
-        <DeferredSection>
-        {forYouTracks.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-primary" />
-                <h3 className="text-base md:text-lg font-bold text-foreground">For You</h3>
-              </div>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {forYouTracks.map((track, i) => (
-                <div key={track.src + i} onClick={() => playTrackList(forYouTracks, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <button onClick={(e) => { e.stopPropagation(); addToQueue(track); }} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all" title="Add to queue"><Plus size={12} className="text-white" /></button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
-                      disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
-                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                        isDownloaded(track.songId || track.src)
-                          ? "bg-green-600/80"
-                          : isDownloading(track.songId || track.src)
-                          ? "bg-yellow-600/80"
-                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
-                      }`}
-                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : "Download for offline"}
-                    >
-                      {isDownloading(track.songId || track.src) ? (
-                        <Loader2 size={10} className="text-white animate-spin" />
-                      ) : isDownloaded(track.songId || track.src) ? (
-                        <CheckCircle size={10} className="text-white" />
-                      ) : (
-                        <Download size={10} className="text-white" />
-                      )}
-                    </button>
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
-                        <Play size={14} className="text-primary-foreground ml-0.5" />
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                </div>
-              ))}
-            </div>
-          </section>
+        {showViewAllArtists && (
+          <ViewAllArtists
+            onSelectArtist={(artist) => {
+              setShowViewAllArtists(false);
+              setArtistPlaylist({ name: artist.name, query: artist.searchQuery, artistId: (artist as { artistId?: string }).artistId });
+            }}
+            onClose={() => setShowViewAllArtists(false)}
+          />
         )}
-        </DeferredSection>
-
-
-        {/* Sunday Suspense / Horror Thriller — YouTube */}
-        <DeferredSection>
-        {horrorPodcast.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🎙️</span>
-                <h3 className="text-base md:text-lg font-bold text-foreground">Sunday Suspense Vibes</h3>
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-600/20 text-red-400 font-bold">YT</span>
-              </div>
-              <button
-                onClick={() => setShowFullSuspense(true)}
-                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-medium transition-colors flex items-center gap-1"
-              >
-                View All <ChevronRight size={12} />
-              </button>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {horrorPodcast.map((track, i) => (
-                <div key={track.src + i} onClick={() => playTrackList(horrorPodcast, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <button onClick={(e) => { e.stopPropagation(); addToQueue(track); }} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all" title="Add to queue"><Plus size={12} className="text-white" /></button>
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
-                        <Play size={14} className="text-white ml-0.5" />
-                      </div>
-                    </div>
-                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-red-600/90 px-1.5 py-0.5 rounded">▶ YT</span>
-                  </div>
-                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                </div>
-              ))}
-            </div>
-          </section>
+        {timeMachineEra && (
+          <TimeMachinePlaylist
+            eraName={timeMachineEra.name}
+            subtitle={timeMachineEra.subtitle}
+            searchQuery={timeMachineEra.searchQuery}
+            onClose={() => setTimeMachineEra(null)}
+          />
         )}
-        </DeferredSection>
-
-        {/* Time Machine */}
-        <DeferredSection>
-        <section className="mb-6 md:mb-8 animate-fade-in">
-          <div className="flex items-center justify-between mb-2 md:mb-3">
-            <div className="flex items-center gap-2">
-              <TrendingUp size={16} className="text-primary" />
-              <h3 className="text-base md:text-lg font-bold text-foreground">Time Machine</h3>
-            </div>
-            <p className="text-[9px] md:text-[10px] text-muted-foreground">Decades</p>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 md:gap-2.5">
-            {eraCategories.map((era) => (
-              <button
-                key={era.name}
-                onClick={() => setTimeMachineEra(era)}
-                className={`relative p-3.5 md:p-3 rounded-xl bg-gradient-to-br ${era.gradient} cursor-pointer hover:scale-[1.03] active:scale-[0.97] transition-transform group overflow-hidden`}
-              >
-                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
-                <div className="relative text-center">
-                  <p className="text-lg md:text-xl font-black text-white">{era.name}</p>
-                  <p className="text-[8px] md:text-[9px] text-white/80 mt-0.5 truncate">{era.subtitle}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-        </DeferredSection>
-
-        {/* Quick Picks */}
-        <DeferredSection>
-        <section className="mb-6 md:mb-8 animate-fade-in">
-          <h3 className="text-base md:text-lg font-bold text-foreground mb-2 md:mb-3">Quick Picks</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 md:gap-2.5">
-            {[
-              { title: "Arijit Singh Top 20", desc: "Most popular tracks", query: "Arijit Singh top hits", color: "from-rose-600/20 to-pink-600/10" },
-              { title: "Bengali Modern Songs", desc: "Contemporary bengali hits", query: "modern bengali songs", color: "from-green-600/20 to-teal-600/10" },
-              { title: "Bollywood Blockbusters", desc: "Chart-topping movie songs", query: "bollywood blockbuster songs", color: "from-orange-600/20 to-red-600/10" },
-              { title: "Lofi & Chill", desc: "Relaxed vibes for focus", query: "lofi hindi songs chill", color: "from-indigo-600/20 to-purple-600/10" },
-            ].map((pick) => (
-              <button
-                key={pick.title}
-                onClick={() => handleSearchAndPlay(pick.query)}
-                disabled={isLoading(pick.query)}
-                className={`flex items-center gap-3 p-3 md:p-3.5 rounded-xl bg-gradient-to-r ${pick.color} border border-border hover:border-primary/30 transition-all group cursor-pointer`}
-              >
-                <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/30 transition-colors">
-                  {isLoading(pick.query) ? (
-                    <div className="w-3 h-3 md:w-3.5 md:h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Play size={14} className="text-primary" />
-                  )}
-                </div>
-                <div className="text-left min-w-0">
-                  <p className="text-[11px] md:text-xs font-semibold text-foreground truncate">{pick.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{pick.desc}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-        </DeferredSection>
-
-        {/* YouTube Trending */}
-        <DeferredSection>
-        {ytTrending.length > 0 && (
-          <section className="mb-6 md:mb-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">▶️</span>
-                <h3 className="text-base md:text-lg font-bold text-foreground">YouTube Trending</h3>
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-600/20 text-red-400 font-bold">YT</span>
-              </div>
-            </div>
-            <div className="flex gap-2.5 md:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {ytTrending.map((track, i) => (
-                <div key={track.src + i} onClick={() => playTrackList(ytTrending, i)} className="flex-shrink-0 w-28 md:w-36 group cursor-pointer">
-                  <div className="relative mb-1.5 md:mb-2">
-                    <img src={track.cover} alt="" loading="lazy" width={144} height={144} className="w-28 h-28 md:w-36 md:h-36 rounded-lg object-cover shadow-md group-hover:shadow-xl transition-shadow" />
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-colors">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 shadow-lg">
-                        <Play size={14} className="text-white ml-0.5" />
-                      </div>
-                    </div>
-                    <span className="absolute top-1.5 left-1.5 text-[8px] md:text-[9px] font-bold text-white bg-red-600/90 px-1.5 py-0.5 rounded">▶ YT</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                      title="Add to queue"
-                    >
-                      <Plus size={12} className="text-white" />
-                    </button>
-                    {/* Download button - now enabled for YouTube too */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
-                      disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
-                      className={`absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                        isDownloaded(track.songId || track.src)
-                          ? "bg-green-600/80"
-                          : isDownloading(track.songId || track.src)
-                          ? "bg-yellow-600/80"
-                          : "bg-black/60 hover:bg-green-600 opacity-0 group-hover:opacity-100"
-                      }`}
-                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : "Download for offline"}
-                    >
-                      {isDownloading(track.songId || track.src) ? (
-                        <Loader2 size={10} className="text-white animate-spin" />
-                      ) : isDownloaded(track.songId || track.src) ? (
-                        <CheckCircle size={10} className="text-white" />
-                      ) : (
-                        <Download size={10} className="text-white" />
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-[11px] md:text-xs font-medium text-foreground truncate">{track.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{track.artist}</p>
-                </div>
-              ))}
-            </div>
-          </section>
+        {moodPlaylist && (
+          <MoodPlaylist
+            moodName={moodPlaylist.name}
+            emoji={moodPlaylist.emoji}
+            searchQuery={moodPlaylist.searchQuery}
+            gradient={moodPlaylist.gradient}
+            onClose={() => setMoodPlaylist(null)}
+          />
         )}
-        </DeferredSection>
 
-        {/* YouTube Quick Picks */}
-        <DeferredSection>
-        <section className="mb-6 md:mb-8 animate-fade-in">
-          <div className="flex items-center gap-2 mb-2 md:mb-3">
-            <span className="text-base">🎬</span>
-            <h3 className="text-base md:text-lg font-bold text-foreground">YouTube Quick Picks</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {[
-              { title: "Arijit Singh Live", desc: "Top YouTube performances", query: "arijit singh live performance 2024", color: "from-rose-600/20 to-pink-600/10" },
-              { title: "Bangla Hits on YT", desc: "Viral Bengali music videos", query: "viral bangla song 2024 2025", color: "from-green-600/20 to-teal-600/10" },
-              { title: "Bollywood Unplugged", desc: "Acoustic & studio sessions", query: "bollywood unplugged acoustic 2024", color: "from-amber-600/20 to-orange-600/10" },
-              { title: "Lofi Bengali", desc: "Chill Bengali lofi beats", query: "bengali lofi chill music", color: "from-indigo-600/20 to-purple-600/10" },
-            ].map((pick) => (
-              <button
-                key={pick.title}
-                onClick={() => handleYtQuickPlay(pick.query)}
-                disabled={ytLoadingQuery === pick.query}
-                className={`flex items-center gap-3 p-3 md:p-3.5 rounded-xl bg-gradient-to-r ${pick.color} border border-border hover:border-red-500/30 transition-all group cursor-pointer`}
-              >
-                <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg bg-red-600/20 flex items-center justify-center flex-shrink-0 group-hover:bg-red-600/30 transition-colors">
-                  {ytLoadingQuery === pick.query ? (
-                    <div className="w-3 h-3 md:w-3.5 md:h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Play size={14} className="text-red-400" />
-                  )}
-                </div>
-                <div className="text-left min-w-0">
-                  <p className="text-[11px] md:text-xs font-semibold text-foreground truncate">{pick.title}</p>
-                  <p className="text-[9px] md:text-[10px] text-muted-foreground truncate">{pick.desc}</p>
-                </div>
-                <span className="text-[8px] font-bold text-red-400 bg-red-600/10 px-1.5 py-0.5 rounded flex-shrink-0">YT</span>
-              </button>
-            ))}
-          </div>
-        </section>
-        </DeferredSection>
-      </div>
+        {actressPlaylist && (
+          <ArtistPlaylist
+            artistName={actressPlaylist.name}
+            searchQuery={actressPlaylist.query}
+            onClose={() => setActressPlaylist(null)}
+          />
+        )}
+        {showActressesModal && (
+          <ActressesModal
+            onSelectArtist={(artist) => {
+              setShowActressesModal(false);
+              setActressPlaylist({ name: artist.name, query: artist.searchQuery });
+            }}
+            onClose={() => setShowActressesModal(false)}
+          />
+        )}
+        {showPlaylistsModal && (
+          <PlaylistsModal
+            onSelectPlaylist={(playlist) => {
+              setShowPlaylistsModal(false);
+              playJioSaavnPlaylist(playlist);
+            }}
+            onClose={() => setShowPlaylistsModal(false)}
+          />
+        )}
 
-      {/* Modals */}
-      {artistDetail && (
-        <ArtistDetail
-          artistName={artistDetail.name}
-          searchQuery={artistDetail.query}
-          onClose={() => setArtistDetail(null)}
-        />
-      )}
-      {artistPlaylist && (
-        <ArtistPlaylist
-          artistName={artistPlaylist.name}
-          searchQuery={artistPlaylist.query}
-          artistId={artistPlaylist.artistId}
-          onClose={() => setArtistPlaylist(null)}
-        />
-      )}
-      {showViewAllArtists && (
-        <ViewAllArtists
-          onSelectArtist={(artist) => {
-            setShowViewAllArtists(false);
-            setArtistPlaylist({ name: artist.name, query: artist.searchQuery, artistId: (artist as { artistId?: string }).artistId });
-          }}
-          onClose={() => setShowViewAllArtists(false)}
-        />
-      )}
-      {timeMachineEra && (
-        <TimeMachinePlaylist
-          eraName={timeMachineEra.name}
-          subtitle={timeMachineEra.subtitle}
-          searchQuery={timeMachineEra.searchQuery}
-          onClose={() => setTimeMachineEra(null)}
-        />
-      )}
-      {moodPlaylist && (
-        <MoodPlaylist
-          moodName={moodPlaylist.name}
-          emoji={moodPlaylist.emoji}
-          searchQuery={moodPlaylist.searchQuery}
-          gradient={moodPlaylist.gradient}
-          onClose={() => setMoodPlaylist(null)}
-        />
-      )}
-
-      {actressPlaylist && (
-        <ArtistPlaylist
-          artistName={actressPlaylist.name}
-          searchQuery={actressPlaylist.query}
-          onClose={() => setActressPlaylist(null)}
-        />
-      )}
-      {showActressesModal && (
-        <ActressesModal
-          onSelectArtist={(artist) => {
-            setShowActressesModal(false);
-            setActressPlaylist({ name: artist.name, query: artist.searchQuery });
-          }}
-          onClose={() => setShowActressesModal(false)}
-        />
-      )}
-      {showPlaylistsModal && (
-        <PlaylistsModal
-          onSelectPlaylist={(playlist) => {
-            setShowPlaylistsModal(false);
-            playJioSaavnPlaylist(playlist);
-          }}
-          onClose={() => setShowPlaylistsModal(false)}
-        />
-      )}
-
-      {/* Full Playlist Modals */}
-      {showFullTrending && (
-        <FullPlaylist
-          title="Trending Now"
-          icon="trending"
-          initialSongs={trendingSongs}
-          loadMore={loadMoreTrending}
-          onClose={() => setShowFullTrending(false)}
-        />
-      )}
-      {showFullNewReleases && (
-        <FullPlaylist
-          title="New Releases"
-          icon="new"
-          initialSongs={newReleases}
-          loadMore={loadMoreNewReleases}
-          onClose={() => setShowFullNewReleases(false)}
-        />
-      )}
-      {showFullHistory && (
-        <FullPlaylist
-          title="Recently Played"
-          icon="history"
-          initialSongs={history.map((h) => h.track)}
-          onClose={() => setShowFullHistory(false)}
-        />
-      )}
-      {showFullSuspense && (
-        <FullPlaylist
-          title="Sunday Suspense Vibes"
-          icon="trending"
-          initialSongs={horrorPodcast}
-          onRefresh={async () => {
-            const queries = ["Sunday Suspense Mirchi Bangla", "Sunday Suspense 2024", "Sunday Suspense Saradindu", "Sunday Suspense Feluda", "Sunday Suspense Byomkesh"];
-            const q = queries[Math.floor(Math.random() * queries.length)];
-            const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`).catch(() => null);
-            if (!res?.ok) return [];
-            const videos: { videoId: string; title: string; author: string; duration: number; thumbnail: string }[] = await res.json();
-            return videos.slice(0, 10).map((v, i) => ({
-              id: 11000 + i, title: v.title, artist: v.author || "YouTube", album: "",
-              cover: v.thumbnail || "", src: `https://www.youtube.com/watch?v=${v.videoId}`,
-              duration: v.duration || 0, type: "youtube" as const, songId: v.videoId,
-            }));
-          }}
-          onClose={() => setShowFullSuspense(false)}
-        />
-      )}
-      {showFullFeaturedPlaylists && (
-        <FullPlaylist
-          title="Featured Playlists"
-          icon="trending"
-          initialSongs={apiFeaturedPlaylists.map((p, i) => ({
-            id: 9000 + i,
-            title: p.title,
-            artist: p.subtitle,
-            album: p.language || "",
-            cover: p.image?.[0]?.link || "",
-            src: p.id, // Store playlist ID in src for special handling
-            duration: 0,
-            type: "audio" as const,
-            songId: p.id,
-          }))}
-          onClose={() => setShowFullFeaturedPlaylists(false)}
-        />
-      )}
+        {/* Full Playlist Modals */}
+        {showFullTrending && (
+          <FullPlaylist
+            title="Trending Now"
+            icon="trending"
+            initialSongs={trendingSongs}
+            loadMore={loadMoreTrending}
+            onClose={() => setShowFullTrending(false)}
+          />
+        )}
+        {showFullNewReleases && (
+          <FullPlaylist
+            title="New Releases"
+            icon="new"
+            initialSongs={newReleases}
+            loadMore={loadMoreNewReleases}
+            onClose={() => setShowFullNewReleases(false)}
+          />
+        )}
+        {showFullHistory && (
+          <FullPlaylist
+            title="Recently Played"
+            icon="history"
+            initialSongs={history.map((h) => h.track)}
+            onClose={() => setShowFullHistory(false)}
+          />
+        )}
+        {showFullSuspense && (
+          <FullPlaylist
+            title="Sunday Suspense Vibes"
+            icon="trending"
+            initialSongs={horrorPodcast}
+            onRefresh={async () => {
+              const queries = ["Sunday Suspense Mirchi Bangla", "Sunday Suspense 2024", "Sunday Suspense Saradindu", "Sunday Suspense Feluda", "Sunday Suspense Byomkesh"];
+              const q = queries[Math.floor(Math.random() * queries.length)];
+              const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=10`).catch(() => null);
+              if (!res?.ok) return [];
+              const data = await res.json();
+              const songs = data.data?.results || [];
+              return songs.slice(0, 10).map((s: { name: string; primaryArtists: string; album: { name: string } | string; duration: string | number; image: { quality: string; link: string }[]; downloadUrl: { quality: string; link: string }[]; id: string }, i: number) => {
+                const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
+                const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
+                return {
+                  id: 11000 + i, title: s.name?.replace(/"/g, '"') || "Unknown", artist: s.primaryArtists || "Unknown", album: typeof s.album === "string" ? s.album : s.album?.name || "",
+                  cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "", src: url160 || url96 || "",
+                  duration: parseInt(String(s.duration)) || 0, type: "audio" as const, songId: s.id,
+                };
+              });
+            }}
+            onClose={() => setShowFullSuspense(false)}
+          />
+        )}
+        {showFullFeaturedPlaylists && (
+          <FullPlaylist
+            title="Featured Playlists"
+            icon="trending"
+            initialSongs={apiFeaturedPlaylists.map((p, i) => ({
+              id: 9000 + i,
+              title: p.title,
+              artist: p.subtitle,
+              album: p.language || "",
+              cover: p.image?.[0]?.link || "",
+              src: p.id,
+              duration: 0,
+              type: "audio" as const,
+              songId: p.id,
+            }))}
+            onClose={() => setShowFullFeaturedPlaylists(false)}
+          />
+        )}
         {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} />}
-    </main>
+      </ScrollView>
+    </View>
   );
 };
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#0a0a0a",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 120,
+  },
+  pullIndicator: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  searchBarContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: "rgba(10,10,10,0.8)",
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+  },
+  searchBarText: {
+    fontSize: 14,
+    color: "#888",
+  },
+  carouselContainer: {
+    height: 200,
+    marginBottom: 16,
+  },
+  carouselSlide: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  carouselSlideHidden: {
+    opacity: 0,
+  },
+  carouselImage: {
+    width: "100%",
+    height: "100%",
+  },
+  carouselGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  carouselContent: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+  },
+  carouselInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  carouselThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+  },
+  carouselText: {
+    flex: 1,
+  },
+  carouselLabel: {
+    fontSize: 9,
+    color: "#1DB954",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  carouselTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  carouselArtist: {
+    fontSize: 10,
+    color: "#888",
+  },
+  carouselPlayButton: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: "#1DB954",
+    alignSelf: "flex-start",
+  },
+  carouselPlayText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  carouselControls: {
+    position: "absolute",
+    bottom: 12,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  carouselNavButton: {
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  carouselDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.4)",
+  },
+  carouselDotActive: {
+    width: 16,
+    backgroundColor: "#1DB954",
+  },
+  contentPadding: {
+    paddingHorizontal: 16,
+  },
+  greetingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  greetingEmoji: {
+    fontSize: 24,
+  },
+  greetingText: {
+    flex: 1,
+  },
+  greetingTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  greetingSubtitle: {
+    fontSize: 12,
+    color: "#888",
+    marginLeft: 32,
+  },
+  quickPlayCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(29,185,84,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(29,185,84,0.2)",
+    marginBottom: 24,
+  },
+  quickPlayLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  quickPlayIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "rgba(29,185,84,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickPlayTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  quickPlaySubtitle: {
+    fontSize: 10,
+    color: "#888",
+  },
+  quickPlayButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#1DB954",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  sectionHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  sectionSubtitle: {
+    fontSize: 10,
+    color: "#888",
+  },
+  sectionEmoji: {
+    fontSize: 16,
+  },
+  sectionHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  clearButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  clearButtonText: {
+    fontSize: 10,
+    color: "#888",
+    fontWeight: "600",
+  },
+  viewAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  viewAllText: {
+    fontSize: 10,
+    color: "#1DB954",
+    fontWeight: "600",
+  },
+  iconButton: {
+    padding: 4,
+  },
+  sectionDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#2a2a2a",
+  },
+  dividerText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#888",
+    textTransform: "uppercase",
+    letterSpacing: 2,
+  },
+  horizontalScroll: {
+    gap: 10,
+    paddingRight: 16,
+  },
+  trackCard: {
+    width: CARD_SIZE,
+  },
+  trackCardImageContainer: {
+    position: "relative",
+    marginBottom: 6,
+  },
+  trackCardImage: {
+    width: CARD_SIZE,
+    height: CARD_SIZE,
+    borderRadius: 8,
+  },
+  trackCardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0)",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#1DB954",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  rankBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  rankText: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  badge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  badgeText: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  queueButton: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  downloadButton: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  downloadButtonDownloaded: {
+    backgroundColor: "rgba(22,163,74,0.8)",
+    opacity: 1,
+  },
+  downloadButtonDownloading: {
+    backgroundColor: "rgba(202,138,4,0.8)",
+    opacity: 1,
+  },
+  trackCardTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  trackCardArtist: {
+    fontSize: 9,
+    color: "#888",
+  },
+  skeletonHeader: {
+    marginBottom: 8,
+  },
+  skeletonTitle: {
+    width: 64,
+    height: 16,
+    borderRadius: 4,
+    backgroundColor: "#2a2a2a",
+  },
+  songOfDayCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(245,158,11,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.2)",
+  },
+  songOfDayImageContainer: {
+    position: "relative",
+  },
+  songOfDayImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+  },
+  songOfDayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  songOfDayInfo: {
+    flex: 1,
+  },
+  songOfDayTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  songOfDayArtist: {
+    fontSize: 10,
+    color: "#888",
+  },
+  songOfDayBadge: {
+    fontSize: 9,
+    color: "#fbbf24",
+    marginTop: 2,
+  },
+  songOfDayDuration: {
+    fontSize: 10,
+    color: "#888",
+  },
+  nowPlayingInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+  },
+  nowPlayingImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 4,
+  },
+  nowPlayingTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  nowPlayingArtist: {
+    fontSize: 10,
+    color: "#888",
+  },
+  moodGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  moodCard: {
+    width: (SCREEN_WIDTH - 48) / 2,
+    height: 80,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  moodCardInner: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  moodCardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.1)",
+  },
+  moodCardContent: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    height: "100%",
+  },
+  moodEmoji: {
+    fontSize: 20,
+  },
+  moodName: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#fff",
+    marginTop: 4,
+  },
+  labelGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  labelCard: {
+    width: (SCREEN_WIDTH - 48) / 2,
+    height: 64,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  labelCardInner: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  labelCardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.1)",
+  },
+  labelCardContent: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    height: "100%",
+  },
+  labelName: {
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  labelShuffleButton: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    padding: 4,
+    borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  filterChips: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: "#1a1a1a",
+  },
+  filterChipActive: {
+    backgroundColor: "#1DB954",
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#888",
+  },
+  filterChipTextActive: {
+    color: "#fff",
+  },
+  playlistCard: {
+    width: CARD_SIZE,
+  },
+  playlistImageContainer: {
+    position: "relative",
+    marginBottom: 6,
+  },
+  playlistImage: {
+    width: CARD_SIZE,
+    height: CARD_SIZE,
+    borderRadius: 8,
+  },
+  playlistOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0)",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playlistPlayButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#1DB954",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  playlistQueueButton: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  playlistTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  playlistSubtitle: {
+    fontSize: 9,
+    color: "#888",
+  },
+  shuffleAllContainer: {
+    alignItems: "center",
+    marginTop: 8,
+  },
+  shuffleAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: "#1a1a1a",
+  },
+  shuffleAllText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#888",
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#888",
+  },
+  artistCircle: {
+    alignItems: "center",
+    width: 80,
+  },
+  artistImageContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    overflow: "hidden",
+    marginBottom: 6,
+  },
+  artistImage: {
+    width: "100%",
+    height: "100%",
+  },
+  artistOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0)",
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  artistName: {
+    fontSize: 10,
+    color: "#888",
+    textAlign: "center",
+    width: 64,
+  },
+  actressCircle: {
+    alignItems: "center",
+    width: 80,
+  },
+  actressImageContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    overflow: "hidden",
+    marginBottom: 6,
+    borderWidth: 2,
+    borderColor: "#ec4899",
+  },
+  actressImage: {
+    width: "100%",
+    height: "100%",
+  },
+  actressName: {
+    fontSize: 10,
+    color: "#888",
+    textAlign: "center",
+    width: 80,
+  },
+  newBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "rgba(219,39,119,0.2)",
+  },
+  newBadgeText: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: "#f472b6",
+  },
+  continueCard: {
+    width: CARD_SIZE,
+  },
+  continueImageContainer: {
+    position: "relative",
+    marginBottom: 6,
+  },
+  continueImage: {
+    width: CARD_SIZE,
+    height: CARD_SIZE,
+    borderRadius: 8,
+  },
+  continueOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0)",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  continuePlayButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#1DB954",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  continueProgressBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+  },
+  continueProgress: {
+    height: "100%",
+    backgroundColor: "#1DB954",
+    borderBottomRightRadius: 8,
+  },
+  continueDownloadButton: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  continueDownloadButtonDownloaded: {
+    backgroundColor: "rgba(22,163,74,0.8)",
+    opacity: 1,
+  },
+  continueDownloadButtonDownloading: {
+    backgroundColor: "rgba(202,138,4,0.8)",
+    opacity: 1,
+  },
+  continueTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  continueArtist: {
+    fontSize: 9,
+    color: "#888",
+  },
+  suspenseOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0)",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  suspensePlayButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#dc2626",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  suspenseBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "rgba(220,38,38,0.9)",
+  },
+  suspenseBadgeText: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  suspenseQueueButton: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  eraGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  eraCard: {
+    width: (SCREEN_WIDTH - 48) / 2,
+    height: 64,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  eraCardInner: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  eraCardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.2)",
+  },
+  eraCardContent: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    height: "100%",
+  },
+  eraName: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#fff",
+  },
+  eraSubtitle: {
+    fontSize: 8,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 2,
+  },
+  quickPicksGrid: {
+    gap: 10,
+  },
+  quickPickButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  quickPickIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "rgba(29,185,84,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickPickText: {
+    flex: 1,
+  },
+  quickPickTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  quickPickDesc: {
+    fontSize: 9,
+    color: "#888",
+  },
+  ytOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0)",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ytPlayButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#dc2626",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  ytBadgeAbsolute: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "rgba(220,38,38,0.9)",
+  },
+  ytQueueButton: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  ytDownloadButton: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0,
+  },
+  ytDownloadButtonDownloaded: {
+    backgroundColor: "rgba(22,163,74,0.8)",
+    opacity: 1,
+  },
+  ytDownloadButtonDownloading: {
+    backgroundColor: "rgba(202,138,4,0.8)",
+    opacity: 1,
+  },
+  ytBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "rgba(220,38,38,0.2)",
+  },
+  ytBadgeText: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: "#f87171",
+  },
+});

@@ -2,11 +2,15 @@ import React, { useRef, useCallback, useState, useMemo, memo, useEffect } from '
 import {
   View, Text, TouchableOpacity, Modal,
   Dimensions, PanResponder, Animated, StyleSheet,
-  Vibration,
+  Vibration, Alert, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePlayer } from '../context/PlayerContext';
+import { useAuth } from '../context/AuthContext';
+import { useDownloads } from '../hooks/useDownloads';
+import { usePlaylists } from '../hooks/usePlaylists';
+import { supabase } from '../lib/supabase';
 import { QueueManager } from './QueueManager';
 import { SleepTimerSheet } from './SleepTimerSheet';
 import { PlaybackSettingsSheet } from './PlaybackSettingsSheet';
@@ -128,12 +132,90 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
     queue, sleepMinutes, playbackSpeed, quality,
   } = usePlayer();
 
+  const { user } = useAuth();
+  const { downloadTrack, isDownloaded, isDownloading, getDownloadProgress } = useDownloads();
+  const { playlists, createPlaylist, addTrackToPlaylist } = usePlaylists();
+
   const [queueVisible, setQueueVisible] = useState(false);
   const [sleepVisible, setSleepVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [eqVisible, setEqVisible] = useState(false);
   const [volumeSeeking, setVolumeSeeking] = useState(false);
   const [volumeSeekValue, setVolumeSeekValue] = useState(0);
+
+  const handleDownload = useCallback(() => {
+    if (currentTrack && currentTrack.src) {
+      downloadTrack(currentTrack);
+    }
+  }, [currentTrack, downloadTrack]);
+
+  const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  const [playlistNameInput, setPlaylistNameInput] = useState('');
+
+  const handleAddToPlaylist = useCallback(() => {
+    if (!user) {
+      Alert.alert("Login Required", "Please login to add to playlist");
+      return;
+    }
+    if (!currentTrack) return;
+    
+    // Show the input modal
+    setShowPlaylistModal(true);
+  }, [user, currentTrack]);
+
+  const handleSavePlaylist = useCallback(async () => {
+    const playlistName = playlistNameInput.trim();
+    if (!playlistName) {
+      Alert.alert("Error", "Please enter a playlist name");
+      return;
+    }
+    
+    setShowPlaylistModal(false);
+    setPlaylistNameInput('');
+    
+    // Collect all tracks from queue + current track
+    const allTracks = queue.length > 0 ? [...queue, currentTrack] : [currentTrack];
+    console.log('[FullScreenPlayer] Adding to playlist, track count:', allTracks.length);
+    console.log('[FullScreenPlayer] Queue:', queue.map(t => ({ id: t.id, title: t.title })));
+    console.log('[FullScreenPlayer] CurrentTrack:', currentTrack ? { id: currentTrack.id, title: currentTrack.title } : null);
+    
+    // Create the playlist
+    const newPlaylist = await createPlaylist(playlistName);
+    console.log('[FullScreenPlayer] Playlist created:', newPlaylist);
+    
+    if (newPlaylist && currentTrack) {
+      // Add all tracks to the new playlist - use upsert to handle duplicates
+      // Remove duplicates by track ID and ensure non-null
+      const seen = new Set<string>();
+      const uniqueTracks: NonNullable<typeof currentTrack>[] = [];
+      for (const track of allTracks) {
+        if (track && track.id && !seen.has(String(track.id))) {
+          seen.add(String(track.id));
+          uniqueTracks.push(track);
+        }
+      }
+      console.log('[FullScreenPlayer] Unique tracks:', uniqueTracks.map(t => ({ id: t.id, title: t.title })));
+      
+      const tracksToInsert = uniqueTracks.map((track, index) => ({
+        playlist_id: newPlaylist.id,
+        track_id: String(track.id),
+        track_data: track,
+        position: index,
+      }));
+      console.log('[FullScreenPlayer] Tracks to insert:', tracksToInsert.length, tracksToInsert.map(t => t.track_id));
+      
+      if (tracksToInsert.length > 0) {
+        const { data, error } = await supabase.from('playlist_tracks').upsert(tracksToInsert, { onConflict: 'playlist_id,track_id' });
+        console.log('[FullScreenPlayer] Direct insert result:', { data, error, count: tracksToInsert.length });
+        
+        Alert.alert("Success", `Added ${tracksToInsert.length} songs to '${playlistName}'`);
+      } else {
+        Alert.alert("Error", "No valid tracks to add");
+      }
+    } else {
+      Alert.alert("Error", "Failed to create playlist");
+    }
+  }, [playlistNameInput, queue, currentTrack, createPlaylist]);
 
   // Swipe down to close
   const translateY = useRef(new Animated.Value(0)).current;
@@ -302,8 +384,20 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
   const handleOpenSettings = useCallback(() => setSettingsVisible(true), []);
   const handleOpenEq = useCallback(() => setEqVisible(true), []);
 
+  const trackId = currentTrack?.id ? String(currentTrack.id) : '';
+  const downloaded = isDownloaded(trackId || currentTrack?.src);
+  const downloading = isDownloading(trackId || currentTrack?.src);
+
   const ToolbarSection = (
     <View style={styles.toolbar}>
+      <TouchableOpacity style={styles.toolbarBtn} onPress={handleAddToPlaylist} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} delayPressIn={0}>
+        <Ionicons name="add-circle-outline" size={16} color="rgba(255,255,255,0.4)" />
+        <Text style={styles.toolbarLabel}>Add to PL</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.toolbarBtn, downloaded && styles.toolbarBtnGreen]} onPress={handleDownload} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} delayPressIn={0}>
+        <Ionicons name={downloaded ? "checkmark-circle" : downloading ? "cloud-download-outline" : "download-outline"} size={16} color={downloaded ? '#1DB954' : downloading ? '#fbbf24' : 'rgba(255,255,255,0.4)'} />
+        <Text style={[styles.toolbarLabel, downloaded && styles.toolbarLabelGreen]}>{downloaded ? 'Saved' : downloading ? 'Saving' : 'Save'}</Text>
+      </TouchableOpacity>
       <TouchableOpacity style={[styles.toolbarBtn, sleepMinutes !== null && styles.toolbarBtnActive]} onPress={handleOpenSleep} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} delayPressIn={0}>
         <Ionicons name="moon" size={16} color={sleepMinutes !== null ? '#a78bfa' : 'rgba(255,255,255,0.4)'} />
         <Text style={[styles.toolbarLabel, sleepMinutes !== null && styles.toolbarLabelActive]}>
@@ -313,10 +407,6 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
       <TouchableOpacity style={[styles.toolbarBtn, playbackSpeed !== 1 && styles.toolbarBtnBlue]} onPress={handleOpenSettings} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} delayPressIn={0}>
         <Ionicons name="speedometer-outline" size={16} color={playbackSpeed !== 1 ? '#60a5fa' : 'rgba(255,255,255,0.4)'} />
         <Text style={[styles.toolbarLabel, playbackSpeed !== 1 && styles.toolbarLabelBlue]}>{playbackSpeed}x</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.toolbarBtn} onPress={handleOpenSettings} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} delayPressIn={0}>
-        <Ionicons name="musical-note-outline" size={16} color="rgba(255,255,255,0.4)" />
-        <Text style={styles.toolbarLabel}>{quality.replace('kbps', '')} kbps</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.toolbarBtn} onPress={handleOpenEq} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} delayPressIn={0}>
         <Ionicons name="options-outline" size={16} color="rgba(255,255,255,0.4)" />
@@ -364,6 +454,39 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
 
         {/* Equalizer */}
         <EqualizerPanel visible={eqVisible} onClose={() => setEqVisible(false)} />
+
+        {/* Playlist Save Modal */}
+        {showPlaylistModal && (
+          <View style={styles.playlistModalOverlay}>
+            <View style={styles.playlistModalContent}>
+              <Text style={styles.playlistModalTitle}>Save Playlist</Text>
+              <TextInput
+                style={styles.playlistModalInput}
+                placeholder="Enter playlist name"
+                placeholderTextColor="#555"
+                value={playlistNameInput}
+                onChangeText={setPlaylistNameInput}
+                autoFocus
+              />
+              <View style={styles.playlistModalButtons}>
+                <TouchableOpacity
+                  style={styles.playlistModalCancelBtn}
+                  onPress={() => { setShowPlaylistModal(false); setPlaylistNameInput(''); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.playlistModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.playlistModalSaveBtn}
+                  onPress={handleSavePlaylist}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.playlistModalSaveText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
       </Animated.View>
     </Modal>
   );
@@ -419,8 +542,21 @@ const styles = StyleSheet.create({
   toolbarBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   toolbarBtnActive: { backgroundColor: 'rgba(167,139,250,0.15)' },
   toolbarBtnBlue: { backgroundColor: 'rgba(96,165,250,0.15)' },
+  toolbarBtnGreen: { backgroundColor: 'rgba(29,185,84,0.15)' },
   toolbarLabel: { fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: '500' },
   toolbarLabelActive: { color: '#a78bfa' },
   toolbarLabelBlue: { color: '#60a5fa' },
+  toolbarLabelGreen: { color: '#1DB954' },
   dragHandle: { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginTop: 16 },
+  
+  // Playlist Save Modal
+  playlistModalOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  playlistModalContent: { backgroundColor: '#1a1a1a', borderRadius: 20, padding: 24, width: '100%', maxWidth: 320 },
+  playlistModalTitle: { fontSize: 20, color: '#fff', fontWeight: '700', marginBottom: 16, textAlign: 'center' },
+  playlistModalInput: { backgroundColor: '#2a2a2a', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: '#fff', fontSize: 16, marginBottom: 20 },
+  playlistModalButtons: { flexDirection: 'row', gap: 12 },
+  playlistModalCancelBtn: { flex: 1, backgroundColor: '#2a2a2a', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  playlistModalCancelText: { fontSize: 16, color: '#888', fontWeight: '600' },
+  playlistModalSaveBtn: { flex: 1, backgroundColor: '#1DB954', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  playlistModalSaveText: { fontSize: 16, color: '#fff', fontWeight: '600' },
 });

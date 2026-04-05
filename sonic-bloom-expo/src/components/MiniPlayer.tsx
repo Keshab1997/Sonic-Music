@@ -3,6 +3,7 @@ import { TouchableOpacity, Text, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayer } from '../context/PlayerContext';
 import { useLikedSongsContext } from '../context/LikedSongsContext';
+import { useDownloads } from '../hooks/useDownloads';
 import { FullScreenPlayer } from './FullScreenPlayer';
 import { CachedImage } from './CachedImage';
 import { lightHaptic } from '../lib/haptics';
@@ -21,6 +22,7 @@ const MiniButton = memo(({ icon, color, onPress }: { icon: string; color: string
 export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
   const { currentTrack, isPlaying, togglePlay, next, prev, progress, duration } = usePlayer();
   const { isLiked, toggleLike } = useLikedSongsContext();
+  const { downloadTrack, isDownloaded, isDownloading, getDownloadProgress } = useDownloads();
   const [fsVisible, setFsVisible] = useState(false);
 
   const handleExpand = useCallback(() => { onExpand?.(); setFsVisible(true); lightHaptic(); }, [onExpand]);
@@ -28,6 +30,13 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
   const handleToggleLike = useCallback(() => {
     if (currentTrack) { toggleLike(currentTrack); lightHaptic(); }
   }, [currentTrack, toggleLike]);
+
+  const handleDownload = useCallback(() => {
+    if (currentTrack && currentTrack.src) {
+      downloadTrack(currentTrack);
+      lightHaptic();
+    }
+  }, [currentTrack, downloadTrack]);
 
   const handlePrev = useCallback(() => { prev(); lightHaptic(); }, [prev]);
   const handleTogglePlay = useCallback(() => { togglePlay(); lightHaptic(); }, [togglePlay]);
@@ -39,6 +48,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
   const trackId = currentTrack?.id ? String(currentTrack.id) : '';
   const liked = trackId ? isLiked(trackId) : false;
+  const downloaded = isDownloaded(trackId || currentTrack.src);
+  const downloading = isDownloading(trackId || currentTrack.src);
 
   return (
     <>
@@ -51,6 +62,9 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
           <Text style={styles.miniTitle} numberOfLines={1}>{currentTrack.title}</Text>
           <Text style={styles.miniArtist} numberOfLines={1}>{currentTrack.artist}</Text>
         </View>
+        <TouchableOpacity style={styles.miniBtn} onPress={handleDownload} activeOpacity={0.7}>
+          <Ionicons name={downloaded ? "checkmark-circle" : downloading ? "cloud-download-outline" : "download-outline"} size={20} color={downloaded ? "#1DB954" : "#fff"} />
+        </TouchableOpacity>
         <TouchableOpacity style={styles.miniBtn} onPress={handleToggleLike} activeOpacity={0.7}>
           <Ionicons name={liked ? "heart" : "heart-outline"} size={22} color={liked ? "#1DB954" : "#fff"} />
         </TouchableOpacity>

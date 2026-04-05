@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { usePlayer, AudioQuality } from '../context/PlayerContext';
+import { usePlayer } from '../context/PlayerContext';
+import { AudioQuality } from '../service/AudioService';
 
 const { height } = Dimensions.get('window');
 

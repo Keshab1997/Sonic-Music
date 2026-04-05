@@ -13,6 +13,7 @@ import {
 import { useMediaSession } from "@/hooks/useMediaSession";
 import { useLikedSongs } from "@/hooks/useLikedSongs";
 import { audioService, AudioQuality } from "@/service/AudioService";
+import { extractYouTubeAudio } from "@/lib/youtubeAudio";
 
 interface PlayerContextType {
   tracks: Track[];
@@ -98,6 +99,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const ytProgressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [ytProgress, setYtProgress] = useState(0);
   const [ytDuration, setYtDuration] = useState(0);
+  const ytStateRef = useRef<string>('unstarted'); // Track YouTube player state
+  const isLoadingVideoRef = useRef(false); // Track when we're loading a new video
+  const consecutiveErrorsRef = useRef(0); // Track consecutive playback errors
+  const lastToggleTimeRef = useRef(0); // Debounce toggle calls
 
   // Use refs for frequently updated values to avoid unnecessary re-renders
   const progressRef = useRef(0);
@@ -138,11 +143,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [toggleLikeHook]);
 
   const addToHistory = useCallback(async (trackId: string, durationPlayed: number, completed: boolean): Promise<boolean> => {
+    console.log('[PlayerContext] addToListeningHistory called:', { trackId, durationPlayed, completed });
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      // Only save to Supabase if user is logged in
-      if (user) await supabase.from("listening_history").insert({ track_id: trackId, user_id: user.id, duration_played: durationPlayed, completed });
-    } catch { }
+      console.log('[PlayerContext] User:', user ? user.id : 'not logged in');
+      if (user) {
+        const { data, error } = await supabase.from("listening_history").insert({ track_id: trackId, user_id: user.id, duration_played: durationPlayed, completed });
+        console.log('[PlayerContext] Insert result:', { data, error });
+      }
+    } catch (err) {
+      console.error('[PlayerContext] addToHistory error:', err);
+    }
     return true;
   }, []);
 
@@ -202,21 +213,64 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
   stopYoutubeRef.current = stopYoutube;
 
-  const playYoutube = useCallback((videoId: string) => {
+  const playYoutube = useCallback(async (videoId: string) => {
+    console.log('playYoutube called with videoId:', videoId);
+    consecutiveErrorsRef.current = 0;
+    
+    // Stop any existing playback
     audioService.unload().catch(() => {});
     if (ytProgressRef.current) {
       clearInterval(ytProgressRef.current);
       ytProgressRef.current = null;
     }
+    
+    // Try to extract audio URL
+    try {
+      const audioUrl = await extractYouTubeAudio(videoId);
+      
+      if (audioUrl) {
+        console.log('Using extracted YouTube audio URL');
+        // Play as regular audio
+        isYoutubeRef.current = false;
+        setYtVideoId(null);
+        setYtPlaying(false);
+        
+        setProgress(0);
+        setDuration(0);
+        setIsPlaying(true);
+        
+        await audioService.load(audioUrl, volumeRef.current, playbackSpeedRef.current);
+        
+        audioService.setStatusCallback((status) => {
+          setProgress(status.position);
+          setDuration(status.duration);
+          setIsPlaying(status.isPlaying);
+        });
+        
+        audioService.setFinishCallback(handleTrackFinish);
+        
+        await audioService.play();
+        console.log('YouTube audio playing via AudioService');
+        return;
+      }
+    } catch (err) {
+      console.error('YouTube audio extraction failed:', err);
+    }
+    
+    // Fallback: Use YouTube iframe (but this has issues)
+    console.warn('YouTube audio extraction failed, iframe playback may not work properly');
     isYoutubeRef.current = true;
+    isLoadingVideoRef.current = true;
+    ytStateRef.current = 'unstarted';
+    lastToggleTimeRef.current = Date.now();
     setYtVideoId(videoId);
     setYtPlaying(true);
     setYtProgress(0);
     setYtDuration(0);
     setIsPlaying(true);
-    // Use a ref to track if component is still mounted
+    
     ytProgressRef.current = setInterval(() => {
-      if (ytPlayerRef.current) {
+      if (ytPlayerRef.current && (ytStateRef.current === 'playing' || ytStateRef.current === 'buffering')) {
         ytPlayerRef.current.getCurrentTime().then(cur => {
           setYtProgress(cur);
         }).catch(() => {});
@@ -226,7 +280,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }, 500);
   }, []);
-  playYoutubeRef.current = playYoutube;
 
   const handleTrackFinish = useCallback(() => {
     if (repeatRef.current === "one") {
@@ -283,8 +336,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       await audioService.play();
       setIsPlaying(true);
+      consecutiveErrorsRef.current = 0; // Reset error count on success
     } catch (err) {
-      console.error('Playback error:', err);
+      consecutiveErrorsRef.current++;
+      console.error(`Playback error (${consecutiveErrorsRef.current}):`, err);
+      
+      // Stop trying after 3 consecutive errors
+      if (consecutiveErrorsRef.current >= 3) {
+        console.error('Too many consecutive errors, stopping playback');
+        setIsPlaying(false);
+        consecutiveErrorsRef.current = 0;
+        return;
+      }
+      
       const nextIdx = (currentIndexRef.current + 1) % trackListRef.current.length;
       setCurrentIndex(nextIdx);
       const nt = trackListRef.current[nextIdx];
@@ -298,6 +362,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const track = tracks[idx];
     if (!track) return;
     
+    consecutiveErrorsRef.current = 0; // Reset error count
     stopYoutubeRef.current();
     audioService.unload().catch(() => {});
     if (ytProgressRef.current) {
@@ -332,6 +397,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       idx = 0;
     }
     
+    consecutiveErrorsRef.current = 0; // Reset error count
     stopYoutubeRef.current();
     audioService.unload().catch(() => {});
     if (ytProgressRef.current) {
@@ -358,6 +424,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const track = trackListRef.current[idx];
     if (!track) return;
     
+    consecutiveErrorsRef.current = 0; // Reset error count
     if (index !== undefined) {
       setCurrentIndex(index);
     }
@@ -382,28 +449,53 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const pause = useCallback(async () => {
-    if (isYoutubeRef.current) setYtPlaying(false);
-    else await audioService.pause();
-    setIsPlaying(false);
+    console.log('Pause called - isYoutube:', isYoutubeRef.current);
+    if (isYoutubeRef.current) {
+      // Use state-based control via the play prop
+      setYtPlaying(false);
+      setIsPlaying(false);
+    } else {
+      await audioService.pause();
+      setIsPlaying(false);
+    }
   }, []);
 
   const togglePlay = useCallback(() => {
-    requestAnimationFrame(() => {
-      if (isYoutubeRef.current) {
-        const newState = !ytPlayingRef.current;
-        setYtPlaying(newState);
-        setIsPlaying(newState);
-      } else {
-        const wasPlaying = isPlayingRef.current;
-        setIsPlaying(!wasPlaying);
-        if (wasPlaying) {
-          audioService.pause().catch(() => {});
-        } else {
-          audioService.play().catch(() => {});
-        }
+    const now = Date.now();
+    // Debounce toggle calls - ignore if called within 300ms
+    if (now - lastToggleTimeRef.current < 300) {
+      console.log('TogglePlay debounced');
+      return;
+    }
+    lastToggleTimeRef.current = now;
+    
+    console.log('TogglePlay - isYoutube:', isYoutubeRef.current, 'ytPlaying:', ytPlayingRef.current, 'ytState:', ytStateRef.current);
+    
+    if (isYoutubeRef.current) {
+      // YouTube toggle - only if not buffering or loading a new video
+      if (ytStateRef.current === 'buffering' || ytStateRef.current === 'unstarted' || isLoadingVideoRef.current) {
+        console.log('YouTube is buffering/unstarted/loading, ignoring toggle');
+        return;
       }
-    });
-  }, [play]);
+      
+      const nextState = !ytPlayingRef.current;
+      console.log('YouTube toggle - new state:', nextState);
+      
+      setYtPlaying(nextState);
+      setIsPlaying(nextState);
+      // State-based control - rely on the play prop on YoutubeIframe
+    } else {
+      // Audio toggle
+      const wasPlaying = isPlayingRef.current;
+      console.log('Audio toggle - was playing:', wasPlaying);
+      setIsPlaying(!wasPlaying);
+      if (wasPlaying) {
+        audioService.pause().catch(() => {});
+      } else {
+        audioService.play().catch(() => {});
+      }
+    }
+  }, []);
 
   const next = useCallback(() => {
     requestAnimationFrame(() => {
@@ -630,13 +722,61 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             height={1}
             width={1}
             volume={Math.round(volume * 100)}
+            initialPlayerParams={{
+              controls: false,
+              modestbranding: true,
+              preventFullScreen: true,
+            }}
             onChangeState={(state: string) => {
-              if (state === "ended") {
-                if (repeatRef.current === "one") { ytPlayerRef.current?.seekTo(0, true); setYtPlaying(true); }
-                else next();
+              console.log('YouTube state changed:', state, 'current ytPlaying:', ytPlayingRef.current, 'isLoadingVideo:', isLoadingVideoRef.current);
+              ytStateRef.current = state;
+              
+              // Handle different YouTube states
+              if (state === "playing") {
+                console.log('YouTube is now playing');
+                isLoadingVideoRef.current = false; // Video finished loading
+                if (!ytPlayingRef.current) {
+                  console.log('Unexpected play - syncing state');
+                  setYtPlaying(true);
+                  setIsPlaying(true);
+                }
+              } else if (state === "paused") {
+                console.log('YouTube is now paused');
+                // Don't sync pause if we're loading a new video
+                if (isLoadingVideoRef.current) {
+                  console.log('Ignoring pause during video loading');
+                  return;
+                }
+                // Also ignore if we're actually trying to pause but state is wrong
+                if (ytPlayingRef.current) {
+                  console.log('Unexpected pause - syncing state');
+                  setYtPlaying(false);
+                  setIsPlaying(false);
+                }
+              } else if (state === "ended") {
+                console.log('YouTube ended');
+                isLoadingVideoRef.current = false;
+                setYtPlaying(false);
+                setIsPlaying(false);
+                if (repeatRef.current === "one") {
+                  setTimeout(() => {
+                    ytPlayerRef.current?.seekTo(0, true);
+                    setYtPlaying(true);
+                    setIsPlaying(true);
+                  }, 100);
+                } else {
+                  next();
+                }
+              } else if (state === "buffering") {
+                console.log('YouTube is buffering');
+                // Don't change playing state during buffering - keep previous state
+              } else if (state === "unstarted") {
+                console.log('YouTube unstarted - video loading');
+                // Video is loading, keep playing state
+              } else if (state === "cued") {
+                console.log('YouTube cued - video ready');
+                isLoadingVideoRef.current = false;
               }
-              if (state === "playing") { setYtPlaying(true); setIsPlaying(true); }
-              if (state === "paused") { setYtPlaying(false); }
             }}
           />
         </View>

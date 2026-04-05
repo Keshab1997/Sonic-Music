@@ -33,27 +33,68 @@ export const usePlaylists = () => {
   }, [user]);
 
   const loadPlaylists = async () => {
+    console.log('[usePlaylists] loadPlaylists called, user:', user?.id);
     try {
       setLoading(true);
       if (user) {
-        const { data, error } = await supabase
+        // First get all playlists
+        const { data: playlistsData, error: playlistsError } = await supabase
           .from('playlists')
-          .select('*, playlist_tracks(*)')
+          .select('*')
           .order('created_at', { ascending: false });
         
-        if (!error && data) {
-          const mapped: Playlist[] = data.map(p => ({
+        console.log('[usePlaylists] Playlists result:', { count: playlistsData?.length, error: playlistsError });
+        
+        if (playlistsError) {
+          console.error('[usePlaylists] Playlists error:', playlistsError);
+        }
+        
+        if (playlistsData && playlistsData.length > 0) {
+        // Then get all playlist_tracks for these playlists
+        const playlistIds = playlistsData.map(p => p.id);
+        console.log('[usePlaylists] Playlist IDs:', playlistIds);
+        
+        const { data: tracksData, error: tracksError } = await supabase
+          .from('playlist_tracks')
+          .select('*')
+          .in('playlist_id', playlistIds)
+          .order('position', { ascending: true });
+        
+        console.log('[usePlaylists] Tracks query result:', { count: tracksData?.length, error: tracksError, playlistIds });
+        
+        // Group tracks by playlist
+        const tracksByPlaylist: Record<string, any[]> = {};
+        if (tracksData && tracksData.length > 0) {
+          for (const track of tracksData) {
+            if (!tracksByPlaylist[track.playlist_id]) {
+              tracksByPlaylist[track.playlist_id] = [];
+            }
+            tracksByPlaylist[track.playlist_id].push(track.track_data);
+          }
+          console.log('[usePlaylists] Tracks by playlist:', Object.keys(tracksByPlaylist).map(k => ({ playlist_id: k, count: tracksByPlaylist[k].length })));
+        } else {
+          console.log('[usePlaylists] No tracks found in database');
+        }
+          
+          const mapped: Playlist[] = playlistsData.map(p => ({
             id: p.id,
             name: p.name,
             cover: p.cover_url,
-            trackCount: p.playlist_tracks?.length || 0,
-            tracks: (p.playlist_tracks || []).sort((a: any, b: any) => a.position - b.position).map((t: any) => t.track_data),
+            trackCount: tracksByPlaylist[p.id]?.length || 0,
+            tracks: tracksByPlaylist[p.id] || [],
           }));
+          
+          console.log('[usePlaylists] Mapped playlists:', mapped.map(p => ({ id: p.id, name: p.name, trackCount: p.trackCount })));
           setPlaylists(mapped);
           const key = getStorageKey();
           if (key) await AsyncStorage.setItem(key, JSON.stringify(mapped));
+          setLoading(false);
           return;
         }
+        
+        setPlaylists([]);
+        setLoading(false);
+        return;
       } else {
         setPlaylists([]);
       }
@@ -65,7 +106,11 @@ export const usePlaylists = () => {
   };
 
   const createPlaylist = async (name: string): Promise<Playlist | null> => {
-    if (!user || !name.trim()) return null;
+    console.log('[usePlaylists] createPlaylist called:', name, 'user:', user?.id);
+    if (!user || !name.trim()) {
+      console.log('[usePlaylists] No user or empty name');
+      return null;
+    }
     try {
       const { data, error } = await supabase
         .from('playlists')
@@ -73,16 +118,19 @@ export const usePlaylists = () => {
         .select()
         .single();
       
+      console.log('[usePlaylists] Create result:', { data, error });
+      
       if (!error && data) {
         const newPlaylist: Playlist = { id: data.id, name: data.name, trackCount: 0, tracks: [] };
         const updated = [newPlaylist, ...playlists];
         setPlaylists(updated);
         const key = getStorageKey();
         if (key) await AsyncStorage.setItem(key, JSON.stringify(updated));
+        console.log('[usePlaylists] Playlist created:', newPlaylist.id);
         return newPlaylist;
       }
     } catch (e) {
-      console.error('Failed to create playlist:', e);
+      console.error('[usePlaylists] Failed to create playlist:', e);
     }
     return null;
   };
@@ -100,17 +148,29 @@ export const usePlaylists = () => {
   };
 
   const addTrackToPlaylist = async (playlistId: string, track: Track) => {
+    console.log('[usePlaylists] addTrackToPlaylist called:', { playlistId, trackId: track.id, trackTitle: track.title });
     try {
       const playlist = playlists.find(p => p.id === playlistId);
-      if (!playlist) return;
+      if (!playlist) {
+        console.log('[usePlaylists] Playlist not found:', playlistId);
+        return;
+      }
       
       const position = playlist.tracks.length;
-      await supabase.from('playlist_tracks').insert({
+      console.log('[usePlaylists] Inserting to Supabase, position:', position);
+      
+      const { data, error } = await supabase.from('playlist_tracks').insert({
         playlist_id: playlistId,
         track_id: String(track.id),
         track_data: track,
         position,
       });
+      
+      console.log('[usePlaylists] Insert result:', { data, error });
+      
+      if (error) {
+        console.error('[usePlaylists] Supabase error:', error);
+      }
       
       const updated = playlists.map(p => {
         if (p.id === playlistId) {
@@ -121,8 +181,9 @@ export const usePlaylists = () => {
       setPlaylists(updated);
       const key = getStorageKey();
       if (key) await AsyncStorage.setItem(key, JSON.stringify(updated));
+      console.log('[usePlaylists] Track added successfully');
     } catch (e) {
-      console.error('Failed to add track to playlist:', e);
+      console.error('[usePlaylists] Failed to add track to playlist:', e);
     }
   };
 

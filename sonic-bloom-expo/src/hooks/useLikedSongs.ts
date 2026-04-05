@@ -23,51 +23,106 @@ export const useLikedSongs = () => {
     return user ? `${LIKED_SONGS_KEY_PREFIX}${user.id}` : LIKED_SONGS_KEY_GUEST;
   }, [user]);
 
+  const migrateGuestData = async (userId: string) => {
+    try {
+      const guestData = await AsyncStorage.getItem(LIKED_SONGS_KEY_GUEST);
+      console.log('[useLikedSongs] migrateGuestData called, guestData exists:', !!guestData);
+      
+      if (guestData) {
+        const guestSongs = JSON.parse(guestData) as LikedSong[];
+        console.log('[useLikedSongs] Guest songs count:', guestSongs.length);
+        
+        if (guestSongs.length > 0) {
+          console.log('[useLikedSongs] Migrating guest liked songs to user account:', guestSongs.length);
+          const toSync = guestSongs
+            .filter(d => d.track && d.track.id)
+            .map(d => ({
+              user_id: userId,
+              track_id: String(d.track.id),
+            }));
+          
+          console.log('[useLikedSongs] Syncing to Supabase, count:', toSync.length);
+          
+          // Delete any existing for user and insert guest songs
+          const { error: deleteError } = await supabase.from('liked_songs').delete().eq('user_id', userId);
+          console.log('[useLikedSongs] Delete result:', deleteError);
+          
+          if (toSync.length > 0) {
+            const { data, error } = await supabase.from('liked_songs').insert(toSync);
+            console.log('[useLikedSongs] Insert result:', { data, error });
+            
+            if (error) {
+              console.error('[useLikedSongs] Migration error:', error);
+            } else {
+              console.log('[useLikedSongs] Migration successful');
+              // Clear guest data after successful migration
+              await AsyncStorage.removeItem(LIKED_SONGS_KEY_GUEST);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[useLikedSongs] Migration failed:', e);
+    }
+  };
+
   useEffect(() => {
-    // Clear data when user changes
+    const isFirstLogin = prevUserIdRef.current === null && user !== null;
+    const isLogout = prevUserIdRef.current !== null && user === null;
+    
+    // Clear data when user changes (logout or switch users)
     if (prevUserIdRef.current && prevUserIdRef.current !== user?.id) {
       setLikedSongs([]);
     }
+    
     prevUserIdRef.current = user?.id || null;
     loadLikedSongs();
+    
+    // Migrate guest data on first login (guest -> logged in)
+    if (isFirstLogin) {
+      console.log('[useLikedSongs] First login detected, running migration');
+      migrateGuestData(user.id);
+    }
   }, [user]);
 
   const loadLikedSongs = async () => {
     try {
       setLoading(true);
       if (user) {
+        console.log('[useLikedSongs] Loading from Supabase for user:', user.id);
         // Load from Supabase for logged-in users (user-specific via RLS)
         const { data, error } = await supabase
           .from('liked_songs')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('liked_at', { ascending: false });
+          .select('track_id')
+          .eq('user_id', user.id);
         
-        if (!error && data) {
-          const mapped = data.map(d => ({
-            track: d.track_data,
-            likedAt: new Date(d.liked_at).getTime(),
-          }));
-          setLikedSongs(mapped);
-          // Cache to user-specific AsyncStorage
-          const key = getStorageKey();
-          if (key) {
-            await AsyncStorage.setItem(key, JSON.stringify(mapped));
-          }
-          return;
+        console.log('[useLikedSongs] Supabase response:', { data, error });
+        
+        if (!error && data && data.length > 0) {
+          // Supabase only has track_id, need to use local storage for full data
+          // For now, just log that we found synced data
+          console.log('[useLikedSongs] Found', data.length, 'liked songs in Supabase (using local for full data)');
+          // Continue to load from local storage which has full track data
+        } else if (error) {
+          console.error('[useLikedSongs] Supabase error:', error);
         }
+        // Always load from local storage for full track data
+      }
+      
+      // Load from local storage (guest or as fallback)
+      const key = getStorageKey();
+      console.log('[useLikedSongs] Loading from AsyncStorage, key:', key);
+      const stored = await AsyncStorage.getItem(key);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        console.log('[useLikedSongs] Loaded from local:', parsed.length, 'songs');
+        setLikedSongs(parsed);
       } else {
-        // No user logged in, load from local storage
-        const key = getStorageKey();
-        const stored = await AsyncStorage.getItem(key);
-        if (stored) {
-          setLikedSongs(JSON.parse(stored));
-          return;
-        }
+        console.log('[useLikedSongs] No local data found');
         setLikedSongs([]);
       }
     } catch (e) {
-      console.error('Failed to load liked songs:', e);
+      console.error('[useLikedSongs] Failed to load liked songs:', e);
     } finally {
       setLoading(false);
     }
@@ -90,14 +145,17 @@ export const useLikedSongs = () => {
           .map(d => ({
             user_id: user.id,
             track_id: String(d.track.id),
-            track_data: d.track,
-            liked_at: new Date(d.likedAt).toISOString(),
           }));
         
+        console.log('[useLikedSongs] Syncing to Supabase, count:', toSync.length);
+        
         // Delete old liked songs for this user and insert new ones
-        await supabase.from('liked_songs').delete().eq('user_id', user.id);
+        const { error: deleteError } = await supabase.from('liked_songs').delete().eq('user_id', user.id);
+        console.log('[useLikedSongs] Delete result:', deleteError);
+        
         if (toSync.length > 0) {
-          await supabase.from('liked_songs').insert(toSync);
+          const { data, error } = await supabase.from('liked_songs').insert(toSync);
+          console.log('[useLikedSongs] Insert result:', { data, error });
         }
       }
     } catch (e) {
