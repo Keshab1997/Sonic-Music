@@ -14,6 +14,9 @@ import { SearchScreen } from './src/screens/SearchScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
 import { DownloadsPage } from './src/screens/DownloadsPage';
 import { LikedSongsPage } from './src/screens/LikedSongsPage';
+import { PlaylistsPage } from './src/screens/PlaylistsPage';
+import { ArtistsPage } from './src/screens/ArtistsPage';
+import { AlbumsPage } from './src/screens/AlbumsPage';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SignupScreen } from './src/screens/SignupScreen';
@@ -72,6 +75,9 @@ const MainNavigator = () => (
       <RootStack.Screen name="AlbumDetail" component={AlbumDetailScreen} />
       <RootStack.Screen name="LikedSongs" component={LikedSongsPage} />
       <RootStack.Screen name="Downloads" component={DownloadsPage} />
+      <RootStack.Screen name="Playlists" component={PlaylistsPage} />
+      <RootStack.Screen name="Artists" component={ArtistsPage} />
+      <RootStack.Screen name="Albums" component={AlbumsPage} />
     </RootStack.Navigator>
     <MiniPlayer />
   </View>

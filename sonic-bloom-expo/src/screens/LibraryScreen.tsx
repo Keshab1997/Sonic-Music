@@ -67,35 +67,77 @@ export const LibraryScreen: React.FC = () => {
           <Ionicons name="chevron-forward" size={24} color="#555" />
         </TouchableOpacity>
 
-        {/* Playlists Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Playlists</Text>
-          <View style={styles.emptyPlaylists}>
-            <Ionicons name="musical-notes-outline" size={48} color="#333" />
-            <Text style={styles.emptyText}>No playlists yet</Text>
-            <Text style={styles.emptySubtext}>Create your first playlist</Text>
+        {/* Playlists Card */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => {
+            const parent = navigation.getParent();
+            if (parent) {
+              parent.navigate('Playlists' as never);
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <LinearGradient
+            colors={['#8b5cf6', '#a78bfa']}
+            style={styles.cardIcon}
+          >
+            <Ionicons name="musical-notes" size={32} color="#fff" />
+          </LinearGradient>
+          <View style={styles.cardInfo}>
+            <Text style={styles.cardTitle}>Playlists</Text>
+            <Text style={styles.cardSubtitle}>Create & manage playlists</Text>
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={24} color="#555" />
+        </TouchableOpacity>
 
-        {/* Artists Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Artists</Text>
-          <View style={styles.emptyPlaylists}>
-            <Ionicons name="person-outline" size={48} color="#333" />
-            <Text style={styles.emptyText}>No artists yet</Text>
-            <Text style={styles.emptySubtext}>Follow your favorite artists</Text>
+        {/* Artists Card */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => {
+            const parent = navigation.getParent();
+            if (parent) {
+              parent.navigate('Artists' as never);
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <LinearGradient
+            colors={['#ec4899', '#f472b6']}
+            style={styles.cardIcon}
+          >
+            <Ionicons name="person" size={32} color="#fff" />
+          </LinearGradient>
+          <View style={styles.cardInfo}>
+            <Text style={styles.cardTitle}>Artists</Text>
+            <Text style={styles.cardSubtitle}>Browse your artists</Text>
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={24} color="#555" />
+        </TouchableOpacity>
 
-        {/* Albums Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Albums</Text>
-          <View style={styles.emptyPlaylists}>
-            <Ionicons name="disc-outline" size={48} color="#333" />
-            <Text style={styles.emptyText}>No albums yet</Text>
-            <Text style={styles.emptySubtext}>Save your favorite albums</Text>
+        {/* Albums Card */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => {
+            const parent = navigation.getParent();
+            if (parent) {
+              parent.navigate('Albums' as never);
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <LinearGradient
+            colors={['#f59e0b', '#fbbf24']}
+            style={styles.cardIcon}
+          >
+            <Ionicons name="disc" size={32} color="#fff" />
+          </LinearGradient>
+          <View style={styles.cardInfo}>
+            <Text style={styles.cardTitle}>Albums</Text>
+            <Text style={styles.cardSubtitle}>Browse your albums</Text>
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={24} color="#555" />
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
