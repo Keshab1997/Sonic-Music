@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { Track } from '../data/playlist';
 
-const LIKED_SONGS_KEY = 'sonic_liked_songs';
+const LIKED_SONGS_KEY_PREFIX = 'sonic_liked_songs_';
 
 export interface LikedSong {
   track: Track;
@@ -15,8 +15,19 @@ export const useLikedSongs = () => {
   const { user } = useAuth();
   const [likedSongs, setLikedSongs] = useState<LikedSong[]>([]);
   const [loading, setLoading] = useState(true);
+  const prevUserIdRef = useRef<string | null>(null);
+
+  // Get user-specific storage key
+  const getStorageKey = useCallback(() => {
+    return user ? `${LIKED_SONGS_KEY_PREFIX}${user.id}` : null;
+  }, [user]);
 
   useEffect(() => {
+    // Clear data when user changes
+    if (prevUserIdRef.current && prevUserIdRef.current !== user?.id) {
+      setLikedSongs([]);
+    }
+    prevUserIdRef.current = user?.id || null;
     loadLikedSongs();
   }, [user]);
 
@@ -24,11 +35,10 @@ export const useLikedSongs = () => {
     try {
       setLoading(true);
       if (user) {
-        // Load from Supabase for logged-in users
+        // Load from Supabase for logged-in users (user-specific via RLS)
         const { data, error } = await supabase
           .from('liked_songs')
           .select('*')
-          .eq('user_id', user.id)
           .order('liked_at', { ascending: false });
         
         if (!error && data) {
@@ -37,15 +47,16 @@ export const useLikedSongs = () => {
             likedAt: new Date(d.liked_at).getTime(),
           }));
           setLikedSongs(mapped);
-          await AsyncStorage.setItem(LIKED_SONGS_KEY, JSON.stringify(mapped));
+          // Cache to user-specific AsyncStorage
+          const key = getStorageKey();
+          if (key) {
+            await AsyncStorage.setItem(key, JSON.stringify(mapped));
+          }
           return;
         }
-      }
-      
-      // Fallback to local storage
-      const stored = await AsyncStorage.getItem(LIKED_SONGS_KEY);
-      if (stored) {
-        setLikedSongs(JSON.parse(stored));
+      } else {
+        // No user logged in, clear data
+        setLikedSongs([]);
       }
     } catch (e) {
       console.error('Failed to load liked songs:', e);
@@ -56,10 +67,15 @@ export const useLikedSongs = () => {
 
   const saveLikedSongs = async (newLikedSongs: LikedSong[]) => {
     try {
-      await AsyncStorage.setItem(LIKED_SONGS_KEY, JSON.stringify(newLikedSongs));
       setLikedSongs(newLikedSongs);
       
-      // Sync to Supabase if user is logged in
+      // Save to user-specific AsyncStorage
+      const key = getStorageKey();
+      if (key) {
+        await AsyncStorage.setItem(key, JSON.stringify(newLikedSongs));
+      }
+      
+      // Sync to Supabase if user is logged in (RLS ensures user-specific)
       if (user) {
         const toSync = newLikedSongs
           .filter(d => d.track && d.track.id)
@@ -71,7 +87,7 @@ export const useLikedSongs = () => {
           }));
         
         // Delete old liked songs and insert new ones
-        await supabase.from('liked_songs').delete().eq('user_id', user.id);
+        await supabase.from('liked_songs').delete();
         if (toSync.length > 0) {
           await supabase.from('liked_songs').insert(toSync);
         }
@@ -108,9 +124,12 @@ export const useLikedSongs = () => {
   const clearAll = async () => {
     try {
       if (user) {
-        await supabase.from('liked_songs').delete().eq('user_id', user.id);
+        await supabase.from('liked_songs').delete();
       }
-      await AsyncStorage.removeItem(LIKED_SONGS_KEY);
+      const key = getStorageKey();
+      if (key) {
+        await AsyncStorage.removeItem(key);
+      }
       setLikedSongs([]);
     } catch (e) {
       console.error('Failed to clear liked songs:', e);

@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import { Track } from '../data/playlist';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
-const DOWNLOADS_KEY = 'sonic_downloads';
+const DOWNLOADS_KEY_PREFIX = 'sonic_downloads_';
 
 export interface DownloadedTrack {
   track: Track;
@@ -17,19 +17,30 @@ export const useDownloads = () => {
   const { user } = useAuth();
   const [downloads, setDownloads] = useState<DownloadedTrack[]>([]);
   const [downloading, setDownloading] = useState<Record<string, number>>({});
+  const prevUserIdRef = useRef<string | null>(null);
+
+  // Get user-specific storage key
+  const getStorageKey = useCallback(() => {
+    return user ? `${DOWNLOADS_KEY_PREFIX}${user.id}` : null;
+  }, [user]);
 
   useEffect(() => {
+    // Clear data when user changes
+    if (prevUserIdRef.current && prevUserIdRef.current !== user?.id) {
+      setDownloads([]);
+      setDownloading({});
+    }
+    prevUserIdRef.current = user?.id || null;
     loadDownloads();
   }, [user]);
 
   const loadDownloads = async () => {
     try {
       if (user) {
-        // Load from Supabase for logged-in users
+        // Load from Supabase for logged-in users (RLS ensures user-specific)
         const { data, error } = await supabase
           .from('downloads')
-          .select('*')
-          .eq('user_id', user.id);
+          .select('*');
         
         if (!error && data) {
           const mapped = data.map(d => ({
@@ -38,15 +49,16 @@ export const useDownloads = () => {
             downloadedAt: new Date(d.downloaded_at).getTime(),
           }));
           setDownloads(mapped);
-          await AsyncStorage.setItem(DOWNLOADS_KEY, JSON.stringify(mapped));
+          // Cache to user-specific AsyncStorage
+          const key = getStorageKey();
+          if (key) {
+            await AsyncStorage.setItem(key, JSON.stringify(mapped));
+          }
           return;
         }
-      }
-      
-      // Fallback to local storage
-      const stored = await AsyncStorage.getItem(DOWNLOADS_KEY);
-      if (stored) {
-        setDownloads(JSON.parse(stored));
+      } else {
+        // No user logged in, clear data
+        setDownloads([]);
       }
     } catch (e) {
       console.error('Failed to load downloads:', e);
@@ -55,10 +67,15 @@ export const useDownloads = () => {
 
   const saveDownloads = async (newDownloads: DownloadedTrack[]) => {
     try {
-      await AsyncStorage.setItem(DOWNLOADS_KEY, JSON.stringify(newDownloads));
       setDownloads(newDownloads);
       
-      // Sync to Supabase if user is logged in
+      // Save to user-specific AsyncStorage
+      const key = getStorageKey();
+      if (key) {
+        await AsyncStorage.setItem(key, JSON.stringify(newDownloads));
+      }
+      
+      // Sync to Supabase if user is logged in (RLS ensures user-specific)
       if (user) {
         const toSync = newDownloads.map(d => ({
           user_id: user.id,
@@ -69,7 +86,7 @@ export const useDownloads = () => {
         }));
         
         // Delete old downloads and insert new ones
-        await supabase.from('downloads').delete().eq('user_id', user.id);
+        await supabase.from('downloads').delete();
         if (toSync.length > 0) {
           await supabase.from('downloads').insert(toSync);
         }
@@ -80,15 +97,15 @@ export const useDownloads = () => {
   };
 
   const isDownloaded = useCallback((trackId: string) => {
-    return downloads.some(d => String(d.track.id) === String(trackId));
+    return downloads.some(d => d.track && d.track.id && String(d.track.id) === String(trackId));
   }, [downloads]);
 
   const getDownloadedTrack = useCallback((trackId: string) => {
-    return downloads.find(d => String(d.track.id) === String(trackId));
+    return downloads.find(d => d.track && d.track.id && String(d.track.id) === String(trackId));
   }, [downloads]);
 
   const downloadTrack = async (track: Track) => {
-    if (!track.src || isDownloaded(String(track.id))) return;
+    if (!track?.src || !track?.id || isDownloaded(String(track.id))) return;
 
     const trackId = String(track.id);
     setDownloading(prev => ({ ...prev, [trackId]: 0 }));
@@ -123,7 +140,7 @@ export const useDownloads = () => {
       console.error('Failed to delete file:', e);
     }
 
-    const newDownloads = downloads.filter(d => String(d.track.id) !== String(trackId));
+    const newDownloads = downloads.filter(d => d.track && d.track.id && String(d.track.id) !== String(trackId));
     await saveDownloads(newDownloads);
   };
 
