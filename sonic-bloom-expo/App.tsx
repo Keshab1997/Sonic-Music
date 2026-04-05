@@ -23,16 +23,7 @@ import { MiniPlayer } from './src/components/MiniPlayer';
 
 const queryClient = new QueryClient();
 const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
-const AuthStack = createNativeStackNavigator();
-
-// Auth Navigator (Login/Signup)
-const AuthNavigator = () => (
-  <AuthStack.Navigator screenOptions={{ headerShown: false }}>
-    <AuthStack.Screen name="Login" component={LoginScreen} />
-    <AuthStack.Screen name="Signup" component={SignupScreen} />
-  </AuthStack.Navigator>
-);
+const RootStack = createNativeStackNavigator();
 
 // Tab Navigator
 const TabNavigator = () => (
@@ -75,12 +66,12 @@ const TabNavigator = () => (
 // Main App Navigator (with MiniPlayer)
 const MainNavigator = () => (
   <View style={styles.container}>
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Tabs" component={TabNavigator} />
-      <Stack.Screen name="ArtistDetail" component={ArtistDetailScreen} />
-      <Stack.Screen name="AlbumDetail" component={AlbumDetailScreen} />
-      <Stack.Screen name="LikedSongs" component={LikedSongsPage} />
-    </Stack.Navigator>
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Screen name="Tabs" component={TabNavigator} />
+      <RootStack.Screen name="ArtistDetail" component={ArtistDetailScreen} />
+      <RootStack.Screen name="AlbumDetail" component={AlbumDetailScreen} />
+      <RootStack.Screen name="LikedSongs" component={LikedSongsPage} />
+    </RootStack.Navigator>
     <MiniPlayer />
   </View>
 );
@@ -99,7 +90,18 @@ const RootNavigator = () => {
 
   return (
     <NavigationContainer>
-      {user ? <MainNavigator /> : <AuthNavigator />}
+      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+        {user ? (
+          <>
+            <RootStack.Screen name="Main" component={MainNavigator} />
+          </>
+        ) : (
+          <>
+            <RootStack.Screen name="Login" component={LoginScreen} />
+            <RootStack.Screen name="Signup" component={SignupScreen} />
+          </>
+        )}
+      </RootStack.Navigator>
     </NavigationContainer>
   );
 };
