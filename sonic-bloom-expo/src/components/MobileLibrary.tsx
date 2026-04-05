@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Heart, Pencil, Trash2, Check, User, Play, Music2 } from "lucide-react-native";
-import { useNavigate } from "react-router-native";
+import { useNavigate } from "react-router-dom";
 import { usePlayer } from "@/context/PlayerContext";
 import { usePlaylists } from "@/hooks/usePlaylists";
 import { useArtistFavorites } from "@/hooks/useArtistFavorites";

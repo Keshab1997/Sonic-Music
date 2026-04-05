@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { Home, Search, Library, Sun, Moon, Youtube, Download } from "lucide-react-native";
-import { Link, useLocation } from "react-router-native";
+import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/hooks/useTheme";
 import { usePlayer } from "@/context/PlayerContext";
 import { SearchOverlay } from "@/components/SearchOverlay";

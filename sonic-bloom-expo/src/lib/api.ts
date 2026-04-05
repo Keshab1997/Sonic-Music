@@ -31,15 +31,16 @@ export const parseSong = (s: any, fallbackId: number): Track | null => {
   };
 };
 
-// Fetch from JioSaavn
+// Fetch from JioSaavn with pagination support
 export const fetchJioSaavn = async (
   query: string,
   offset: number,
-  limit = 15,
+  limit = 20,
   langFilter?: string
 ): Promise<Track[]> => {
   try {
-    const page = Math.floor(Math.random() * 3) + 1;
+    // Use offset as page number for pagination
+    const page = Math.floor(offset / 20) + 1;
     const res = await fetch(
       `${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
     );
@@ -50,10 +51,38 @@ export const fetchJioSaavn = async (
     return songs
       .map((s: any, i: number) => parseSong(s, offset + i))
       .filter((t: Track | null): t is Track => t !== null)
-      .slice(0, 12);
+      .slice(0, limit);
   } catch {
     return [];
   }
+};
+
+// Fetch multiple pages for more results
+export const fetchJioSaavnMultiPage = async (
+  query: string,
+  pages: number = 3,
+  langFilter?: string
+): Promise<Track[]> => {
+  const allTracks: Track[] = [];
+  try {
+    for (let page = 1; page <= pages; page++) {
+      const res = await fetch(
+        `${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=20`
+      );
+      if (!res.ok) break;
+      const data = await res.json();
+      let songs = data.data?.results || [];
+      if (langFilter) songs = songs.filter((s: any) => s.language === langFilter);
+      const tracks = songs
+        .map((s: any, i: number) => parseSong(s, (page - 1) * 20 + i))
+        .filter((t: Track | null): t is Track => t !== null);
+      allTracks.push(...tracks);
+      if (songs.length < 20) break; // No more results
+    }
+  } catch {
+    // Return whatever we got
+  }
+  return allTracks;
 };
 
 // Fetch from YouTube

@@ -77,7 +77,7 @@ export const AlbumsPage: React.FC = () => {
       onPress={() => handleAlbumPress(item)}
       activeOpacity={0.7}
     >
-      <CachedImage source={{ uri: item.cover && item.cover.startsWith('http') ? item.cover : 'https://via.placeholder.com/150' }} style={styles.cover} contentFit="cover" />
+      <CachedImage source={{ uri: typeof item.cover === 'string' && item.cover.startsWith('http') ? item.cover : 'https://via.placeholder.com/150' }} style={styles.cover} contentFit="cover" />
       <View style={styles.cardInfo}>
         <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.cardArtist} numberOfLines={1}>{item.artist}</Text>
@@ -99,7 +99,7 @@ export const AlbumsPage: React.FC = () => {
       onPress={() => handleAlbumPress({ id: item.albumId, name: item.name, cover: item.cover || '', artist: item.artist, year: item.year || 0, songCount: 0 })}
       activeOpacity={0.7}
     >
-      <CachedImage source={{ uri: item.cover && item.cover.startsWith('http') ? item.cover : 'https://via.placeholder.com/150' }} style={styles.cover} contentFit="cover" />
+      <CachedImage source={{ uri: typeof item.cover === 'string' && item.cover.startsWith('http') ? item.cover : 'https://via.placeholder.com/150' }} style={styles.cover} contentFit="cover" />
       <View style={styles.cardInfo}>
         <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.cardArtist} numberOfLines={1}>{item.artist}</Text>
