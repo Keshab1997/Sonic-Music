@@ -283,7 +283,7 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer: _onShowEqualiz
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!isDownloaded(track.songId || track.src) && !isDownloading(track.songId || track.src)) {
+                        if (!isDownloaded(String(track.id)) && !isDownloading(String(track.id))) {
                           downloadTrack(track);
                           toast.info("Download Started", {
                             description: track.title,
@@ -291,19 +291,19 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer: _onShowEqualiz
                           });
                         }
                       }}
-                      disabled={isDownloading(track.songId || track.src)}
+                      disabled={isDownloading(String(track.id))}
                       className={`p-1.5 rounded-full transition-all ${
-                        isDownloaded(track.songId || track.src)
+                        isDownloaded(String(track.id))
                           ? "text-green-500 hover:text-green-600 hover:scale-110"
-                          : isDownloading(track.songId || track.src)
+                          : isDownloading(String(track.id))
                           ? "text-yellow-500"
                           : "text-muted-foreground hover:text-blue-500 hover:scale-110"
                       }`}
-                      title={isDownloaded(track.songId || track.src) ? "Downloaded" : isDownloading(track.songId || track.src) ? "Downloading..." : "Download for offline"}
+                      title={isDownloaded(String(track.id)) ? "Downloaded" : isDownloading(String(track.id)) ? "Downloading..." : "Download for offline"}
                     >
-                      {isDownloading(track.songId || track.src) ? (
+                      {isDownloading(String(track.id)) ? (
                         <Loader2 size={15} className="animate-spin" />
-                      ) : isDownloaded(track.songId || track.src) ? (
+                      ) : isDownloaded(String(track.id)) ? (
                         <CheckCircle size={15} />
                       ) : (
                         <Download size={15} />
@@ -353,21 +353,21 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer: _onShowEqualiz
                                 e.stopPropagation();
                                 downloadTrack(track);
                                 setSongMenu(null);
-                                toast.info(isDownloaded(track.songId || track.src) ? "Already Downloaded" : "Download Started", {
+                                toast.info(isDownloaded(String(track.id)) ? "Already Downloaded" : "Download Started", {
                                   description: track.title,
                                 });
                               }}
-                              disabled={isDownloading(track.songId || track.src)}
+                              disabled={isDownloading(String(track.id))}
                               className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] text-foreground hover:bg-accent transition-colors disabled:opacity-50"
                             >
-                              {isDownloading(track.songId || track.src) ? (
+                              {isDownloading(String(track.id)) ? (
                                 <Loader2 size={13} className="animate-spin" />
-                              ) : isDownloaded(track.songId || track.src) ? (
+                              ) : isDownloaded(String(track.id)) ? (
                                 <CheckCircle size={13} />
                               ) : (
                                 <Download size={13} />
                               )}
-                              {isDownloaded(track.songId || track.src) ? "Downloaded" : "Download"}
+                              {isDownloaded(String(track.id)) ? "Downloaded" : "Download"}
                             </button>
                             <div className="border-t border-border" />
                             {/* Playlist actions */}

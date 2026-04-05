@@ -338,7 +338,7 @@ export const MainContent = () => {
   const trendingInitialized = useRef(false);
   const newReleasesInitialized = useRef(false);
   const { favorites: artistFavorites } = useArtistFavorites();
-  const { downloadTrack, isDownloaded, isDownloading, getProgress } = useDownloads();
+  const { downloadTrack, isDownloaded, isDownloading, getDownloadProgress } = useDownloads();
   const { playlists, createPlaylist, addTrackToPlaylist } = usePlaylists();
 
   const [bengaliHits, setBengaliHits] = useState<Track[]>([]);
@@ -1081,9 +1081,12 @@ export const MainContent = () => {
                     onPress={() => playTrackList(displayedTrending, i)}
                     showRank
                     onAddToQueue={() => addToQueue(track)}
-                    onDownload={() => downloadTrack(track)}
-                    isDownloaded={isDownloaded(track.songId || track.src)}
-                    isDownloading={isDownloading(track.songId || track.src)}
+                    onDownload={() => {
+                      console.log('[MainContent] Download clicked for:', track.title, 'id:', track.id);
+                      downloadTrack(track);
+                    }}
+                    isDownloaded={isDownloaded(String(track.id))}
+                    isDownloading={isDownloading(String(track.id))}
                   />
                 ))}
               </ScrollView>
@@ -1123,9 +1126,12 @@ export const MainContent = () => {
                     badgeText="NEW"
                     badgeColor="#16a34a"
                     onAddToQueue={() => addToQueue(track)}
-                    onDownload={() => downloadTrack(track)}
-                    isDownloaded={isDownloaded(track.songId || track.src)}
-                    isDownloading={isDownloading(track.songId || track.src)}
+                    onDownload={() => {
+                      console.log('[MainContent] Download clicked for:', track.title, 'id:', track.id);
+                      downloadTrack(track);
+                    }}
+                    isDownloaded={isDownloaded(String(track.id))}
+                    isDownloading={isDownloading(String(track.id))}
                   />
                 ))}
               </ScrollView>
@@ -1160,8 +1166,8 @@ export const MainContent = () => {
                     tracks={history.map(h => h.track)}
                     onPress={() => playTrack(entry.track)}
                     onDownload={() => downloadTrack(entry.track)}
-                    isDownloaded={isDownloaded(entry.track.songId || entry.track.src)}
-                    isDownloading={isDownloading(entry.track.songId || entry.track.src)}
+                    isDownloaded={isDownloaded(String(entry.track.id))}
+                    isDownloading={isDownloading(String(entry.track.id))}
                   />
                 ))}
               </ScrollView>
@@ -1192,17 +1198,17 @@ export const MainContent = () => {
                         </View>
                         <TouchableOpacity
                           onPress={(e) => { e.stopPropagation(); downloadTrack(entry.track); }}
-                          disabled={isDownloaded(entry.track.songId || entry.track.src) || isDownloading(entry.track.songId || entry.track.src)}
+                          disabled={isDownloaded(String(entry.track.id)) || isDownloading(String(entry.track.id))}
                           style={[
                             styles.continueDownloadButton,
-                            isDownloaded(entry.track.songId || entry.track.src) && styles.continueDownloadButtonDownloaded,
-                            isDownloading(entry.track.songId || entry.track.src) && styles.continueDownloadButtonDownloading,
+                            isDownloaded(String(entry.track.id)) && styles.continueDownloadButtonDownloaded,
+                            isDownloading(String(entry.track.id)) && styles.continueDownloadButtonDownloading,
                           ]}
                           activeOpacity={0.7}
                         >
-                          {isDownloading(entry.track.songId || entry.track.src) ? (
+                          {isDownloading(String(entry.track.id)) ? (
                             <Loader2 size={10} color="#fff" />
-                          ) : isDownloaded(entry.track.songId || entry.track.src) ? (
+                          ) : isDownloaded(String(entry.track.id)) ? (
                             <CheckCircle size={10} color="#fff" />
                           ) : (
                             <Download size={10} color="#fff" />
@@ -1507,8 +1513,8 @@ export const MainContent = () => {
                       badgeColor="#15803d"
                       onAddToQueue={() => addToQueue(track)}
                       onDownload={() => downloadTrack(track)}
-                      isDownloaded={isDownloaded(track.songId || track.src)}
-                      isDownloading={isDownloading(track.songId || track.src)}
+                      isDownloaded={isDownloaded(String(track.id))}
+                      isDownloading={isDownloading(String(track.id))}
                     />
                   ))}
                 </ScrollView>
@@ -1534,8 +1540,8 @@ export const MainContent = () => {
                       onPress={() => playTrackList(forYouTracks, i)}
                       onAddToQueue={() => addToQueue(track)}
                       onDownload={() => downloadTrack(track)}
-                      isDownloaded={isDownloaded(track.songId || track.src)}
-                      isDownloading={isDownloading(track.songId || track.src)}
+                      isDownloaded={isDownloaded(String(track.id))}
+                      isDownloading={isDownloading(String(track.id))}
                     />
                   ))}
                 </ScrollView>
@@ -1691,17 +1697,17 @@ export const MainContent = () => {
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={(e) => { e.stopPropagation(); downloadTrack(track); }}
-                            disabled={isDownloaded(track.songId || track.src) || isDownloading(track.songId || track.src)}
+                            disabled={isDownloaded(String(track.id)) || isDownloading(String(track.id))}
                             style={[
                               styles.ytDownloadButton,
-                              isDownloaded(track.songId || track.src) && styles.ytDownloadButtonDownloaded,
-                              isDownloading(track.songId || track.src) && styles.ytDownloadButtonDownloading,
+                              isDownloaded(String(track.id)) && styles.ytDownloadButtonDownloaded,
+                              isDownloading(String(track.id)) && styles.ytDownloadButtonDownloading,
                             ]}
                             activeOpacity={0.7}
                           >
-                            {isDownloading(track.songId || track.src) ? (
+                            {isDownloading(String(track.id)) ? (
                               <Loader2 size={10} color="#fff" />
-                            ) : isDownloaded(track.songId || track.src) ? (
+                            ) : isDownloaded(String(track.id)) ? (
                               <CheckCircle size={10} color="#fff" />
                             ) : (
                               <Download size={10} color="#fff" />

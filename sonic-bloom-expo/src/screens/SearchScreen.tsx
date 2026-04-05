@@ -9,11 +9,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
+import { useSearchCache } from '../hooks/useSearchCache';
+import { useSearchHistory } from '../hooks/useSearchHistory';
 import { Toast } from '../components/Toast';
 import { CachedImage } from '../components/CachedImage';
 import { lightHaptic, mediumHaptic } from '../lib/haptics';
 import {
-  API_BASE, SEARCH_HISTORY_KEY, SEARCH_HISTORY_MAX, SONGS_PER_PAGE,
+  API_BASE, SONGS_PER_PAGE,
   TRENDING_SEARCHES, HINDI_ARTISTS, BENGALI_ARTISTS
 } from '../data/constants';
 
@@ -24,7 +26,6 @@ export const SearchScreen: React.FC = () => {
   const [results, setResults] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState<"songs" | "artists" | "albums">("songs");
   const [artistResults, setArtistResults] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -38,6 +39,8 @@ export const SearchScreen: React.FC = () => {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { currentTrack, isPlaying, addToQueue, playTrackList } = usePlayer();
   const { isDownloaded, isDownloading, downloadTrack, getDownloadProgress } = useDownloadsContext();
+  const { saveSearchResults, getCachedResults } = useSearchCache();
+  const { searchHistory, addToHistory, clearHistory: clearSearchHistory, removeFromHistory } = useSearchHistory();
   const navigation = useNavigation();
 
   const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
@@ -45,27 +48,15 @@ export const SearchScreen: React.FC = () => {
     setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500);
   }, []);
 
-  useEffect(() => {
-    AsyncStorage.getItem(SEARCH_HISTORY_KEY).then((data) => {
-      if (data) {
-        try { setSearchHistory(JSON.parse(data)); } catch {}
-      }
-    });
-  }, []);
+  const handleSearch = (q: string) => {
+    setQuery(q);
+    addToHistory(q);
+    lightHaptic();
+  };
 
-  const saveToHistory = useCallback(async (q: string) => {
-    if (!q.trim()) return;
-    setSearchHistory((prev) => {
-      const updated = [q, ...prev.filter((h) => h !== q)].slice(0, SEARCH_HISTORY_MAX);
-      AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
-  const clearHistory = useCallback(() => {
-    setSearchHistory([]);
-    AsyncStorage.removeItem(SEARCH_HISTORY_KEY);
-  }, []);
+  const clearHistory = () => {
+    clearSearchHistory();
+  };
 
   const fetchSongs = useCallback(async (searchQuery: string, page: number, append = false) => {
     try {
@@ -185,12 +176,6 @@ export const SearchScreen: React.FC = () => {
     setCurrentPage(nextPage);
     setLoadingMore(false);
   }, [loadingMore, hasMore, currentPage, query, activeFilter, fetchSongs]);
-
-  const handleSearch = (q: string) => {
-    setQuery(q);
-    saveToHistory(q);
-    lightHaptic();
-  };
 
   const handleSearchPlay = async (track: Track) => {
     playTrackList([track], 0);
@@ -437,9 +422,7 @@ export const SearchScreen: React.FC = () => {
                     <Text style={styles.historyText} numberOfLines={1}>{h}</Text>
                     <TouchableOpacity
                       onPress={() => {
-                        const updated = searchHistory.filter((_, idx) => idx !== i);
-                        setSearchHistory(updated);
-                        AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated));
+                        removeFromHistory(h);
                       }}
                       activeOpacity={0.7}
                     >
@@ -483,13 +466,13 @@ export const SearchScreen: React.FC = () => {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.actionBtn}
-                      onPress={() => {
-                        results.forEach(track => {
-                          if (!isDownloaded(String(track.id))) {
-                            downloadTrack(track);
-                          }
-                        });
-                        showToast(`Downloading ${results.length} songs`, 'info');
+                      onPress={async () => {
+                        const tracksToDownload = results.filter(track => !isDownloaded(String(track.id)));
+                        console.log('[SearchScreen] Downloading:', tracksToDownload.length, 'tracks');
+                        for (const track of tracksToDownload) {
+                          await downloadTrack(track);
+                        }
+                        showToast(`Downloading ${tracksToDownload.length} songs`, 'info');
                       }}
                       activeOpacity={0.7}
                     >

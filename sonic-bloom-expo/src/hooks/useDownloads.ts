@@ -97,6 +97,7 @@ export const useDownloads = () => {
   };
 
   const isDownloaded = useCallback((trackId: string) => {
+    console.log('[useDownloads] isDownloaded check:', trackId, 'downloads length:', downloads.length);
     return downloads.some(d => d.track && d.track.id && String(d.track.id) === String(trackId));
   }, [downloads]);
 
@@ -105,24 +106,37 @@ export const useDownloads = () => {
   }, [downloads]);
 
   const downloadTrack = async (track: Track) => {
-    if (!track?.src || !track?.id || isDownloaded(String(track.id))) return;
-
     const trackId = String(track.id);
+    console.log('[useDownloads] downloadTrack called:', trackId, 'already downloaded:', isDownloaded(trackId));
+    
+    if (!track?.src || !track?.id || isDownloaded(trackId)) {
+      console.log('[useDownloads] Skipping download - already downloaded or invalid track');
+      return;
+    }
+
     setDownloading(prev => ({ ...prev, [trackId]: 0 }));
 
     try {
+      console.log('[useDownloads] Starting download for:', track.title);
       const downloadDir = FileSystem.Paths.cache;
-      const fileName = `${trackId}_${track.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
+      const safeTitle = (track.title || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
+      const fileName = `${trackId}_${safeTitle}.mp3`;
       const file = new FileSystem.File(downloadDir, fileName);
       const localUri = file.uri;
 
-      // Use the new File.downloadFileAsync API (no progress callback available)
       setDownloading(prev => ({ ...prev, [trackId]: 50 }));
       await FileSystem.File.downloadFileAsync(track.src, file, { idempotent: true });
       setDownloading(prev => ({ ...prev, [trackId]: 100 }));
 
-      const newDownloads = [...downloads, { track, localUri, downloadedAt: Date.now() }];
-      await saveDownloads(newDownloads);
+      const newDownload = { track, localUri, downloadedAt: Date.now() };
+      console.log('[useDownloads] Download complete, adding to downloads list');
+      
+      setDownloads(prev => {
+        const newDownloads = [...prev, newDownload];
+        saveDownloads(newDownloads);
+        return newDownloads;
+      });
+      console.log('[useDownloads] Download saved, total downloads now:', downloads.length + 1);
     } catch (e) {
       console.error('Failed to download track:', e);
     } finally {
