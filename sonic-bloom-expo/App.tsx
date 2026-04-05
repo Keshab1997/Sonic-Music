@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, SafeAreaView, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -23,6 +24,7 @@ import { SignupScreen } from './src/screens/SignupScreen';
 import { ArtistDetailScreen } from './src/screens/ArtistDetailScreen';
 import { AlbumDetailScreen } from './src/screens/AlbumDetailScreen';
 import { MiniPlayer } from './src/components/MiniPlayer';
+import { SplashScreen } from './src/components/SplashScreen';
 
 const queryClient = new QueryClient();
 const Tab = createBottomTabNavigator();
@@ -113,6 +115,12 @@ const RootNavigator = () => {
 
 // App Root
 export default function App() {
+  const [splashFinished, setSplashFinished] = useState(false);
+
+  const handleSplashFinish = () => {
+    setSplashFinished(true);
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -120,6 +128,7 @@ export default function App() {
           <DownloadsProvider>
             <LikedSongsProvider>
               <SafeAreaView style={styles.safeArea}>
+                {!splashFinished && <SplashScreen onFinish={handleSplashFinish} />}
                 <RootNavigator />
                 <StatusBar style="light" />
               </SafeAreaView>

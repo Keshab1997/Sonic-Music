@@ -204,7 +204,7 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
         <Text style={styles.trackArtist} numberOfLines={1}>{currentTrack.artist}</Text>
       </View>
       <TouchableOpacity
-        onPress={() => isCurrentTrackLiked ? unlikeCurrentTrack() : likeCurrentTrack()}
+        onPress={() => isCurrentTrackLiked ? unlikeCurrentTrack(String(currentTrack.id)) : likeCurrentTrack(currentTrack)}
         activeOpacity={0.7}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         delayPressIn={0}
@@ -217,7 +217,7 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
         />
       </TouchableOpacity>
     </View>
-  ), [currentTrack.title, currentTrack.artist, isCurrentTrackLiked, likeCurrentTrack, unlikeCurrentTrack]);
+  ), [currentTrack.title, currentTrack.artist, currentTrack.id, isCurrentTrackLiked, likeCurrentTrack, unlikeCurrentTrack]);
 
   const handlePrev = useCallback(() => { prev(); Vibration.vibrate(20); }, [prev]);
   const handleNext = useCallback(() => { next(); Vibration.vibrate(20); }, [next]);

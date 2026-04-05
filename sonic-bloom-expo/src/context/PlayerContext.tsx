@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { View, InteractionManager } from "react-native";
+import { View } from "react-native";
 import { Track, playlist } from "@/data/playlist";
-import { Audio } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import YoutubeIframe, { YoutubeIframeRef } from "react-native-youtube-iframe";
@@ -13,8 +12,7 @@ import {
 } from "@/lib/constants";
 import { useMediaSession } from "@/hooks/useMediaSession";
 import { useLikedSongs } from "@/hooks/useLikedSongs";
-
-export type AudioQuality = "96kbps" | "160kbps" | "320kbps";
+import { audioService, AudioQuality } from "@/service/AudioService";
 
 interface PlayerContextType {
   tracks: Track[];
@@ -48,8 +46,8 @@ interface PlayerContextType {
   setSleepTimer: (minutes: number) => void;
   cancelSleepTimer: () => void;
   isCurrentTrackLiked: boolean;
-  likeCurrentTrack: () => Promise<boolean>;
-  unlikeCurrentTrack: () => Promise<boolean>;
+  likeCurrentTrack: (track: Track) => Promise<boolean>;
+  unlikeCurrentTrack: (trackId: string) => Promise<boolean>;
   addToListeningHistory: (trackId: string, durationPlayed: number, completed: boolean) => Promise<boolean>;
   play: (index?: number) => void;
   playTrack: (track: Track) => void;
@@ -74,14 +72,6 @@ export const usePlayer = () => {
   return ctx;
 };
 
-function getAudioSrcForTrack(track: Track, quality: AudioQuality): string {
-  if (!track) return "";
-  if (track.audioUrls) {
-    return track.audioUrls[quality] || track.audioUrls["160kbps"] || track.audioUrls["96kbps"] || track.audioUrls["320kbps"] || track.src;
-  }
-  return track.src;
-}
-
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [trackList, setTrackList] = useState<Track[]>(playlist);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -100,9 +90,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [eqTreble, setEqTrebleState] = useState(0);
   const [playbackSpeed, setPlaybackSpeedState] = useState(1.0);
   const [crossfade, setCrossfadeState] = useState(0);
-
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const ytPlayerRef = useRef<YoutubeIframeRef>(null);
   const [ytVideoId, setYtVideoId] = useState<string | null>(null);
@@ -135,18 +122,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Use the unified useLikedSongs hook instead of duplicating logic
   const { isLiked: isLikedHook, toggleLike: toggleLikeHook, clearAll: clearLikedSongs } = useLikedSongs();
 
-  // Wrapper to match the expected interface
+  // Wrapper to match the expected interface - use currentTrack from ref for stability
   const likeSongHook = useCallback(async (track: Track): Promise<boolean> => {
+    if (!track || !track.id) return false;
     await toggleLikeHook(track);
     return true;
   }, [toggleLikeHook]);
 
   const unlikeSongHook = useCallback(async (trackId: string): Promise<boolean> => {
-    // Find the track and toggle to remove
-    const track = trackList.find(t => String(t.id) === trackId);
+    if (!trackId) return false;
+    // Find the track from current trackList and toggle to remove
+    const track = trackListRef.current.find(t => String(t.id) === trackId);
     if (track) await toggleLikeHook(track);
     return true;
-  }, [toggleLikeHook, trackList]);
+  }, [toggleLikeHook]);
 
   const addToHistory = useCallback(async (trackId: string, durationPlayed: number, completed: boolean): Promise<boolean> => {
     try {
@@ -175,30 +164,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => { playbackSpeedRef.current = playbackSpeed; }, [playbackSpeed]);
 
   useEffect(() => {
-    let mounted = true;
-    const setupAudio = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
-        });
-      } catch (e) {
-        if (mounted) console.error('Failed to set audio mode:', e);
-      }
-    };
-    setupAudio();
+    audioService.initialize().catch(e => console.error('Failed to initialize audio:', e));
     return () => {
-      mounted = false;
-      if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(() => {});
-        soundRef.current = null;
-      }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
+      audioService.unload().catch(() => {});
       if (ytProgressRef.current) {
         clearInterval(ytProgressRef.current);
         ytProgressRef.current = null;
@@ -235,15 +203,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   stopYoutubeRef.current = stopYoutube;
 
   const playYoutube = useCallback((videoId: string) => {
-    // Clean up existing audio before starting new
-    if (soundRef.current) {
-      soundRef.current.unloadAsync().catch(() => {});
-      soundRef.current = null;
-    }
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
+    audioService.unload().catch(() => {});
     if (ytProgressRef.current) {
       clearInterval(ytProgressRef.current);
       ytProgressRef.current = null;
@@ -268,76 +228,69 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
   playYoutubeRef.current = playYoutube;
 
+  const handleTrackFinish = useCallback(() => {
+    if (repeatRef.current === "one") {
+      const track = trackListRef.current[currentIndexRef.current];
+      if (track && track.type !== "youtube") {
+        playSoundRef.current(audioService.getAudioUrl(track, qualityRef.current));
+      }
+      return;
+    }
+    
+    const q = queueRef.current;
+    if (q.length > 0) {
+      const nt = q[0];
+      setQueue(prev => prev.slice(1));
+      const ei = trackListRef.current.findIndex(t => t.id === nt.id);
+      if (ei !== -1) setCurrentIndex(ei);
+      else { setTrackList(prev => [nt, ...prev]); setCurrentIndex(0); }
+      if (nt.type === "youtube" && nt.songId) playYoutubeRef.current(nt.songId);
+      else playSoundRef.current(audioService.getAudioUrl(nt, qualityRef.current));
+      return;
+    }
+    
+    const nextIdx = shuffleRef.current
+      ? Math.floor(Math.random() * trackListRef.current.length)
+      : (currentIndexRef.current + 1) % trackListRef.current.length;
+    setCurrentIndex(nextIdx);
+    const nt = trackListRef.current[nextIdx];
+    if (nt) {
+      if (nt.type === "youtube" && nt.songId) playYoutubeRef.current(nt.songId);
+      else playSoundRef.current(audioService.getAudioUrl(nt, qualityRef.current));
+    }
+  }, []);
+
   const playSound = useCallback(async (src: string) => {
     try {
-      // Reset YouTube flag first
       isYoutubeRef.current = false;
-      
-      // Clean up any existing audio first
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync().catch(() => {});
-        soundRef.current = null;
-      }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
-      // Also stop YouTube progress if running
       if (ytProgressRef.current) {
         clearInterval(ytProgressRef.current);
         ytProgressRef.current = null;
       }
       
-      // Reset progress and duration
       setProgress(0);
       setDuration(0);
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: src },
-        { shouldPlay: true, volume: volumeRef.current, rate: playbackSpeedRef.current, progressUpdateIntervalMillis: 500 },
-        (status) => {
-          if (!status.isLoaded) return;
-          if (status.durationMillis) setDuration(status.durationMillis / 1000);
-          setProgress(status.positionMillis / 1000);
-          if (status.didJustFinish) {
-            if (repeatRef.current === "one") {
-              playSoundRef.current(src);
-            } else {
-              const q = queueRef.current;
-              if (q.length > 0) {
-                const nt = q[0];
-                setQueue(prev => prev.slice(1));
-                const ei = trackListRef.current.findIndex(t => t.id === nt.id);
-                if (ei !== -1) setCurrentIndex(ei);
-                else { setTrackList(prev => [nt, ...prev]); setCurrentIndex(0); }
-                if (nt.type === "youtube" && nt.songId) playYoutubeRef.current(nt.songId);
-                else playSoundRef.current(getAudioSrcForTrack(nt, qualityRef.current));
-                return;
-              }
-              const nextIdx = shuffleRef.current
-                ? Math.floor(Math.random() * trackListRef.current.length)
-                : (currentIndexRef.current + 1) % trackListRef.current.length;
-              setCurrentIndex(nextIdx);
-              setProgress(0);
-              const nt = trackListRef.current[nextIdx];
-              if (nt) {
-                if (nt.type === "youtube" && nt.songId) playYoutubeRef.current(nt.songId);
-                else playSoundRef.current(getAudioSrcForTrack(nt, qualityRef.current));
-              }
-            }
-          }
-        }
-      );
-      soundRef.current = sound;
+      await audioService.load(src, volumeRef.current, playbackSpeedRef.current);
+      
+      audioService.setStatusCallback((status) => {
+        setProgress(status.position);
+        setDuration(status.duration);
+        setIsPlaying(status.isPlaying);
+      });
+      
+      audioService.setFinishCallback(handleTrackFinish);
+      
+      await audioService.play();
       setIsPlaying(true);
     } catch (err) {
       console.error('Playback error:', err);
       const nextIdx = (currentIndexRef.current + 1) % trackListRef.current.length;
       setCurrentIndex(nextIdx);
       const nt = trackListRef.current[nextIdx];
-      if (nt) playSoundRef.current(getAudioSrcForTrack(nt, qualityRef.current));
+      if (nt) playSoundRef.current(audioService.getAudioUrl(nt, qualityRef.current));
     }
-  }, []);
+  }, [handleTrackFinish]);
   playSoundRef.current = playSound;
 
   const playTrackList = useCallback((tracks: Track[], index?: number) => {
@@ -345,19 +298,25 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const track = tracks[idx];
     if (!track) return;
     
-    // Update state immediately
+    stopYoutubeRef.current();
+    audioService.unload().catch(() => {});
+    if (ytProgressRef.current) {
+      clearInterval(ytProgressRef.current);
+      ytProgressRef.current = null;
+    }
+    
+    // Update state and track list
     setTrackList(tracks);
     setCurrentIndex(idx);
     setProgress(0);
     setDuration(0);
+    setYtProgress(0);
+    setYtDuration(0);
     
-    // Then play
     if (track.type === "youtube" && track.songId) {
-      stopYoutubeRef.current();
       playYoutubeRef.current(track.songId);
     } else {
-      stopYoutubeRef.current();
-      playSoundRef.current(getAudioSrcForTrack(track, qualityRef.current));
+      playSoundRef.current(audioService.getAudioUrl(track, qualityRef.current));
     }
   }, []);
 
@@ -373,19 +332,24 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       idx = 0;
     }
     
-    // Update state immediately
+    stopYoutubeRef.current();
+    audioService.unload().catch(() => {});
+    if (ytProgressRef.current) {
+      clearInterval(ytProgressRef.current);
+      ytProgressRef.current = null;
+    }
+    
     setTrackList(newList);
     setCurrentIndex(idx);
     setProgress(0);
     setDuration(0);
+    setYtProgress(0);
+    setYtDuration(0);
     
-    // Then play
     if (track.type === "youtube" && track.songId) {
-      stopYoutubeRef.current();
       playYoutubeRef.current(track.songId);
     } else {
-      stopYoutubeRef.current();
-      playSoundRef.current(getAudioSrcForTrack(track, qualityRef.current));
+      playSoundRef.current(audioService.getAudioUrl(track, qualityRef.current));
     }
   }, []);
 
@@ -394,27 +358,32 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const track = trackListRef.current[idx];
     if (!track) return;
     
-    // Update index if provided
     if (index !== undefined) {
       setCurrentIndex(index);
     }
     
+    stopYoutubeRef.current();
+    audioService.unload().catch(() => {});
+    if (ytProgressRef.current) {
+      clearInterval(ytProgressRef.current);
+      ytProgressRef.current = null;
+    }
+    
     setProgress(0);
     setDuration(0);
+    setYtProgress(0);
+    setYtDuration(0);
     
-    // Then play
     if (track.type === "youtube" && track.songId) {
-      stopYoutubeRef.current();
       playYoutubeRef.current(track.songId);
     } else {
-      stopYoutubeRef.current();
-      playSoundRef.current(getAudioSrcForTrack(track, qualityRef.current));
+      playSoundRef.current(audioService.getAudioUrl(track, qualityRef.current));
     }
   }, []);
 
   const pause = useCallback(async () => {
     if (isYoutubeRef.current) setYtPlaying(false);
-    else if (soundRef.current) await soundRef.current.pauseAsync();
+    else await audioService.pause();
     setIsPlaying(false);
   }, []);
 
@@ -428,10 +397,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const wasPlaying = isPlayingRef.current;
         setIsPlaying(!wasPlaying);
         if (wasPlaying) {
-          if (soundRef.current) soundRef.current.pauseAsync().catch(() => {});
+          audioService.pause().catch(() => {});
         } else {
-          if (soundRef.current) soundRef.current.playAsync().catch(() => {});
-          else play();
+          audioService.play().catch(() => {});
         }
       }
     });
@@ -439,12 +407,25 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const next = useCallback(() => {
     requestAnimationFrame(() => {
+      stopYoutubeRef.current();
+      audioService.unload().catch(() => {});
+      if (ytProgressRef.current) {
+        clearInterval(ytProgressRef.current);
+        ytProgressRef.current = null;
+      }
+      
       const q = queueRef.current;
       const advance = (track: Track, idx: number) => {
         setCurrentIndex(idx);
         setProgress(0);
-        if (track.type === "youtube" && track.songId) { stopYoutubeRef.current(); playYoutubeRef.current(track.songId); }
-        else { stopYoutubeRef.current(); playSoundRef.current(getAudioSrcForTrack(track, qualityRef.current)); }
+        setDuration(0);
+        setYtProgress(0);
+        setYtDuration(0);
+        if (track.type === "youtube" && track.songId) { 
+          playYoutubeRef.current(track.songId); 
+        } else { 
+          playSoundRef.current(audioService.getAudioUrl(track, qualityRef.current)); 
+        }
       };
       if (q.length > 0) {
         const nt = q[0];
@@ -464,27 +445,39 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const prev = useCallback(() => {
     requestAnimationFrame(async () => {
-      let pos = 0;
-      if (isYoutubeRef.current) {
-        pos = ytProgressValueRef.current;
-      } else if (soundRef.current) {
-        const status = await soundRef.current.getStatusAsync().catch(() => null);
-        if (status && status.isLoaded) {
-          pos = status.positionMillis / 1000;
-        }
-      }
+      const pos = isYoutubeRef.current ? ytProgressValueRef.current : progressRef.current;
+      
       if (pos > 3) {
-        if (isYoutubeRef.current) { ytPlayerRef.current?.seekTo(0, true); setYtProgress(0); }
-        else if (soundRef.current) { await soundRef.current.setPositionAsync(0); setProgress(0); }
+        if (isYoutubeRef.current) { 
+          ytPlayerRef.current?.seekTo(0, true); 
+          setYtProgress(0); 
+        } else { 
+          await audioService.seek(0); 
+          setProgress(0); 
+        }
         return;
       }
+      
+      stopYoutubeRef.current();
+      audioService.unload().catch(() => {});
+      if (ytProgressRef.current) {
+        clearInterval(ytProgressRef.current);
+        ytProgressRef.current = null;
+      }
+      
       const prevIdx = (currentIndexRef.current - 1 + trackListRef.current.length) % trackListRef.current.length;
       const pt = trackListRef.current[prevIdx];
       if (!pt) return;
       setCurrentIndex(prevIdx);
       setProgress(0);
-      if (pt.type === "youtube" && pt.songId) { stopYoutubeRef.current(); playYoutubeRef.current(pt.songId); }
-      else { stopYoutubeRef.current(); playSoundRef.current(getAudioSrcForTrack(pt, qualityRef.current)); }
+      setDuration(0);
+      setYtProgress(0);
+      setYtDuration(0);
+      if (pt.type === "youtube" && pt.songId) { 
+        playYoutubeRef.current(pt.songId); 
+      } else { 
+        playSoundRef.current(audioService.getAudioUrl(pt, qualityRef.current)); 
+      }
     });
   }, []);
 
@@ -492,8 +485,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (isYoutubeRef.current) {
       ytPlayerRef.current?.seekTo(time, true);
       setYtProgress(time);
-    } else if (soundRef.current) {
-      soundRef.current.setPositionAsync(time * 1000).catch(() => {});
+    } else {
+      audioService.seek(time).catch(() => {});
       setProgress(time);
     }
   }, []);
@@ -505,8 +498,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (isYoutubeRef.current) {
       ytPlayerRef.current?.seekTo(newPos, true);
       setYtProgress(newPos);
-    } else if (soundRef.current) {
-      soundRef.current.setPositionAsync(newPos * 1000).catch(() => {});
+    } else {
+      audioService.seek(newPos).catch(() => {});
       setProgress(newPos);
     }
   }, []);
@@ -517,8 +510,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (isYoutubeRef.current) {
       ytPlayerRef.current?.seekTo(newPos, true);
       setYtProgress(newPos);
-    } else if (soundRef.current) {
-      soundRef.current.setPositionAsync(newPos * 1000).catch(() => {});
+    } else {
+      audioService.seek(newPos).catch(() => {});
       setProgress(newPos);
     }
   }, []);
@@ -526,13 +519,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const setVolume = useCallback((v: number) => {
     requestAnimationFrame(() => {
       setVolumeState(v);
-      if (soundRef.current) soundRef.current.setVolumeAsync(v).catch(() => {});
+      audioService.setVolume(v).catch(() => {});
     });
   }, []);
 
   const setPlaybackSpeed = useCallback((speed: number) => {
     setPlaybackSpeedState(speed);
-    if (soundRef.current) soundRef.current.setRateAsync(speed, true).catch(() => {});
+    audioService.setRate(speed).catch(() => {});
   }, []);
 
   const setQuality = useCallback((q: AudioQuality) => {
@@ -573,7 +566,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSleepMinutesState(minutes);
     sleepTimerRef.current = setTimeout(async () => {
       if (isYoutubeRef.current) setYtPlaying(false);
-      else if (soundRef.current) await soundRef.current.pauseAsync();
+      else await audioService.pause();
       setIsPlaying(false);
       setSleepMinutesState(null);
     }, minutes * 60 * 1000);
@@ -610,8 +603,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       play, playTrack, playTrackList, pause, togglePlay, next, prev, seek, seekForward, seekBackward, setVolume,
       toggleShuffle, toggleRepeat,
       isCurrentTrackLiked: currentTrack?.id ? isLikedHook(String(currentTrack.id)) : false,
-      likeCurrentTrack: () => currentTrack?.id ? likeSongHook(currentTrack) : Promise.resolve(false),
-      unlikeCurrentTrack: () => currentTrack?.id ? unlikeSongHook(String(currentTrack.id)) : Promise.resolve(false),
+      likeCurrentTrack: likeSongHook,
+      unlikeCurrentTrack: unlikeSongHook,
       addToListeningHistory: addToHistory,
     };
   }, [
