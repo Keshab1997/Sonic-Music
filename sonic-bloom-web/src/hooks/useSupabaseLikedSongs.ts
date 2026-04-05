@@ -1,15 +1,49 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import type { Track } from '../lib/supabase'
+import type { Track as SupabaseTrack } from '../lib/supabase'
+import type { Track, AudioUrls } from '@/data/playlist'
+
+// Extended track interface for Supabase operations
+interface SupabaseTrackInput {
+  id?: string | number;
+  title: string;
+  artist: string;
+  album?: string;
+  duration: number;
+  youtube_id?: string;
+  cover_url?: string;
+  audio_url?: string;
+}
 
 interface UseLikedSongsReturn {
   likedSongs: Track[]
   loading: boolean
   error: Error | null
-  likeSong: (track: Track) => Promise<boolean>
+  likeSong: (track: SupabaseTrackInput) => Promise<boolean>
   unlikeSong: (trackId: string) => Promise<boolean>
   isLiked: (trackId: string) => boolean
   refreshLikedSongs: () => Promise<void>
+}
+
+// Helper function to convert Supabase Track to app Track format
+function toAppTrack(item: SupabaseTrack): Track {
+  // Generate a numeric ID from the UUID or use a random fallback
+  const numericId = item.id 
+    ? parseInt(item.id.replace(/-/g, '').slice(0, 8), 36) || Math.floor(Math.random() * 1000000)
+    : Math.floor(Math.random() * 1000000);
+  
+  return {
+    id: numericId,
+    title: item.title,
+    artist: item.artist,
+    album: item.album || '',
+    cover: item.cover_url || '',
+    src: item.audio_url || '',
+    duration: item.duration,
+    type: item.youtube_id ? 'youtube' : 'audio',
+    songId: item.youtube_id,
+    audioUrls: item.audio_url ? { '160kbps': item.audio_url } as AudioUrls : undefined,
+  };
 }
 
 export function useLikedSongs(): UseLikedSongsReturn {
@@ -40,8 +74,16 @@ export function useLikedSongs(): UseLikedSongsReturn {
       if (err) throw err
       
       const tracks: Track[] = (data || [])
-        .map(item => item.tracks as unknown as Track)
-        .filter(Boolean)
+        .map(item => {
+          const tracksData = item.tracks as SupabaseTrack[] | SupabaseTrack | null;
+          // Handle both array and single object responses from Supabase
+          if (Array.isArray(tracksData)) {
+            return tracksData.length > 0 ? toAppTrack(tracksData[0]) : null;
+          }
+          if (!tracksData) return null;
+          return toAppTrack(tracksData);
+        })
+        .filter((track): track is Track => track !== null)
       
       setLikedSongs(tracks)
     } catch (err) {
@@ -56,10 +98,10 @@ export function useLikedSongs(): UseLikedSongsReturn {
     fetchLikedSongs()
   }, [fetchLikedSongs])
 
-  const likeSong = useCallback(async (track: Track) => {
+  const likeSong = useCallback(async (track: SupabaseTrackInput) => {
     try {
       // First check if track exists in tracks table
-      let trackId = track.id
+      let trackId: string | undefined = typeof track.id === 'string' ? track.id : undefined;
       
       if (!trackId && track.youtube_id) {
         const { data: existingTrack } = await supabase
@@ -128,7 +170,10 @@ export function useLikedSongs(): UseLikedSongsReturn {
   }, [fetchLikedSongs])
 
   const isLiked = useCallback((trackId: string) => {
-    return likedSongs.some(song => song.id === trackId)
+    // Check by songId (youtube_id) or by string comparison of id
+    return likedSongs.some(song => 
+      song.songId === trackId || String(song.id) === trackId
+    )
   }, [likedSongs])
 
   return {

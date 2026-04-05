@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import type { Track } from '../lib/supabase'
+import type { Track as SupabaseTrack } from '../lib/supabase'
+import type { Track, AudioUrls } from '@/data/playlist'
 
 interface HistoryEntry {
   track: Track
@@ -16,6 +17,26 @@ interface UseListeningHistoryReturn {
   addToHistory: (trackId: string, durationPlayed: number, completed: boolean) => Promise<boolean>
   getTopTracks: (limit?: number) => Promise<Track[]>
   clearHistory: () => Promise<boolean>
+}
+
+// Helper function to convert Supabase Track to app Track format
+function toAppTrack(item: SupabaseTrack): Track {
+  const numericId = item.id 
+    ? parseInt(item.id.replace(/-/g, '').slice(0, 8), 36) || Math.floor(Math.random() * 1000000)
+    : Math.floor(Math.random() * 1000000);
+  
+  return {
+    id: numericId,
+    title: item.title,
+    artist: item.artist,
+    album: item.album || '',
+    cover: item.cover_url || '',
+    src: item.audio_url || '',
+    duration: item.duration,
+    type: item.youtube_id ? 'youtube' : 'audio',
+    songId: item.youtube_id,
+    audioUrls: item.audio_url ? { '160kbps': item.audio_url } as AudioUrls : undefined,
+  };
 }
 
 export function useListeningHistory(): UseListeningHistoryReturn {
@@ -48,12 +69,23 @@ export function useListeningHistory(): UseListeningHistoryReturn {
 
       if (err) throw err
       
-      const formattedData: HistoryEntry[] = (data || []).map(item => ({
-        track: item.tracks as unknown as Track,
-        played_at: item.played_at,
-        duration_played: item.duration_played,
-        completed: item.completed
-      }))
+      const formattedData: HistoryEntry[] = (data || []).map(item => {
+        const tracksData = item.tracks as SupabaseTrack[] | SupabaseTrack | null;
+        let track: SupabaseTrack | null = null;
+        
+        if (Array.isArray(tracksData)) {
+          track = tracksData.length > 0 ? tracksData[0] : null;
+        } else if (tracksData) {
+          track = tracksData;
+        }
+        
+        return {
+          track: track ? toAppTrack(track) : {} as Track,
+          played_at: item.played_at,
+          duration_played: item.duration_played,
+          completed: item.completed
+        };
+      }).filter(entry => entry.track && entry.track.title);
       
       setHistory(formattedData)
     } catch (err) {
@@ -108,7 +140,19 @@ export function useListeningHistory(): UseListeningHistoryReturn {
         .limit(limit)
 
       if (err) throw err
-      return (data || []).map(item => item.tracks as unknown as Track)
+      
+      const tracks: Track[] = (data || [])
+        .map(item => {
+          const tracksData = item.tracks as SupabaseTrack[] | SupabaseTrack | null;
+          if (Array.isArray(tracksData)) {
+            return tracksData.length > 0 ? toAppTrack(tracksData[0]) : null;
+          }
+          if (!tracksData) return null;
+          return toAppTrack(tracksData);
+        })
+        .filter((track): track is Track => track !== null);
+      
+      return tracks;
     } catch (err) {
       console.error('Error getting top tracks:', err)
       return []

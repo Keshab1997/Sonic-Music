@@ -857,39 +857,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [isPlaying, currentTrack?.type]);
 
-  // Control YouTube playback when isPlaying changes
-  useEffect(() => {
-    if (currentTrack?.type === "youtube" && ytPlayerRef.current) {
-      const player = ytPlayerRef.current.getInternalPlayer();
-      if (!player || typeof player.getPlayerState !== "function") return;
-
-      const state = player.getPlayerState();
-      
-      if (isPlaying) {
-        // If we should be playing but aren't, start playing
-        if (state !== 1 && state !== 3) {
-          const startPlayback = () => {
-            player.playVideo?.();
-            player.unMute?.();
-            // On mobile, retry to handle autoplay restrictions
-            if (isMobile()) {
-              setTimeout(() => {
-                player.playVideo?.();
-                player.unMute?.();
-              }, 300);
-            }
-          };
-          startPlayback();
-        }
-      } else {
-        // If we should be paused but aren't, pause
-        if (state === 1 || state === 3) {
-          player.pauseVideo?.();
-        }
-      }
-    }
-  }, [isPlaying, currentTrack?.type]);
-
   // Keep YouTube player alive on route changes - more aggressive on mobile
   useEffect(() => {
     if (currentTrack?.type === "youtube" && isPlaying && ytPlayerRef.current) {
