@@ -259,9 +259,12 @@ export const MainContent = () => {
           try {
             const streamRes = await fetch(`/api/yt-stream?id=${tracks[0].songId}`);
             if (streamRes.ok) {
-              const streamData = await streamRes.json().catch(() => null);
-              if (streamData?.audioUrl) {
-                tracks[0] = { ...tracks[0], src: streamData.audioUrl, type: "audio" as const };
+              const contentType = streamRes.headers.get("content-type") || "";
+              if (contentType.includes("application/json")) {
+                const streamData = await streamRes.json();
+                if (streamData?.audioUrl) {
+                  tracks[0] = { ...tracks[0], src: streamData.audioUrl, type: "audio" as const };
+                }
               }
             }
           } catch { /* fallback to youtube type */ }

@@ -12,7 +12,7 @@ import { toast } from "sonner";
 const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 const SEARCH_HISTORY_KEY = "sonic_search_history_web";
 const SEARCH_HISTORY_MAX = 10;
-const SONGS_PER_PAGE = 20;
+const SONGS_PER_PAGE = 40;
 
 const TRENDING_SEARCHES = [
   { title: "Arijit Singh Hits", query: "arijit singh top songs", color: "from-red-900/30 to-red-800/20" },
@@ -116,6 +116,20 @@ const SongRow = ({
         </div>
       </div>
 
+      {/* Add to Queue Button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          addToQueue(track);
+          toast.success("Added to Queue");
+        }}
+        className="p-2 rounded-full text-muted-foreground hover:text-primary transition-colors"
+        title="Add to Queue"
+      >
+        <ListPlus size={16} />
+      </button>
+
+      {/* Favorite Button */}
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -364,17 +378,19 @@ const SearchPage = () => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, activeFilter, fetchSongs]);
 
-  // Load more songs
-  const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore || activeFilter !== "songs") return;
-    setLoadingMore(true);
-    const nextPage = currentPage + 1;
-    const { tracks, hasMore: more } = await fetchSongs(query, nextPage, true);
-    setResults((prev) => [...prev, ...tracks]);
-    setHasMore(more);
-    setCurrentPage(nextPage);
-    setLoadingMore(false);
-  }, [loadingMore, hasMore, currentPage, query, activeFilter, fetchSongs]);
+  // Load specific page logic
+  const loadPage = useCallback(async (page: number) => {
+    setLoading(true);
+    const { tracks, hasMore: more, total } = await fetchSongs(query, page, false);
+    if (tracks.length > 0) {
+      setResults(tracks);
+      setHasMore(more);
+      setCurrentPage(page);
+      setTotalResults(total);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    setLoading(false);
+  }, [query, fetchSongs]);
 
   const handleSearch = (q: string) => {
     setQuery(q);
@@ -665,63 +681,35 @@ const SearchPage = () => {
               <div className="space-y-1">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                   <p className="text-sm text-muted-foreground">
-                    Showing {results.length} of {totalResults}+ results
+                    Page <span className="text-foreground font-medium">{currentPage}</span> • <span className="text-foreground font-medium">{totalResults}+</span> Total results
                   </p>
                   <div className="flex items-center gap-2 flex-wrap">
+                    {currentPage > 1 && (
+                      <button
+                        onClick={() => loadPage(currentPage - 1)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-xs font-medium text-primary hover:bg-muted/80 transition-colors"
+                      >
+                        <ChevronRight size={12} className="rotate-180" />
+                        Prev
+                      </button>
+                    )}
+                    <button
+                      onClick={() => loadPage(currentPage + 1)}
+                      disabled={!hasMore}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-xs font-medium text-primary hover:bg-muted/80 transition-colors disabled:opacity-50"
+                    >
+                      Next
+                      <ChevronRight size={12} />
+                    </button>
                     <button
                       onClick={() => {
                         results.forEach(track => addToQueue(track));
                         toast.success(`Added ${results.length} songs to queue`);
                       }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-xs font-medium text-primary hover:bg-muted/80 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-xs font-medium text-primary hover:bg-muted/80 transition-colors ml-2"
                     >
                       <List size={12} />
-                      Add to Queue
-                    </button>
-                    <button
-                      onClick={async () => {
-                        setLoading(true);
-                        const randomPage = Math.floor(Math.random() * 10) + 1;
-                        try {
-                          const res = await fetch(
-                            `${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=${randomPage}&limit=${SONGS_PER_PAGE}`
-                          );
-                          if (res.ok) {
-                            const data = await res.json();
-                            const songs = data.data?.results || [];
-                            const tracks: Track[] = songs
-                              .map((s: any, i: number) => {
-                                if (!s.downloadUrl?.length) return null;
-                                const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
-                                const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
-                                const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
-                                return {
-                                  id: 80000 + i,
-                                  title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
-                                  artist: s.primaryArtists || "Unknown",
-                                  album: typeof s.album === "string" ? s.album : s.album?.name || "",
-                                  cover: s.image?.find((img: any) => img.quality === "500x500")?.link || "",
-                                  src: bestUrl,
-                                  duration: parseInt(String(s.duration)) || 0,
-                                  type: "audio" as const,
-                                  songId: s.id,
-                                };
-                              })
-                              .filter((t: Track | null): t is Track => t !== null);
-                            setResults(tracks);
-                            setCurrentPage(1);
-                            setHasMore(true);
-                            toast.info(`Loaded ${tracks.length} new songs`);
-                          }
-                        } catch {
-                          toast.error("Failed to load more songs");
-                        }
-                        setLoading(false);
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-xs font-medium text-primary hover:bg-muted/80 transition-colors"
-                    >
-                      <Shuffle size={12} />
-                      Next
+                      Add All to Queue
                     </button>
                     <button
                       onClick={() => {
@@ -735,32 +723,44 @@ const SearchPage = () => {
                     </button>
                   </div>
                 </div>
-                {results.map((track, i) => (
-                  <SongRow
-                    key={`${track.src}-${i}`}
-                    track={track}
-                    index={i}
-                    isFavorite={false}
-                    onToggleFavorite={() => {}}
-                  />
-                ))}
 
-                {/* Load More Button */}
-                {hasMore && (
-                  <button
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    className="w-full mt-4 py-3 rounded-lg bg-muted border border-primary/30 text-primary font-medium hover:bg-muted/80 transition-colors disabled:opacity-50"
-                  >
-                    {loadingMore ? (
-                      <Loader2 size={18} className="animate-spin mx-auto" />
-                    ) : (
-                      "Load More Songs"
-                    )}
-                  </button>
-                )}
-                {!hasMore && results.length > 0 && (
-                  <p className="text-center text-xs text-muted-foreground mt-4 mb-2">No more results</p>
+                {loading ? (
+                   <div className="flex items-center justify-center py-20">
+                     <Loader2 size={32} className="animate-spin text-primary" />
+                   </div>
+                ) : (
+                  <>
+                    {results.map((track, i) => (
+                      <SongRow
+                        key={`${track.src}-${i}`}
+                        track={track}
+                        index={i}
+                        isFavorite={false}
+                        onToggleFavorite={() => {}}
+                      />
+                    ))}
+
+                    {/* Pagination Bottom Buttons */}
+                    <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
+                      <button
+                        onClick={() => loadPage(currentPage - 1)}
+                        disabled={currentPage === 1 || loading}
+                        className="px-4 py-2 rounded-lg bg-muted text-sm font-medium text-primary hover:bg-muted/80 transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <ChevronRight size={16} className="rotate-180" />
+                        Previous Page
+                      </button>
+                      <span className="text-sm font-medium text-muted-foreground">Page {currentPage}</span>
+                      <button
+                        onClick={() => loadPage(currentPage + 1)}
+                        disabled={!hasMore || loading}
+                        className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        Next Page
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             )}

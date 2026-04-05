@@ -279,14 +279,44 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }, PLAYBACK_SHORT_DELAY_MS);
   }, [resumeAudioContext, currentTrack?.type]);
 
-  // Queue operations
-  const addToQueue = useCallback((track: Track) => {
-    setQueue((prev) => [...prev, track]);
+  // Helper: Resolve YouTube track to direct audio URL to avoid Error 150
+  const resolveYouTubeTrack = useCallback(async (track: Track): Promise<Track> => {
+    if (track.type !== "youtube" && !track.src.includes("youtube.com") && !track.src.includes("youtu.be")) {
+      return track;
+    }
+    const videoId = track.songId || track.src.split("v=").pop()?.split("&")[0];
+    if (!videoId) return track;
+    
+    try {
+      const res = await fetch(`/api/yt-stream?id=${videoId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audioUrl) {
+          return { ...track, src: data.audioUrl, type: "audio" as const };
+        }
+      }
+    } catch (e) {
+      console.error("Failed to resolve YouTube audio:", e);
+    }
+    return track;
   }, []);
 
-  const playNext = useCallback((track: Track) => {
-    setQueue((prev) => [track, ...prev]);
-  }, []);
+  // Queue operations - auto-resolve YouTube tracks
+  const addToQueue = useCallback(async (track: Track) => {
+    let resolvedTrack = track;
+    if (track.type === "youtube" || track.src.includes("youtube.com") || track.src.includes("youtu.be")) {
+      resolvedTrack = await resolveYouTubeTrack(track);
+    }
+    setQueue((prev) => [...prev, resolvedTrack]);
+  }, [resolveYouTubeTrack]);
+
+  const playNext = useCallback(async (track: Track) => {
+    let resolvedTrack = track;
+    if (track.type === "youtube" || track.src.includes("youtube.com") || track.src.includes("youtu.be")) {
+      resolvedTrack = await resolveYouTubeTrack(track);
+    }
+    setQueue((prev) => [resolvedTrack, ...prev]);
+  }, [resolveYouTubeTrack]);
 
   const removeFromQueue = useCallback((index: number) => {
     setQueue((prev) => prev.filter((_, i) => i !== index));
@@ -421,14 +451,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     playAudio();
   }, [playAudio]);
 
-  const playTrack = useCallback((track: Track) => {
-    if (track.type === "youtube") {
+  const playTrack = useCallback(async (track: Track) => {
+    // Auto-resolve YouTube tracks to direct audio URLs
+    let resolvedTrack = track;
+    if (track.type === "youtube" || track.src.includes("youtube.com") || track.src.includes("youtu.be")) {
+      resolvedTrack = await resolveYouTubeTrack(track);
+    }
+    
+    if (resolvedTrack.type === "youtube") {
       audioRef.current?.pause();
-      const existingIdx = trackList.findIndex((t) => t.src === track.src);
+      const existingIdx = trackList.findIndex((t) => t.src === resolvedTrack.src);
       if (existingIdx !== -1) {
         setCurrentIndex(existingIdx);
       } else {
-        setTrackList((prev) => [track, ...prev]);
+        setTrackList((prev) => [resolvedTrack, ...prev]);
         setCurrentIndex(0);
       }
       setProgress(0);
@@ -440,12 +476,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setIsPlaying(false);
       setProgress(0);
       setTrackList((prev) => {
-        const idx = prev.findIndex((t) => t.src === track.src);
+        const idx = prev.findIndex((t) => t.src === resolvedTrack.src);
         if (idx !== -1) {
           setCurrentIndex(idx);
           return prev;
         }
-        const newList = [track, ...prev];
+        const newList = [resolvedTrack, ...prev];
         setCurrentIndex(0);
         return newList;
       });
@@ -456,16 +492,30 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsPlaying(true);
       }, PLAYBACK_START_DELAY_MS);
     }
-  }, [resumeAudioContext, trackList]);
+  }, [resumeAudioContext, trackList, resolveYouTubeTrack]);
 
-  const playTrackList = useCallback((tracks: Track[], index?: number) => {
-    setTrackList(tracks);
-    setCurrentIndex(index ?? 0);
+  const playTrackList = useCallback(async (tracks: Track[], index?: number) => {
+    const idx = index ?? 0;
+    const track = tracks[idx];
+    
+    // Auto-resolve YouTube tracks to direct audio URLs
+    let resolvedTracks = tracks;
+    if (track?.type === "youtube" || (track?.src.includes("youtube.com") || track?.src.includes("youtu.be"))) {
+      const resolved = await resolveYouTubeTrack(track);
+      if (resolved.src !== track.src) {
+        resolvedTracks = [...tracks];
+        resolvedTracks[idx] = resolved;
+      }
+    }
+    
+    setTrackList(resolvedTracks);
+    setCurrentIndex(idx);
     setProgress(0);
     setDuration(0);
     setIsPlaying(false);
-    const track = tracks[index ?? 0];
-    if (track?.type === "youtube") {
+    
+    const finalTrack = resolvedTracks[idx];
+    if (finalTrack?.type === "youtube") {
       audioRef.current?.pause();
       setTimeout(() => setIsPlaying(true), PLAYBACK_START_DELAY_MS);
     } else {
@@ -474,7 +524,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         playAudio();
       }, PRELOAD_NEXT_TRACK_DELAY_MS);
     }
-  }, [playAudio, resumeAudioContext]);
+  }, [playAudio, resumeAudioContext, resolveYouTubeTrack]);
 
   const pause = useCallback(() => {
     if (currentTrack?.type === "youtube") {
@@ -505,10 +555,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     playedIndicesRef.current = new Set([currentIndex]);
   }, [shuffle, trackList.length]);
 
-  const next = useCallback(() => {
+  const next = useCallback(async () => {
     // Check queue first
     if (queue.length > 0) {
-      const nextTrack = queue[0];
+      let nextTrack = queue[0];
+      // Auto-resolve YouTube tracks to direct audio URLs
+      if (nextTrack.type === "youtube" || nextTrack.src.includes("youtube.com") || nextTrack.src.includes("youtu.be")) {
+        nextTrack = await resolveYouTubeTrack(nextTrack);
+      }
       setQueue((prev) => prev.slice(1));
       setTrackList((prev) => {
         const idx = prev.findIndex((t) => t.src === nextTrack.src);
@@ -552,7 +606,21 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     setCurrentIndex(nextIdx);
     setProgress(0);
-    const nextTrack = trackList[nextIdx];
+    let nextTrack = trackList[nextIdx];
+    
+    // Auto-resolve YouTube tracks to direct audio URLs
+    if (nextTrack?.type === "youtube" || nextTrack?.src.includes("youtube.com") || nextTrack?.src.includes("youtu.be")) {
+      nextTrack = await resolveYouTubeTrack(nextTrack);
+      // Update the track in the trackList with the resolved version
+      if (nextTrack.src !== trackList[nextIdx]?.src) {
+        setTrackList((prev) => {
+          const updated = [...prev];
+          updated[nextIdx] = nextTrack;
+          return updated;
+        });
+      }
+    }
+    
     if (nextTrack?.type === "youtube") {
       setDuration(0);
       setIsPlaying(false);
@@ -566,9 +634,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsPlaying(true);
       }, PLAYBACK_SHORT_DELAY_MS);
     }
-  }, [currentIndex, shuffle, trackList, resumeAudioContext, queue, playAudio]);
+  }, [currentIndex, shuffle, trackList, resumeAudioContext, queue, playAudio, resolveYouTubeTrack]);
 
-  const prev = useCallback(() => {
+  const prev = useCallback(async () => {
     if (currentTrack?.type !== "youtube" && audioRef.current && audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
       return;
@@ -576,7 +644,21 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const prevIdx = (currentIndex - 1 + trackList.length) % trackList.length;
     setCurrentIndex(prevIdx);
     setProgress(0);
-    const prevTrack = trackList[prevIdx];
+    let prevTrack = trackList[prevIdx];
+    
+    // Auto-resolve YouTube tracks to direct audio URLs
+    if (prevTrack?.type === "youtube" || prevTrack?.src.includes("youtube.com") || prevTrack?.src.includes("youtu.be")) {
+      prevTrack = await resolveYouTubeTrack(prevTrack);
+      // Update the track in the trackList with the resolved version
+      if (prevTrack.src !== trackList[prevIdx]?.src) {
+        setTrackList((prev) => {
+          const updated = [...prev];
+          updated[prevIdx] = prevTrack;
+          return updated;
+        });
+      }
+    }
+    
     if (prevTrack?.type === "youtube") {
       setDuration(0);
       setIsPlaying(false);
@@ -590,7 +672,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsPlaying(true);
       }, PLAYBACK_SHORT_DELAY_MS);
     }
-  }, [currentIndex, trackList, currentTrack?.type, resumeAudioContext]);
+  }, [currentIndex, trackList, currentTrack?.type, resumeAudioContext, resolveYouTubeTrack]);
 
   const seek = useCallback((time: number) => {
     if (currentTrack?.type === "youtube") {
