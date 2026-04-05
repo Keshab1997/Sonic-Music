@@ -29,25 +29,25 @@ export const OptimizedControls = memo<OptimizedControlsProps>(({
 
   return (
     <View style={styles.controls}>
-      <TouchableOpacity onPress={onToggleShuffle} activeOpacity={0.7} style={[styles.controlBtn, shuffle && styles.controlBtnActive]}>
+      <TouchableOpacity onPress={onToggleShuffle} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} delayPressIn={0} style={[styles.controlBtn, shuffle && styles.controlBtnActive]}>
         <Ionicons name="shuffle" size={22} color={shuffle ? '#1DB954' : 'rgba(255,255,255,0.5)'} />
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={handlePrev} activeOpacity={0.6} style={styles.trackBtn}>
+      <TouchableOpacity onPress={handlePrev} activeOpacity={0.6} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} delayPressIn={0} style={styles.trackBtn}>
         <Ionicons name="play-skip-back" size={28} color="#fff" />
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={onTogglePlay} activeOpacity={0.85} style={styles.playBtn}>
+      <TouchableOpacity onPress={onTogglePlay} activeOpacity={0.85} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} delayPressIn={0} style={styles.playBtn}>
         <LinearGradient colors={['#1DB954', '#1ed760']} style={styles.playBtnGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
           <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color="#fff" style={isPlaying ? undefined : { marginLeft: 3 }} />
         </LinearGradient>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={handleNext} activeOpacity={0.6} style={styles.trackBtn}>
+      <TouchableOpacity onPress={handleNext} activeOpacity={0.6} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} delayPressIn={0} style={styles.trackBtn}>
         <Ionicons name="play-skip-forward" size={28} color="#fff" />
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={onToggleRepeat} activeOpacity={0.7} style={[styles.controlBtn, repeat !== 'off' && styles.controlBtnActive]}>
+      <TouchableOpacity onPress={onToggleRepeat} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} delayPressIn={0} style={[styles.controlBtn, repeat !== 'off' && styles.controlBtnActive]}>
         <Ionicons name="repeat" size={22} color={repeat !== 'off' ? '#1DB954' : 'rgba(255,255,255,0.5)'} />
         {repeat === 'one' && <View style={styles.repeatOneDot} />}
       </TouchableOpacity>

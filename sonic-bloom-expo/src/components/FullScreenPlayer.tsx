@@ -42,19 +42,21 @@ const ProgressBar = memo(({ progress, duration, onSeek }: { progress: number; du
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponderCapture: () => true,
     onMoveShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponderCapture: () => true,
     onPanResponderGrant: (e) => {
       setSeeking(true);
       setShowTimeTooltip(true);
       Vibration.vibrate(10);
       handleSeek(e.nativeEvent.pageX);
     },
-    onPanResponderMove: (e) => {
-      handleSeek(e.nativeEvent.pageX);
+    onPanResponderMove: (_, g) => {
+      handleSeek(g.moveX);
     },
-    onPanResponderRelease: (e) => {
+    onPanResponderRelease: (_, g) => {
       progressBarRef.current?.measure((_, __, barWidth, ____, barX) => {
-        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, barWidth));
+        const relX = Math.max(0, Math.min(g.moveX - barX, barWidth));
         const time = (relX / barWidth) * duration;
         onSeek(time);
       });
@@ -137,12 +139,14 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
   const translateY = useRef(new Animated.Value(0)).current;
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => g.dy > 10 && Math.abs(g.dy) > Math.abs(g.dx),
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 5 && Math.abs(g.dy) > Math.abs(g.dx),
+      onMoveShouldSetPanResponderCapture: (_, g) => g.dy > 5 && Math.abs(g.dy) > Math.abs(g.dx),
       onPanResponderMove: (_, g) => {
         if (g.dy > 0) translateY.setValue(g.dy);
       },
       onPanResponderRelease: (_, g) => {
-        if (g.dy > 100) {
+        if (g.dy > 80) {
           Animated.timing(translateY, { toValue: height, duration: 200, useNativeDriver: true }).start(onClose);
         } else {
           Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
@@ -164,11 +168,11 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
     
     return (
       <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.headerBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={onClose} style={styles.headerBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} delayPressIn={0}>
           <Ionicons name="chevron-down" size={28} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerLabel}>NOW PLAYING</Text>
-        <TouchableOpacity onPress={() => setQueueVisible(true)} style={styles.headerBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => setQueueVisible(true)} style={styles.headerBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} delayPressIn={0}>
           <View>
             <Ionicons name="list" size={22} color="rgba(255,255,255,0.7)" />
             {queue.length > 0 && (
@@ -202,6 +206,8 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
       <TouchableOpacity
         onPress={() => isCurrentTrackLiked ? unlikeCurrentTrack() : likeCurrentTrack()}
         activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        delayPressIn={0}
         style={styles.likeBtn}
       >
         <Ionicons
@@ -248,7 +254,9 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
 
   const volumePanResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponderCapture: () => true,
     onMoveShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponderCapture: () => true,
     onPanResponderGrant: (e) => {
       setVolumeSeeking(true);
       volumeBarRef.current?.measure((_, __, barWidth, ____, barX) => {
@@ -258,9 +266,9 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
         setVolume(newVolume);
       });
     },
-    onPanResponderMove: (e) => {
+    onPanResponderMove: (_, g) => {
       volumeBarRef.current?.measure((_, __, barWidth, ____, barX) => {
-        const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, barWidth));
+        const relX = Math.max(0, Math.min(g.moveX - barX, barWidth));
         setVolumeSeekValue(relX / barWidth);
       });
     },
@@ -275,7 +283,7 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
 
   const VolumeSection = (
     <View style={styles.volumeContainer}>
-      <TouchableOpacity onPress={handleVolumeMute} activeOpacity={0.7} style={styles.volumeIconBtn}>
+      <TouchableOpacity onPress={handleVolumeMute} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} delayPressIn={0} style={styles.volumeIconBtn}>
         <Ionicons name={displayVolume === 0 ? 'volume-mute' : displayVolume < 0.5 ? 'volume-low' : 'volume-high'} size={20} color="rgba(255,255,255,0.6)" />
       </TouchableOpacity>
       <View ref={volumeBarRef} style={styles.volumeTrackNew} {...volumePanResponder.panHandlers}>
@@ -284,7 +292,7 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
           <View style={styles.volumeThumbInner} />
         </View>
       </View>
-      <TouchableOpacity onPress={handleVolumeMax} activeOpacity={0.7} style={styles.volumeIconBtn}>
+      <TouchableOpacity onPress={handleVolumeMax} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} delayPressIn={0} style={styles.volumeIconBtn}>
         <Ionicons name="volume-high" size={20} color="rgba(255,255,255,0.6)" />
       </TouchableOpacity>
     </View>
@@ -296,21 +304,21 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
 
   const ToolbarSection = (
     <View style={styles.toolbar}>
-      <TouchableOpacity style={[styles.toolbarBtn, sleepMinutes !== null && styles.toolbarBtnActive]} onPress={handleOpenSleep} activeOpacity={0.7}>
+      <TouchableOpacity style={[styles.toolbarBtn, sleepMinutes !== null && styles.toolbarBtnActive]} onPress={handleOpenSleep} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} delayPressIn={0}>
         <Ionicons name="moon" size={16} color={sleepMinutes !== null ? '#a78bfa' : 'rgba(255,255,255,0.4)'} />
         <Text style={[styles.toolbarLabel, sleepMinutes !== null && styles.toolbarLabelActive]}>
           {sleepMinutes !== null ? 'Sleep On' : 'Sleep'}
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity style={[styles.toolbarBtn, playbackSpeed !== 1 && styles.toolbarBtnBlue]} onPress={handleOpenSettings} activeOpacity={0.7}>
+      <TouchableOpacity style={[styles.toolbarBtn, playbackSpeed !== 1 && styles.toolbarBtnBlue]} onPress={handleOpenSettings} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} delayPressIn={0}>
         <Ionicons name="speedometer-outline" size={16} color={playbackSpeed !== 1 ? '#60a5fa' : 'rgba(255,255,255,0.4)'} />
         <Text style={[styles.toolbarLabel, playbackSpeed !== 1 && styles.toolbarLabelBlue]}>{playbackSpeed}x</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.toolbarBtn} onPress={handleOpenSettings} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.toolbarBtn} onPress={handleOpenSettings} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} delayPressIn={0}>
         <Ionicons name="musical-note-outline" size={16} color="rgba(255,255,255,0.4)" />
         <Text style={styles.toolbarLabel}>{quality.replace('kbps', '')} kbps</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.toolbarBtn} onPress={handleOpenEq} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.toolbarBtn} onPress={handleOpenEq} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} delayPressIn={0}>
         <Ionicons name="options-outline" size={16} color="rgba(255,255,255,0.4)" />
         <Text style={styles.toolbarLabel}>EQ</Text>
       </TouchableOpacity>

@@ -608,9 +608,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       quality, setQuality, sleepMinutes, setSleepTimer, cancelSleepTimer,
       play, playTrack, playTrackList, pause, togglePlay, next, prev, seek, seekForward, seekBackward, setVolume,
       toggleShuffle, toggleRepeat,
-      isCurrentTrackLiked: currentTrack ? isLikedHook(String(currentTrack.id)) : false,
-      likeCurrentTrack: () => currentTrack ? likeSongHook(currentTrack) : Promise.resolve(false),
-      unlikeCurrentTrack: () => currentTrack ? unlikeSongHook(String(currentTrack.id)) : Promise.resolve(false),
+      isCurrentTrackLiked: currentTrack?.id ? isLikedHook(String(currentTrack.id)) : false,
+      likeCurrentTrack: () => currentTrack?.id ? likeSongHook(currentTrack) : Promise.resolve(false),
+      unlikeCurrentTrack: () => currentTrack?.id ? unlikeSongHook(String(currentTrack.id)) : Promise.resolve(false),
       addToListeningHistory: addToHistory,
     };
   }, [

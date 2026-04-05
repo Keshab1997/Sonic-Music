@@ -62,7 +62,7 @@ export const useLikedSongs = () => {
       // Sync to Supabase if user is logged in
       if (user) {
         const toSync = newLikedSongs
-          .filter(d => d.track?.id)
+          .filter(d => d.track && d.track.id)
           .map(d => ({
             user_id: user.id,
             track_id: String(d.track.id),
@@ -83,17 +83,20 @@ export const useLikedSongs = () => {
 
   const isLiked = useCallback((trackId: string) => {
     if (!trackId) return false;
-    return likedSongs.some(s => s.track?.id && String(s.track.id) === String(trackId));
+    return likedSongs.some(s => s.track && s.track.id && String(s.track.id) === String(trackId));
   }, [likedSongs]);
 
   const toggleLike = async (track: Track) => {
-    if (!track || !track.id) return;
+    if (!track || !track.id) {
+      console.warn('toggleLike called with invalid track:', track);
+      return;
+    }
     
     const trackId = String(track.id);
     
     if (isLiked(trackId)) {
       // Unlike
-      const newLikedSongs = likedSongs.filter(s => s.track?.id && String(s.track.id) !== trackId);
+      const newLikedSongs = likedSongs.filter(s => s.track && s.track.id && String(s.track.id) !== trackId);
       await saveLikedSongs(newLikedSongs);
     } else {
       // Like

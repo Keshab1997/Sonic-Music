@@ -26,8 +26,7 @@ export const SongCard: React.FC<SongCardProps> = memo(({
     onPlay(track, allTracks, index);
   }, [track, allTracks, index, onPlay]);
 
-  const handleAddToQueue = useCallback((e: any) => {
-    e.stopPropagation();
+  const handleAddToQueue = useCallback(() => {
     onAddToQueue(track);
   }, [track, onAddToQueue]);
 

@@ -25,14 +25,13 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
 
   const handleExpand = useCallback(() => { onExpand?.(); setFsVisible(true); lightHaptic(); }, [onExpand]);
   
-  const handleToggleLike = useCallback((e: any) => {
-    e.stopPropagation();
+  const handleToggleLike = useCallback(() => {
     if (currentTrack) { toggleLike(currentTrack); lightHaptic(); }
   }, [currentTrack, toggleLike]);
 
-  const handlePrev = useCallback((e: any) => { e.stopPropagation(); prev(); lightHaptic(); }, [prev]);
-  const handleTogglePlay = useCallback((e: any) => { e.stopPropagation(); togglePlay(); lightHaptic(); }, [togglePlay]);
-  const handleNext = useCallback((e: any) => { e.stopPropagation(); next(); lightHaptic(); }, [next]);
+  const handlePrev = useCallback(() => { prev(); lightHaptic(); }, [prev]);
+  const handleTogglePlay = useCallback(() => { togglePlay(); lightHaptic(); }, [togglePlay]);
+  const handleNext = useCallback(() => { next(); lightHaptic(); }, [next]);
   const handleClose = useCallback(() => setFsVisible(false), []);
 
   if (!currentTrack) return null;
