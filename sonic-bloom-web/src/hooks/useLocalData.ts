@@ -27,10 +27,29 @@ export const useLocalData = () => {
         if (favs) setFavorites(JSON.parse(favs));
       } catch { /* ignore */ }
 
-      // Pull liked songs from Supabase for logged-in user
+      // Pull data from Supabase for logged-in user
       if (supabase) {
         const userId = await getUserId();
         if (userId) {
+          // Pull search history from Supabase
+          try {
+            const { data: historyData } = await supabase
+              .from('search_history')
+              .select('query')
+              .eq('user_id', userId)
+              .order('created_at', { ascending: false })
+              .limit(10);
+            if (historyData && historyData.length > 0) {
+              const remoteHistory = historyData.map((h: any) => h.query).filter(Boolean);
+              setSearchHistory((prev) => {
+                const merged = [...new Set([...remoteHistory, ...prev])].slice(0, 10);
+                localStorage.setItem(HISTORY_KEY, JSON.stringify(merged));
+                return merged;
+              });
+            }
+          } catch { /* silent — use local fallback */ }
+
+          // Pull liked songs from Supabase
           try {
             const { data } = await supabase
               .from('liked_songs')
@@ -100,6 +119,20 @@ export const useLocalData = () => {
     }
   }, []);
 
+  // Sync search history to Supabase in background
+  const syncHistoryToSupabase = useCallback(async (query: string) => {
+    if (!supabase) return
+    try {
+      const userId = await getUserId();
+      if (!userId) return;
+      await supabase.from('search_history').upsert({ 
+        query, 
+        user_id: userId,
+        created_at: new Date().toISOString()
+      }, { onConflict: 'user_id,query' });
+    } catch { /* silent */ }
+  }, []);
+
   const addToHistory = useCallback((query: string) => {
     if (!query.trim()) return;
     setSearchHistory((prev) => {
@@ -108,7 +141,8 @@ export const useLocalData = () => {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
       return updated;
     });
-  }, []);
+    syncHistoryToSupabase(query);
+  }, [syncHistoryToSupabase]);
 
   const clearHistory = useCallback(() => {
     setSearchHistory([]);
