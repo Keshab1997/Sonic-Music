@@ -20,6 +20,11 @@ export function usePlaylists(): UsePlaylistsReturn {
   const [error, setError] = useState<Error | null>(null)
 
   const fetchPlaylists = useCallback(async () => {
+    if (!supabase) {
+      setPlaylists([])
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
       const { data, error: err } = await supabase
@@ -38,10 +43,15 @@ export function usePlaylists(): UsePlaylistsReturn {
   }, [])
 
   useEffect(() => {
-    fetchPlaylists()
+    if (supabase) {
+      fetchPlaylists()
+    } else {
+      setLoading(false)
+    }
   }, [fetchPlaylists])
 
   const createPlaylist = useCallback(async (name: string, description?: string) => {
+    if (!supabase) return null
     try {
       const { data, error: err } = await supabase
         .from('playlists')
@@ -59,6 +69,7 @@ export function usePlaylists(): UsePlaylistsReturn {
   }, [])
 
   const deletePlaylist = useCallback(async (id: string) => {
+    if (!supabase) return false
     try {
       const { error: err } = await supabase
         .from('playlists')
@@ -75,6 +86,7 @@ export function usePlaylists(): UsePlaylistsReturn {
   }, [])
 
   const addTrackToPlaylist = useCallback(async (playlistId: string, track: Track) => {
+    if (!supabase) return false
     try {
       // First, ensure track exists
       let trackData = track
@@ -134,6 +146,7 @@ export function usePlaylists(): UsePlaylistsReturn {
   }, [])
 
   const removeTrackFromPlaylist = useCallback(async (playlistId: string, trackId: string) => {
+    if (!supabase) return false
     try {
       const { error: err } = await supabase
         .from('playlist_tracks')
@@ -150,6 +163,7 @@ export function usePlaylists(): UsePlaylistsReturn {
   }, [])
 
   const getPlaylistTracks = useCallback(async (playlistId: string) => {
+    if (!supabase) return []
     try {
       const { data, error: err } = await supabase
         .from('playlist_tracks')

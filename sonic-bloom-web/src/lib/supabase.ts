@@ -3,23 +3,32 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase credentials not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local')
+console.log('Supabase env:', { url: supabaseUrl, hasKey: !!supabaseAnonKey })
+
+const validUrl = supabaseUrl && (supabaseUrl.startsWith('http://') || supabaseUrl.startsWith('https://'))
+const hasValidCredentials = validUrl && supabaseAnonKey
+
+if (hasValidCredentials) {
+  console.log('Supabase connected')
 }
 
-export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key',
-  {
-    auth: {
-      persistSession: true,
-      storageKey: 'sonic-bloom-auth',
-      storage: window.localStorage,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    }
-  }
-)
+export const supabase = hasValidCredentials 
+  ? createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        persistSession: true,
+        storageKey: 'sonic-bloom-auth',
+        storage: window.localStorage,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      }
+    })
+  : null
+
+if (hasValidCredentials) {
+  console.log('Supabase connected')
+} else if (supabaseUrl || supabaseAnonKey) {
+  console.warn('Supabase credentials invalid. Check VITE_SUPABASE_URL (must start with http:// or https://) and VITE_SUPABASE_ANON_KEY')
+}
 
 // Helper types for common operations
 export type Json =

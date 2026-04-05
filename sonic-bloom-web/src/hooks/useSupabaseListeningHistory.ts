@@ -45,6 +45,11 @@ export function useListeningHistory(): UseListeningHistoryReturn {
   const [error, setError] = useState<Error | null>(null)
 
   const fetchHistory = useCallback(async () => {
+    if (!supabase) {
+      setHistory([])
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
       const { data, error: err } = await supabase
@@ -97,10 +102,15 @@ export function useListeningHistory(): UseListeningHistoryReturn {
   }, [])
 
   useEffect(() => {
-    fetchHistory()
+    if (supabase) {
+      fetchHistory()
+    } else {
+      setLoading(false)
+    }
   }, [fetchHistory])
 
   const addToHistory = useCallback(async (trackId: string, durationPlayed: number, completed: boolean) => {
+    if (!supabase) return false
     try {
       const { error: err } = await supabase
         .from('listening_history')
@@ -121,6 +131,7 @@ export function useListeningHistory(): UseListeningHistoryReturn {
   }, [fetchHistory])
 
   const getTopTracks = useCallback(async (limit = 10): Promise<Track[]> => {
+    if (!supabase) return []
     try {
       const { data, error: err } = await supabase
         .from('listening_history')
@@ -160,6 +171,10 @@ export function useListeningHistory(): UseListeningHistoryReturn {
   }, [])
 
   const clearHistory = useCallback(async () => {
+    if (!supabase) {
+      setHistory([])
+      return true
+    }
     try {
       const { error: err } = await supabase
         .from('listening_history')

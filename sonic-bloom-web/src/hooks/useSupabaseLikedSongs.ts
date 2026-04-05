@@ -52,6 +52,11 @@ export function useLikedSongs(): UseLikedSongsReturn {
   const [error, setError] = useState<Error | null>(null)
 
   const fetchLikedSongs = useCallback(async () => {
+    if (!supabase) {
+      setLikedSongs([])
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
       const { data, error: err } = await supabase
@@ -95,15 +100,20 @@ export function useLikedSongs(): UseLikedSongsReturn {
   }, [])
 
   useEffect(() => {
-    fetchLikedSongs()
+    if (supabase) {
+      fetchLikedSongs()
+    } else {
+      setLoading(false)
+    }
   }, [fetchLikedSongs])
 
   const likeSong = useCallback(async (track: SupabaseTrackInput) => {
+    if (!supabase) return false
     try {
       // First check if track exists in tracks table
-      let trackId: string | undefined = typeof track.id === 'string' ? track.id : undefined;
+      let trackDbId: string | undefined = typeof track.id === 'string' ? track.id : undefined;
       
-      if (!trackId && track.youtube_id) {
+      if (!trackDbId && track.youtube_id) {
         const { data: existingTrack } = await supabase
           .from('tracks')
           .select('id')
@@ -111,7 +121,7 @@ export function useLikedSongs(): UseLikedSongsReturn {
           .single()
 
         if (existingTrack) {
-          trackId = existingTrack.id
+          trackDbId = existingTrack.id
         } else {
           const { data: newTrack } = await supabase
             .from('tracks')
@@ -127,15 +137,15 @@ export function useLikedSongs(): UseLikedSongsReturn {
             .select('id')
             .single()
           
-          if (newTrack) trackId = newTrack.id
+          if (newTrack) trackDbId = newTrack.id
         }
       }
 
-      if (!trackId) return false
+      if (!trackDbId) return false
 
       const { error: err } = await supabase
         .from('liked_songs')
-        .insert({ track_id: trackId })
+        .insert({ track_id: trackDbId })
 
       if (err) {
         if (err.code === '23505') {
@@ -154,6 +164,7 @@ export function useLikedSongs(): UseLikedSongsReturn {
   }, [fetchLikedSongs])
 
   const unlikeSong = useCallback(async (trackId: string) => {
+    if (!supabase) return false
     try {
       const { error: err } = await supabase
         .from('liked_songs')

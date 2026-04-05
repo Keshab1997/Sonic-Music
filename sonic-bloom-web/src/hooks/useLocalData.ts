@@ -7,6 +7,7 @@ const HISTORY_KEY = "sonic_search_history";
 const FAVORITES_KEY = "sonic_favorites";
 
 const getUserId = async () => {
+  if (!supabase) return null
   const { data: { user } } = await supabase.auth.getUser();
   return user?.id ?? null;
 };
@@ -27,37 +28,39 @@ export const useLocalData = () => {
       } catch { /* ignore */ }
 
       // Pull liked songs from Supabase for logged-in user
-      const userId = await getUserId();
-      if (userId) {
-        try {
-          const { data } = await supabase
-            .from('liked_songs')
-            .select('track_id, tracks(id, title, artist, album, duration, youtube_id, cover_url, audio_url)')
-            .eq('user_id', userId)
-            .order('added_at', { ascending: false });
+      if (supabase) {
+        const userId = await getUserId();
+        if (userId) {
+          try {
+            const { data } = await supabase
+              .from('liked_songs')
+              .select('track_id, tracks(id, title, artist, album, duration, youtube_id, cover_url, audio_url)')
+              .eq('user_id', userId)
+              .order('added_at', { ascending: false });
 
-          if (data && data.length > 0) {
-            const remoteFavs: Track[] = data
-              .map((row: any) => {
-                const t = row.tracks;
-                if (!t) return null;
-                return {
-                  id: Number(t.id) || 0,
-                  title: t.title,
-                  artist: t.artist,
-                  album: t.album ?? '',
-                  cover: t.cover_url ?? '',
-                  src: t.audio_url ?? '',
-                  duration: t.duration ?? 0,
-                  type: 'youtube' as const,
-                  songId: t.youtube_id ?? undefined,
-                };
-              })
-              .filter(Boolean) as Track[];
-            setFavorites(remoteFavs);
-            localStorage.setItem(FAVORITES_KEY, JSON.stringify(remoteFavs));
-          }
-        } catch { /* silent — use local fallback */ }
+            if (data && data.length > 0) {
+              const remoteFavs: Track[] = data
+                .map((row: any) => {
+                  const t = row.tracks;
+                  if (!t) return null;
+                  return {
+                    id: Number(t.id) || 0,
+                    title: t.title,
+                    artist: t.artist,
+                    album: t.album ?? '',
+                    cover: t.cover_url ?? '',
+                    src: t.audio_url ?? '',
+                    duration: t.duration ?? 0,
+                    type: 'youtube' as const,
+                    songId: t.youtube_id ?? undefined,
+                  };
+                })
+                .filter(Boolean) as Track[];
+              setFavorites(remoteFavs);
+              localStorage.setItem(FAVORITES_KEY, JSON.stringify(remoteFavs));
+            }
+          } catch { /* silent — use local fallback */ }
+        }
       }
 
       setLoading(false);
@@ -67,6 +70,7 @@ export const useLocalData = () => {
 
   // Sync favorites to Supabase in background
   const syncFavoriteToSupabase = useCallback(async (track: Track, action: 'add' | 'remove') => {
+    if (!supabase) return
     try {
       const userId = await getUserId();
       if (!userId) return; // not logged in, skip cloud sync
