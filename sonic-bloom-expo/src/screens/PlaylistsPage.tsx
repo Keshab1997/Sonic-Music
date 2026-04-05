@@ -1,38 +1,29 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePlayer } from '../context/PlayerContext';
+import { usePlaylists } from '../hooks/usePlaylists';
 import { CachedImage } from '../components/CachedImage';
 
-interface Playlist {
-  id: string;
-  name: string;
-  cover?: string;
-  trackCount: number;
-  tracks: any[];
-}
-
 export const PlaylistsPage: React.FC = () => {
-  const { playTrackList, currentTrack, isPlaying } = usePlayer();
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const { playTrackList } = usePlayer();
+  const { playlists, loading, createPlaylist, deletePlaylist } = usePlaylists();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
 
-  const handleCreatePlaylist = () => {
+  const handleCreatePlaylist = async () => {
     if (!newPlaylistName.trim()) {
       Alert.alert('Error', 'Please enter a playlist name');
       return;
     }
-    const newPlaylist: Playlist = {
-      id: Date.now().toString(),
-      name: newPlaylistName.trim(),
-      trackCount: 0,
-      tracks: [],
-    };
-    setPlaylists(prev => [...prev, newPlaylist]);
-    setNewPlaylistName('');
-    setShowCreateModal(false);
+    const result = await createPlaylist(newPlaylistName.trim());
+    if (result) {
+      setNewPlaylistName('');
+      setShowCreateModal(false);
+    } else {
+      Alert.alert('Error', 'Failed to create playlist');
+    }
   };
 
   const handleDeletePlaylist = (id: string) => {
@@ -41,17 +32,17 @@ export const PlaylistsPage: React.FC = () => {
       'Are you sure you want to delete this playlist?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => setPlaylists(prev => prev.filter(p => p.id !== id)) },
+        { text: 'Delete', style: 'destructive', onPress: () => deletePlaylist(id) },
       ]
     );
   };
 
-  const handlePlay = (playlist: Playlist, index: number) => {
+  const handlePlay = (playlist: any, index: number) => {
     if (playlist.tracks.length === 0) return;
     playTrackList(playlist.tracks, index);
   };
 
-  const renderItem = ({ item }: { item: Playlist }) => (
+  const renderItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.7}
@@ -76,6 +67,19 @@ export const PlaylistsPage: React.FC = () => {
       </TouchableOpacity>
     </TouchableOpacity>
   );
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Playlists</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8b5cf6" />
+        </View>
+      </View>
+    );
+  }
 
   if (playlists.length === 0) {
     return (
@@ -189,4 +193,5 @@ const styles = StyleSheet.create({
   cancelText: { fontSize: 16, color: '#888', fontWeight: '600' },
   confirmBtn: { flex: 1, borderRadius: 12, overflow: 'hidden' },
   confirmText: { fontSize: 16, color: '#fff', fontWeight: '600', textAlign: 'center', paddingVertical: 12 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });
