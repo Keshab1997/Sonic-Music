@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { Track } from '../data/playlist';
 
 const LIKED_SONGS_KEY_PREFIX = 'sonic_liked_songs_';
+const LIKED_SONGS_KEY_GUEST = 'sonic_liked_songs_guest';
 
 export interface LikedSong {
   track: Track;
@@ -19,7 +20,7 @@ export const useLikedSongs = () => {
 
   // Get user-specific storage key
   const getStorageKey = useCallback(() => {
-    return user ? `${LIKED_SONGS_KEY_PREFIX}${user.id}` : null;
+    return user ? `${LIKED_SONGS_KEY_PREFIX}${user.id}` : LIKED_SONGS_KEY_GUEST;
   }, [user]);
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export const useLikedSongs = () => {
         const { data, error } = await supabase
           .from('liked_songs')
           .select('*')
+          .eq('user_id', user.id)
           .order('liked_at', { ascending: false });
         
         if (!error && data) {
@@ -55,7 +57,13 @@ export const useLikedSongs = () => {
           return;
         }
       } else {
-        // No user logged in, clear data
+        // No user logged in, load from local storage
+        const key = getStorageKey();
+        const stored = await AsyncStorage.getItem(key);
+        if (stored) {
+          setLikedSongs(JSON.parse(stored));
+          return;
+        }
         setLikedSongs([]);
       }
     } catch (e) {
@@ -86,8 +94,8 @@ export const useLikedSongs = () => {
             liked_at: new Date(d.likedAt).toISOString(),
           }));
         
-        // Delete old liked songs and insert new ones
-        await supabase.from('liked_songs').delete();
+        // Delete old liked songs for this user and insert new ones
+        await supabase.from('liked_songs').delete().eq('user_id', user.id);
         if (toSync.length > 0) {
           await supabase.from('liked_songs').insert(toSync);
         }
@@ -124,7 +132,7 @@ export const useLikedSongs = () => {
   const clearAll = async () => {
     try {
       if (user) {
-        await supabase.from('liked_songs').delete();
+        await supabase.from('liked_songs').delete().eq('user_id', user.id);
       }
       const key = getStorageKey();
       if (key) {

@@ -6,6 +6,19 @@ import { useNavigation } from '@react-navigation/native';
 import { useLikedSongsContext } from '../context/LikedSongsContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
 
+// Helper to navigate to root stack screens
+const navigateToScreen = (navigation: any, screenName: string) => {
+  let nav = navigation;
+  while (nav) {
+    try {
+      nav.navigate(screenName);
+      return;
+    } catch {
+      nav = nav.getParent?.();
+    }
+  }
+};
+
 export const LibraryScreen: React.FC = () => {
   const navigation = useNavigation();
   const { likedSongs } = useLikedSongsContext();
@@ -22,12 +35,7 @@ export const LibraryScreen: React.FC = () => {
         {/* Liked Songs Card */}
         <TouchableOpacity
           style={styles.card}
-          onPress={() => {
-            const parent = navigation.getParent();
-            if (parent) {
-              parent.navigate('LikedSongs' as never);
-            }
-          }}
+          onPress={() => navigateToScreen(navigation, 'LikedSongs')}
           activeOpacity={0.7}
         >
           <LinearGradient
@@ -46,12 +54,7 @@ export const LibraryScreen: React.FC = () => {
         {/* Downloads Card */}
         <TouchableOpacity
           style={styles.card}
-          onPress={() => {
-            const parent = navigation.getParent();
-            if (parent) {
-              parent.navigate('Downloads' as never);
-            }
-          }}
+          onPress={() => navigateToScreen(navigation, 'Downloads')}
           activeOpacity={0.7}
         >
           <LinearGradient
@@ -70,12 +73,7 @@ export const LibraryScreen: React.FC = () => {
         {/* Playlists Card */}
         <TouchableOpacity
           style={styles.card}
-          onPress={() => {
-            const parent = navigation.getParent();
-            if (parent) {
-              parent.navigate('Playlists' as never);
-            }
-          }}
+          onPress={() => navigateToScreen(navigation, 'Playlists')}
           activeOpacity={0.7}
         >
           <LinearGradient
@@ -94,12 +92,7 @@ export const LibraryScreen: React.FC = () => {
         {/* Artists Card */}
         <TouchableOpacity
           style={styles.card}
-          onPress={() => {
-            const parent = navigation.getParent();
-            if (parent) {
-              parent.navigate('Artists' as never);
-            }
-          }}
+          onPress={() => navigateToScreen(navigation, 'Artists')}
           activeOpacity={0.7}
         >
           <LinearGradient
@@ -118,12 +111,7 @@ export const LibraryScreen: React.FC = () => {
         {/* Albums Card */}
         <TouchableOpacity
           style={styles.card}
-          onPress={() => {
-            const parent = navigation.getParent();
-            if (parent) {
-              parent.navigate('Albums' as never);
-            }
-          }}
+          onPress={() => navigateToScreen(navigation, 'Albums')}
           activeOpacity={0.7}
         >
           <LinearGradient

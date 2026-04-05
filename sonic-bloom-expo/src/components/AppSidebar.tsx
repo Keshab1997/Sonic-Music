@@ -10,7 +10,7 @@ import { useLocalData } from "@/hooks/useLocalData";
 import { useAuth } from "@/context/AuthContext";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { ArtistPlaylist } from "@/components/ArtistPlaylist";
-import { Link, useLocation, useNavigate } from "react-router-native";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
@@ -278,7 +278,7 @@ export const AppSidebar = () => {
       )}
 
       {/* User profile section */}
-      {user && (
+      {user ? (
         <div className="border-t border-sidebar-border p-3 flex-shrink-0">
           <div className="flex items-center gap-3 px-2 py-2">
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -301,6 +301,16 @@ export const AppSidebar = () => {
               <LogOut size={14} />
             </button>
           </div>
+        </div>
+      ) : (
+        <div className="border-t border-sidebar-border p-3 flex-shrink-0">
+          <button
+            onClick={() => navigate('/login')}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+          >
+            <User size={16} />
+            <span className="text-sm font-medium">Sign in to sync your music</span>
+          </button>
         </div>
       )}
     </aside>

@@ -98,11 +98,9 @@ const RootNavigator = () => {
   return (
     <NavigationContainer>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
-        {user ? (
-          <>
-            <RootStack.Screen name="Main" component={MainNavigator} />
-          </>
-        ) : (
+        {/* Main app accessible without login */}
+        <RootStack.Screen name="Main" component={MainNavigator} />
+        {!user && (
           <>
             <RootStack.Screen name="Login" component={LoginScreen} />
             <RootStack.Screen name="Signup" component={SignupScreen} />

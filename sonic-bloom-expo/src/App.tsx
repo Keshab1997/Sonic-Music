@@ -1,7 +1,7 @@
 
 import { Suspense, lazy } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-native";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -30,16 +30,12 @@ const PageLoader = () => (
   </div>
 );
 
-// Auth guard component
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+// Auth guard component - allows access but shows login prompt for user-specific features
+function OptionalAuthRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   
   if (loading) {
     return <PageLoader />;
-  }
-  
-  if (!user) {
-    return <Navigate to="/login" replace />;
   }
   
   return <>{children}</>;
@@ -67,18 +63,18 @@ const App = () => (
                   </Suspense>
                 } />
                 
-                {/* Protected routes */}
+                {/* Main app routes - accessible without login */}
                 <Route path="/" element={
-                  <ProtectedRoute>
+                  <OptionalAuthRoute>
                     <AppShell>
                       <ErrorBoundary>
                         <MainContent />
                       </ErrorBoundary>
                     </AppShell>
-                  </ProtectedRoute>
+                  </OptionalAuthRoute>
                 } />
                 <Route path="/search" element={
-                  <ProtectedRoute>
+                  <OptionalAuthRoute>
                     <AppShell>
                       <ErrorBoundary>
                         <Suspense fallback={<PageLoader />}>
@@ -86,10 +82,10 @@ const App = () => (
                         </Suspense>
                       </ErrorBoundary>
                     </AppShell>
-                  </ProtectedRoute>
+                  </OptionalAuthRoute>
                 } />
                 <Route path="/dj" element={
-                  <ProtectedRoute>
+                  <OptionalAuthRoute>
                     <AppShell>
                       <ErrorBoundary>
                         <Suspense fallback={<PageLoader />}>
@@ -97,10 +93,10 @@ const App = () => (
                         </Suspense>
                       </ErrorBoundary>
                     </AppShell>
-                  </ProtectedRoute>
+                  </OptionalAuthRoute>
                 } />
                 <Route path="/youtube" element={
-                  <ProtectedRoute>
+                  <OptionalAuthRoute>
                     <AppShell>
                       <ErrorBoundary>
                         <Suspense fallback={<PageLoader />}>
@@ -108,10 +104,10 @@ const App = () => (
                         </Suspense>
                       </ErrorBoundary>
                     </AppShell>
-                  </ProtectedRoute>
+                  </OptionalAuthRoute>
                 } />
                 <Route path="/liked" element={
-                  <ProtectedRoute>
+                  <OptionalAuthRoute>
                     <AppShell>
                       <ErrorBoundary>
                         <Suspense fallback={<PageLoader />}>
@@ -119,10 +115,10 @@ const App = () => (
                         </Suspense>
                       </ErrorBoundary>
                     </AppShell>
-                  </ProtectedRoute>
+                  </OptionalAuthRoute>
                 } />
                 <Route path="/downloads" element={
-                  <ProtectedRoute>
+                  <OptionalAuthRoute>
                     <AppShell>
                       <ErrorBoundary>
                         <Suspense fallback={<PageLoader />}>
@@ -130,7 +126,7 @@ const App = () => (
                         </Suspense>
                       </ErrorBoundary>
                     </AppShell>
-                  </ProtectedRoute>
+                  </OptionalAuthRoute>
                 } />
                 <Route path="*" element={
                   <ErrorBoundary>

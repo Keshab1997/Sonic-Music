@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { useNavigate, Link } from 'react-router-native'
+import { useNavigate, Link } from "react-router-dom"
 import { Loader2, Music } from 'lucide-react-native'
 import { useToast } from '@/hooks/use-toast'
 

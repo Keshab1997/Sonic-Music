@@ -151,6 +151,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addToHistory = useCallback(async (trackId: string, durationPlayed: number, completed: boolean): Promise<boolean> => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      // Only save to Supabase if user is logged in
       if (user) await supabase.from("listening_history").insert({ track_id: trackId, user_id: user.id, duration_played: durationPlayed, completed });
     } catch { }
     return true;
