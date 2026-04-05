@@ -15,7 +15,39 @@ const SONGS_PER_PAGE = 40;
 type SearchCategory = "all" | "songs" | "albums" | "artists" | "playlists" | "youtube";
 
 // ==========================================
-// GLOBAL CACHE (Memory to remember state when closed)
+// LOCAL STORAGE CACHING (Saves metadata permanently for ultra-fast loading)
+// ==========================================
+const CACHE_KEY = "sonic_search_cache_v2";
+const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+const getInitialCache = () => {
+  try {
+    const stored = localStorage.getItem(CACHE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      const now = Date.now();
+      for (const key in parsed) {
+        if (now - parsed[key].timestamp > CACHE_EXPIRY_MS) {
+          delete parsed[key];
+        }
+      }
+      return new Map<string, { data: { tracks: Track[], total: number, isYt: boolean }, timestamp: number }>(Object.entries(parsed));
+    }
+  } catch { /* ignore */ }
+  return new Map<string, { data: { tracks: Track[], total: number, isYt: boolean }, timestamp: number }>();
+};
+
+const g_pageCache = getInitialCache();
+
+const saveCacheToStorage = () => {
+  try {
+    const obj = Object.fromEntries(g_pageCache);
+    localStorage.setItem(CACHE_KEY, JSON.stringify(obj));
+  } catch { /* ignore */ }
+};
+
+// ==========================================
+// GLOBAL STATE MEMORY
 // ==========================================
 let g_query = "";
 let g_category: SearchCategory = "all";
@@ -35,7 +67,6 @@ let g_suggestions: string[] = [];
 let g_scrollPos = 0;
 let g_trending: Track[] = [];
 let g_isYoutubeFallback = false;
-// ==========================================
 
 const LANGUAGES = [
   { key: "all", label: "All" },
@@ -108,6 +139,7 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   const [category, setCategory] = useState<SearchCategory>(g_category);
   const [langFilter, setLangFilter] = useState(g_langFilter);
   const [currentPage, setCurrentPage] = useState(g_currentPage);
+  const [pageInputValue, setPageInputValue] = useState(g_currentPage.toString());
   const [ytCurrentPage, setYtCurrentPage] = useState(g_ytCurrentPage);
   const [totalResults, setTotalResults] = useState(g_totalResults);
   const [isYoutubeFallback, setIsYoutubeFallback] = useState(g_isYoutubeFallback);
@@ -136,6 +168,10 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setPageInputValue(currentPage.toString());
+  }, [currentPage]);
 
   useEffect(() => {
     if (!g_query) setTimeout(() => inputRef.current?.focus(), 100);
@@ -193,6 +229,17 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   };
 
   const searchSongs = useCallback(async (q: string, lang: string, page = 1) => {
+    const cacheKey = `${q}_${lang}_${page}`;
+    
+    // Fetch from Cache (Lightning Fast)
+    if (g_pageCache.has(cacheKey)) {
+      const cachedEntry = g_pageCache.get(cacheKey)!;
+      if (Date.now() - cachedEntry.timestamp < CACHE_EXPIRY_MS) {
+        return cachedEntry.data;
+      }
+      g_pageCache.delete(cacheKey); 
+    }
+
     try {
       const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=${page}&limit=${SONGS_PER_PAGE}`);
       let tracks: Track[] = [];
@@ -226,8 +273,25 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
           total = tracks.length; isYt = true;
         }
       }
-      return { tracks, total, isYt };
-    } catch { return { tracks: [], total: 0, isYt: false }; }
+      
+      const result = { tracks, total, isYt };
+      
+      // Memory management & Save
+      if (g_pageCache.size > 50) {
+        let oldestKey = "";
+        let oldestTime = Date.now();
+        for (const [k, v] of g_pageCache.entries()) {
+          if (v.timestamp < oldestTime) { oldestTime = v.timestamp; oldestKey = k; }
+        }
+        if (oldestKey) g_pageCache.delete(oldestKey);
+      }
+      g_pageCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      saveCacheToStorage(); 
+
+      return result;
+    } catch { 
+      return { tracks: [], total: 0, isYt: false }; 
+    }
   }, []);
 
   const searchYouTubeOnly = useCallback(async (q: string, page = 1) => {
@@ -400,19 +464,16 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     if (query.trim()) doSearch(query, cat);
   };
 
-  // ✅ NEW AND IMPROVED: Direct Stream Audio Resolver (Fixes Error 150)
   const handlePlayClick = async (track: Track, tracks: Track[], index: number) => {
     const isYoutube = track.type === "youtube" || track.src.includes("youtube.com") || track.src.includes("youtu.be");
 
     if (isYoutube && track.songId) {
-      setResolvingId(track.songId); // Show loader
+      setResolvingId(track.songId);
       try {
-        // Fetch raw audio url directly from our backend API
         const res = await fetch(`/api/yt-stream?id=${track.songId}`);
         if (res.ok) {
           const data = await res.json();
           if (data.audioUrl) {
-            // Replace the youtube URL with the direct MP3/M4A URL
             const resolvedTrack = { ...track, src: data.audioUrl, type: "audio" as const };
             const newTracks = [...tracks];
             newTracks[index] = resolvedTrack;
@@ -425,7 +486,6 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         console.error("Audio resolve failed:", e);
       }
       setResolvingId(null);
-      // If backend fails, fallback to ReactPlayer iframe (might trigger 150 error, but we must try)
       playTrackList(tracks, index);
     } else {
       playTrackList(tracks, index);
@@ -732,11 +792,59 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
                       <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                         <Music2 size={14} /> Songs
                         {isYoutubeFallback && <span className="text-[9px] bg-red-600/20 text-red-500 px-1.5 py-0.5 rounded font-bold ml-1">YouTube</span>}
-                        {!isYoutubeFallback && category === "songs" ? <span className="text-muted-foreground/60 font-medium normal-case ml-1">(Page {currentPage} of {Math.ceil(totalResults/SONGS_PER_PAGE)})</span> : <span className="text-muted-foreground/60 font-medium ml-1">({songResults.length})</span>}
+                        {!isYoutubeFallback && category === "songs" ? (
+                          <span className="text-muted-foreground/60 font-medium normal-case ml-1 flex items-center gap-1">
+                            (Page
+                            <input
+                              type="number"
+                              min={1}
+                              max={Math.ceil(totalResults / SONGS_PER_PAGE)}
+                              value={pageInputValue}
+                              onChange={(e) => setPageInputValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const targetPage = parseInt(e.currentTarget.value, 10);
+                                  const maxPage = Math.ceil(totalResults / SONGS_PER_PAGE);
+                                  if (!isNaN(targetPage) && targetPage >= 1 && targetPage <= maxPage) {
+                                    if (targetPage !== currentPage) {
+                                      loadSongPage(targetPage);
+                                    }
+                                  } else {
+                                    setPageInputValue(currentPage.toString());
+                                    toast({ title: "Invalid page", description: `Valid pages: 1 to ${maxPage}`, variant: "destructive" });
+                                  }
+                                  e.currentTarget.blur();
+                                }
+                              }}
+                              onBlur={(e) => {
+                                setPageInputValue(currentPage.toString());
+                              }}
+                              className="w-12 sm:w-16 h-7 px-1 py-0 text-center bg-accent/50 border border-border rounded text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            of {Math.ceil(totalResults / SONGS_PER_PAGE)})
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/60 font-medium ml-1">({songResults.length})</span>
+                        )}
                       </h3>
                       <div className="flex items-center gap-2">
                         {category === "songs" && !isYoutubeFallback && (
-                          <><button onClick={() => loadSongPage(currentPage - 1)} disabled={currentPage === 1 || loading} className="p-1.5 rounded-full bg-muted text-foreground hover:bg-accent disabled:opacity-50"><ChevronLeft size={16} /></button><button onClick={() => loadSongPage(currentPage + 1)} disabled={songResults.length < SONGS_PER_PAGE || loading} className="p-1.5 rounded-full bg-muted text-foreground hover:bg-accent disabled:opacity-50"><ChevronRight size={16} /></button></>
+                          <>
+                            <button
+                              onClick={() => {
+                                songResults.forEach(track => addToQueue(track));
+                                toast({ title: "Added to queue", description: `Added ${songResults.length} songs to queue` });
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-medium mr-1"
+                            >
+                              <ListPlus size={14} />
+                              <span className="hidden sm:inline">Queue All</span>
+                            </button>
+                            <button onClick={() => loadSongPage(currentPage - 1)} disabled={currentPage === 1 || loading} className="p-1.5 rounded-full bg-muted text-foreground hover:bg-accent disabled:opacity-50"><ChevronLeft size={16} /></button>
+                            <button onClick={() => loadSongPage(currentPage + 1)} disabled={songResults.length < SONGS_PER_PAGE || loading} className="p-1.5 rounded-full bg-muted text-foreground hover:bg-accent disabled:opacity-50"><ChevronRight size={16} /></button>
+                          </>
                         )}
                       </div>
                     </div>
