@@ -56,15 +56,17 @@ export const ArtistDetailScreen: React.FC = () => {
         const tracks: Track[] = results
           .map((s: any, i: number) => {
             if (!s.downloadUrl?.length) return null;
-            if (seenIds.has(String(s.id))) return null;
-            seenIds.add(String(s.id));
+            // Use songId for deduplication
+            const songId = String(s.id);
+            if (seenIds.has(songId)) return null;
+            seenIds.add(songId);
             
             const url160 = s.downloadUrl.find((d: any) => d.quality === "160kbps")?.link;
             const url96 = s.downloadUrl.find((d: any) => d.quality === "96kbps")?.link;
             const url320 = s.downloadUrl.find((d: any) => d.quality === "320kbps")?.link;
             const bestUrl = url160 || url96 || s.downloadUrl[0]?.link || "";
             return {
-              id: s.id ? `jiosaavn_${s.id}` : `js_${page}_${i}`,
+              id: `jiosaavn_${songId}_${page}_${i}`,
               title: s.name?.replace(/"/g, '"').replace(/&/g, "&") || "Unknown",
               artist: s.primaryArtists || "Unknown",
               album: typeof s.album === "string" ? s.album : s.album?.name || "",
