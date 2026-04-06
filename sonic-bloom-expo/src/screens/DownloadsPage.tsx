@@ -26,7 +26,6 @@ export const DownloadsPage: React.FC = () => {
       setTotalSize('0 Bytes');
     }
   }, [downloads.length, getTotalDownloadSize, formatBytes]);
-  const [totalSize, setTotalSize] = useState('0 Bytes');
 
   const handleDelete = (trackId: string) => {
     Alert.alert(
