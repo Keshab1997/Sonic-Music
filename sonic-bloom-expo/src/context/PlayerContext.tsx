@@ -217,11 +217,26 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     console.log('playYoutube called with videoId:', videoId);
     consecutiveErrorsRef.current = 0;
     
-    // Stop any existing playback
-    audioService.unload().catch(() => {});
+    // CRITICAL: Stop ALL existing playback first
+    try {
+      await audioService.stop();
+      await audioService.unload();
+    } catch (e) {
+      console.log('Error stopping audio:', e);
+    }
+    
     if (ytProgressRef.current) {
       clearInterval(ytProgressRef.current);
       ytProgressRef.current = null;
+    }
+    
+    // Stop any existing YouTube playback
+    if (ytPlayerRef.current && isYoutubeRef.current) {
+      try {
+        await ytPlayerRef.current.seekTo(0, true);
+      } catch (e) {
+        console.log('Error stopping YouTube:', e);
+      }
     }
     
     // Try to extract audio URL
@@ -315,14 +330,37 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const playSound = useCallback(async (src: string) => {
     try {
-      isYoutubeRef.current = false;
+      // CRITICAL: Stop ALL existing playback first
       if (ytProgressRef.current) {
         clearInterval(ytProgressRef.current);
         ytProgressRef.current = null;
       }
       
+      // Stop YouTube if playing
+      if (isYoutubeRef.current && ytPlayerRef.current) {
+        try {
+          setYtPlaying(false);
+          setYtVideoId(null);
+          await ytPlayerRef.current.seekTo(0, true);
+        } catch (e) {
+          console.log('Error stopping YouTube:', e);
+        }
+      }
+      
+      isYoutubeRef.current = false;
+      
+      // Stop and unload any existing audio
+      try {
+        await audioService.stop();
+        await audioService.unload();
+      } catch (e) {
+        console.log('Error stopping audio:', e);
+      }
+      
       setProgress(0);
       setDuration(0);
+      setYtProgress(0);
+      setYtDuration(0);
 
       await audioService.load(src, volumeRef.current, playbackSpeedRef.current);
       
@@ -363,12 +401,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!track) return;
     
     consecutiveErrorsRef.current = 0; // Reset error count
+    
+    // CRITICAL: Stop ALL playback before starting new track
     stopYoutubeRef.current();
+    audioService.stop().catch(() => {});
     audioService.unload().catch(() => {});
     if (ytProgressRef.current) {
       clearInterval(ytProgressRef.current);
       ytProgressRef.current = null;
     }
+    
+    // Reset all states
+    setIsPlaying(false);
+    setYtPlaying(false);
     
     // Update state and track list
     setTrackList(tracks);
@@ -398,12 +443,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     
     consecutiveErrorsRef.current = 0; // Reset error count
+    
+    // CRITICAL: Stop ALL playback before starting new track
     stopYoutubeRef.current();
+    audioService.stop().catch(() => {});
     audioService.unload().catch(() => {});
     if (ytProgressRef.current) {
       clearInterval(ytProgressRef.current);
       ytProgressRef.current = null;
     }
+    
+    // Reset all states
+    setIsPlaying(false);
+    setYtPlaying(false);
     
     setTrackList(newList);
     setCurrentIndex(idx);
@@ -429,12 +481,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCurrentIndex(index);
     }
     
+    // CRITICAL: Stop ALL playback before starting new track
     stopYoutubeRef.current();
+    audioService.stop().catch(() => {});
     audioService.unload().catch(() => {});
     if (ytProgressRef.current) {
       clearInterval(ytProgressRef.current);
       ytProgressRef.current = null;
     }
+    
+    // Reset all states
+    setIsPlaying(false);
+    setYtPlaying(false);
     
     setProgress(0);
     setDuration(0);
@@ -455,8 +513,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setYtPlaying(false);
       setIsPlaying(false);
     } else {
-      await audioService.pause();
-      setIsPlaying(false);
+      try {
+        await audioService.pause();
+        setIsPlaying(false);
+      } catch (e) {
+        console.log('Error pausing audio:', e);
+      }
     }
   }, []);
 
@@ -499,12 +561,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const next = useCallback(() => {
     requestAnimationFrame(() => {
+      // CRITICAL: Stop ALL playback before next track
       stopYoutubeRef.current();
+      audioService.stop().catch(() => {});
       audioService.unload().catch(() => {});
       if (ytProgressRef.current) {
         clearInterval(ytProgressRef.current);
         ytProgressRef.current = null;
       }
+      
+      // Reset all states
+      setIsPlaying(false);
+      setYtPlaying(false);
       
       const q = queueRef.current;
       const advance = (track: Track, idx: number) => {
@@ -550,12 +618,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return;
       }
       
+      // CRITICAL: Stop ALL playback before previous track
       stopYoutubeRef.current();
+      audioService.stop().catch(() => {});
       audioService.unload().catch(() => {});
       if (ytProgressRef.current) {
         clearInterval(ytProgressRef.current);
         ytProgressRef.current = null;
       }
+      
+      // Reset all states
+      setIsPlaying(false);
+      setYtPlaying(false);
       
       const prevIdx = (currentIndexRef.current - 1 + trackListRef.current.length) % trackListRef.current.length;
       const pt = trackListRef.current[prevIdx];

@@ -70,7 +70,12 @@ export class AudioService {
 
   async stop() {
     if (this.sound) {
-      await this.sound.stopAsync();
+      try {
+        await this.sound.stopAsync();
+        await this.sound.setPositionAsync(0);
+      } catch (e) {
+        console.log('Error stopping sound:', e);
+      }
     }
   }
 
@@ -94,8 +99,13 @@ export class AudioService {
 
   async unload() {
     if (this.sound) {
-      await this.sound.unloadAsync();
-      this.sound = null;
+      try {
+        await this.sound.unloadAsync();
+      } catch (e) {
+        console.log('Error unloading sound:', e);
+      } finally {
+        this.sound = null;
+      }
     }
   }
 
