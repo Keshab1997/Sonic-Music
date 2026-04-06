@@ -634,7 +634,7 @@ export const SearchScreen: React.FC = () => {
                     <TouchableOpacity
                       style={styles.actionBtn}
                       onPress={async () => {
-                        const tracksToDownload = results.filter(track => !isDownloaded(String(track.id)));
+                        const tracksToDownload = results.filter(track => !isDownloaded(String(track.songId || track.id)));
                         console.log('[SearchScreen] Downloading:', tracksToDownload.length, 'tracks');
                         for (const track of tracksToDownload) {
                           await downloadTrack(track);
@@ -707,9 +707,9 @@ export const SearchScreen: React.FC = () => {
                 </View>
                 {results.map((item, index) => {
                   const isCurrentTrack = currentTrack?.id === item.id;
-                  const downloaded = isDownloaded(String(item.id));
-                  const downloading = isDownloading(String(item.id));
-                  const progress = getDownloadProgress(String(item.id));
+                  const downloaded = isDownloaded(String(item.songId || item.id));
+                  const downloading = isDownloading(String(item.songId || item.id));
+                  const progress = getDownloadProgress(String(item.songId || item.id));
                   return (
                     <TouchableOpacity
                       key={`${item.id}-${index}`}

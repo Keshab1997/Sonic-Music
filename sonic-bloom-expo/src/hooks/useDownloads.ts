@@ -145,17 +145,28 @@ export const useDownloads = () => {
   };
 
   const isDownloaded = useCallback((trackId: string) => {
-    return downloads.some(d => d.track && d.track.id && String(d.track.id) === String(trackId));
+    return downloads.some(d => {
+      if (!d.track) return false;
+      // Check both songId (JioSaavn ID) and track.id for compatibility
+      const dSongId = d.track.songId || d.track.id;
+      return String(dSongId) === String(trackId);
+    });
   }, [downloads]);
 
   const getDownloadedTrack = useCallback((trackId: string) => {
-    return downloads.find(d => d.track && d.track.id && String(d.track.id) === String(trackId));
+    return downloads.find(d => {
+      if (!d.track) return false;
+      // Check both songId (JioSaavn ID) and track.id for compatibility
+      const dSongId = d.track.songId || d.track.id;
+      return String(dSongId) === String(trackId);
+    });
   }, [downloads]);
 
   const downloadTrack = async (track: Track) => {
-    const trackId = String(track.id);
+    // Use songId (JioSaavn ID) as the unique identifier, fallback to track.id
+    const trackId = String(track.songId || track.id);
     
-    if (!track?.src || !track?.id || isDownloaded(trackId)) {
+    if (!track?.src || !trackId || isDownloaded(trackId)) {
       return;
     }
 
@@ -219,7 +230,11 @@ export const useDownloads = () => {
       console.error('Failed to delete file:', e);
     }
 
-    const newDownloads = downloads.filter(d => d.track && d.track.id && String(d.track.id) !== String(trackId));
+    const newDownloads = downloads.filter(d => {
+      if (!d.track) return false;
+      const dSongId = d.track.songId || d.track.id;
+      return String(dSongId) !== String(trackId);
+    });
     await saveDownloads(newDownloads);
   };
 

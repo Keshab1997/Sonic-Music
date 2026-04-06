@@ -125,9 +125,9 @@ export const AlbumDetailScreen: React.FC = () => {
 
   const renderItem = ({ item, index }: { item: Track; index: number }) => {
     const isCurrentTrack = currentTrack?.id === item.id;
-    const downloaded = isDownloaded(String(item.id));
-    const downloading = isDownloading(String(item.id));
-    const progress = getDownloadProgress(String(item.id));
+    const downloaded = isDownloaded(String(item.songId || item.id));
+    const downloading = isDownloading(String(item.songId || item.id));
+    const progress = getDownloadProgress(String(item.songId || item.id));
     return (
       <TouchableOpacity
         style={[styles.songRow, isCurrentTrack && styles.songRowActive]}
@@ -223,7 +223,7 @@ export const AlbumDetailScreen: React.FC = () => {
                 onPress={() => {
                   let count = 0;
                   songs.forEach(track => {
-                    if (!isDownloaded(String(track.id))) {
+                    if (!isDownloaded(String(track.songId || track.id))) {
                       downloadTrack(track);
                       count++;
                     }
