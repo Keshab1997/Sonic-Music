@@ -173,8 +173,8 @@ export const useDownloads = () => {
     setDownloading(prev => ({ ...prev, [trackId]: 0 }));
 
     try {
-      // Use documentDirectory for permanent storage instead of cache
-      const downloadDir = `${FileSystem.documentDirectory}downloads/`;
+      // Use document directory for permanent storage instead of cache
+      const downloadDir = `${FileSystem.Paths.document}downloads/`;
       
       // Create downloads directory if it doesn't exist
       const dirInfo = await FileSystem.getInfoAsync(downloadDir);
