@@ -71,38 +71,65 @@ export class AudioService {
   async stop() {
     if (this.sound) {
       try {
-        await this.sound.stopAsync();
-        await this.sound.setPositionAsync(0);
+        const status = await this.sound.getStatusAsync();
+        if (status.isLoaded) {
+          await this.sound.stopAsync();
+          await this.sound.setPositionAsync(0);
+        }
       } catch (e) {
-        console.log('Error stopping sound:', e);
+        // Silently ignore - sound may already be stopped
       }
     }
   }
 
   async seek(position: number) {
     if (this.sound) {
-      await this.sound.setPositionAsync(position * 1000);
+      try {
+        const status = await this.sound.getStatusAsync();
+        if (status.isLoaded) {
+          await this.sound.setPositionAsync(position * 1000);
+        }
+      } catch (e) {
+        console.log('Error seeking:', e);
+      }
     }
   }
 
   async setVolume(volume: number) {
     if (this.sound) {
-      await this.sound.setVolumeAsync(volume);
+      try {
+        const status = await this.sound.getStatusAsync();
+        if (status.isLoaded) {
+          await this.sound.setVolumeAsync(volume);
+        }
+      } catch (e) {
+        console.log('Error setting volume:', e);
+      }
     }
   }
 
   async setRate(rate: number) {
     if (this.sound) {
-      await this.sound.setRateAsync(rate, true);
+      try {
+        const status = await this.sound.getStatusAsync();
+        if (status.isLoaded) {
+          await this.sound.setRateAsync(rate, true);
+        }
+      } catch (e) {
+        console.log('Error setting rate:', e);
+      }
     }
   }
 
   async unload() {
     if (this.sound) {
       try {
-        await this.sound.unloadAsync();
+        const status = await this.sound.getStatusAsync();
+        if (status.isLoaded) {
+          await this.sound.unloadAsync();
+        }
       } catch (e) {
-        console.log('Error unloading sound:', e);
+        // Silently ignore - sound may already be unloaded
       } finally {
         this.sound = null;
       }
