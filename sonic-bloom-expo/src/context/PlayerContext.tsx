@@ -90,6 +90,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [crossfade, setCrossfadeState] = useState(0);
 
   const consecutiveErrorsRef = useRef(0);
+  const nextClickTimeRef = useRef(0);
+  const prevClickTimeRef = useRef(0);
 
   // Use refs for frequently updated values
   const progressRef = useRef(0);
@@ -312,6 +314,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const next = useCallback(() => {
+    // Prevent rapid clicks - debounce
+    const now = Date.now();
+    if (now - (nextClickTimeRef.current || 0) < 500) {
+      return; // Ignore if clicked within 500ms
+    }
+    nextClickTimeRef.current = now;
+    
     requestAnimationFrame(() => {
       audioService.unload().catch(() => {});
       setIsPlaying(false);
@@ -342,6 +351,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const prev = useCallback(() => {
+    // Prevent rapid clicks - debounce
+    const now = Date.now();
+    if (now - (prevClickTimeRef.current || 0) < 500) {
+      return; // Ignore if clicked within 500ms
+    }
+    prevClickTimeRef.current = now;
+    
     requestAnimationFrame(async () => {
       const pos = progressRef.current;
       

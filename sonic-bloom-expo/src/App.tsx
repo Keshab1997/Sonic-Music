@@ -15,7 +15,6 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 // Lazy load heavy routes — only download when navigated to
 const DJMixerPage = lazy(() => import("@/components/DJMixerPage").then(m => ({ default: m.DJMixerPage })));
 const SearchPage = lazy(() => import("@/pages/SearchPage").then(m => ({ default: m.SearchPage })));
-const YoutubeMusicPage = lazy(() => import("@/pages/YoutubeMusicPage").then(m => ({ default: m.default })));
 const LikedSongsPage = lazy(() => import("@/pages/LikedSongsPage").then(m => ({ default: m.LikedSongsPage })));
 const DownloadsPage = lazy(() => import("@/pages/DownloadsPage").then(m => ({ default: m.DownloadsPage })));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
@@ -90,17 +89,6 @@ const App = () => (
                       <ErrorBoundary>
                         <Suspense fallback={<PageLoader />}>
                           <DJMixerPage />
-                        </Suspense>
-                      </ErrorBoundary>
-                    </AppShell>
-                  </OptionalAuthRoute>
-                } />
-                <Route path="/youtube" element={
-                  <OptionalAuthRoute>
-                    <AppShell>
-                      <ErrorBoundary>
-                        <Suspense fallback={<PageLoader />}>
-                          <YoutubeMusicPage />
                         </Suspense>
                       </ErrorBoundary>
                     </AppShell>

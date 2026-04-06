@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Home, Search, Library, Sun, Moon, Youtube, Download } from "lucide-react-native";
+import { Home, Search, Library, Sun, Moon, Download } from "lucide-react-native";
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/hooks/useTheme";
 import { usePlayer } from "@/context/PlayerContext";
@@ -9,7 +9,6 @@ import { MobileLibrary } from "@/components/MobileLibrary";
 
 const tabs = [
   { icon: Home, label: "Home", path: "/" },
-  { icon: Youtube, label: "YouTube", path: "/youtube" },
   { icon: Download, label: "Downloads", path: "/downloads" },
 ];
 

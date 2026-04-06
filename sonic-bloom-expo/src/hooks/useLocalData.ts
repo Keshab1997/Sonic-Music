@@ -79,7 +79,6 @@ export const useLocalData = () => {
             artist: track.artist,
             album: track.album,
             duration: track.duration,
-            youtube_id: track.songId,
             cover_url: track.cover,
             audio_url: track.src
           });

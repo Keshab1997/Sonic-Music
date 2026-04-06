@@ -46,7 +46,6 @@ export interface Track {
   artist: string
   album?: string
   duration: number
-  youtube_id?: string
   cover_url?: string
   audio_url?: string
 }

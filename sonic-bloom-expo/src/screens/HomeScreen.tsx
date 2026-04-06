@@ -153,9 +153,7 @@ export const HomeScreen: React.FC = () => {
     setSheetTracks([]);
     setSheetLoading(true);
     setSheetVisible(true);
-    const tracks = isYoutube
-      ? await fetchYouTube(query, offset)
-      : await fetchJioSaavn(query, offset, 15, langFilter);
+    const tracks = await fetchJioSaavn(query, offset, 15, langFilter);
     setSheetTracks(tracks);
     setSheetLoading(false);
   }, []);
@@ -184,14 +182,6 @@ export const HomeScreen: React.FC = () => {
     const tracks = await fetchJioSaavn(label.query, 20000 + [{ name: "T-Series" }, { name: "Saregama" }, { name: "Zee Music" }, { name: "Sony Music" }, { name: "YRF Music" }, { name: "Tips" }].findIndex(l => l.name === label.name) * 100);
     if (tracks.length > 0) playTrackList(tracks, 0);
     setLoadingLabel(null);
-  }, [playTrackList]);
-
-  // YouTube Quick Pick
-  const handleYtQuickPick = useCallback(async (query: string, offset: number) => {
-    setLoadingYtPick(query);
-    const tracks = await fetchYouTube(query, offset);
-    if (tracks.length > 0) playTrackList(tracks, 0);
-    setLoadingYtPick(null);
   }, [playTrackList]);
 
   // Time greeting quick play
@@ -265,7 +255,7 @@ export const HomeScreen: React.FC = () => {
           onEraPress={(title, query, offset) => openSheet(title, query, offset)}
         />
 
-        {/* Content - YouTube, Quick Picks */}
+        {/* Content - Quick Picks */}
         <HomeContent
           suspense={suspense}
           ytTrending={ytTrending}
@@ -279,7 +269,7 @@ export const HomeScreen: React.FC = () => {
           onAddToQueue={addToQueue}
           onViewAll={openSheet}
           onQuickPick={handleQuickPick}
-          onYtQuickPick={handleYtQuickPick}
+          onYtQuickPick={() => {}}
         />
       </ScrollView>
 

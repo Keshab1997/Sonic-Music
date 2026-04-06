@@ -2,8 +2,6 @@
 
 export const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
 export const API_FALLBACK = "https://saavn.dev";
-export const YT_API = "https://sonic-bloom-player.vercel.app/api/youtube-search";
-export const YT_STREAM_API = "https://sonic-bloom-player.vercel.app/api/yt-stream";
 
 export const RECENTLY_PLAYED_KEY = "sonic_recently_played_native";
 export const SEARCH_HISTORY_KEY = "sonic_search_history_native";
@@ -75,12 +73,6 @@ export const QUICK_PICKS = [
   { title: "Lofi & Chill", desc: "Relaxed vibes", query: "lofi hindi songs chill", color: "#08081a" },
 ];
 
-export const YT_QUICK_PICKS = [
-  { title: "Arijit Singh Live", desc: "Top YouTube performances", query: "arijit singh live performance 2024", color: "#1a0808" },
-  { title: "Bangla Hits on YT", desc: "Viral Bengali music videos", query: "viral bangla song 2024 2025", color: "#081a08" },
-  { title: "Bollywood Unplugged", desc: "Acoustic & studio sessions", query: "bollywood unplugged acoustic 2024", color: "#1a0f00" },
-  { title: "Lofi Bengali", desc: "Chill Bengali lofi beats", query: "bengali lofi chill music", color: "#08081a" },
-];
 
 export const TIME_GREETINGS: Record<string, { title: string; subtitle: string; emoji: string; query: string }> = {
   morning: { title: "Good Morning", subtitle: "Start your day with fresh vibes", emoji: "☀️", query: "morning songs hindi bengali" },

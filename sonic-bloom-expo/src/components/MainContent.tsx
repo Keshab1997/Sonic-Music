@@ -345,15 +345,11 @@ export const MainContent = () => {
   const [bengaliHits, setBengaliHits] = useState<Track[]>([]);
   const [forYouTracks, setForYouTracks] = useState<Track[]>([]);
   const [bengaliAlbums, setBengaliAlbums] = useState<{ name: string; cover: string; id: string }[]>([]);
-  const [horrorPodcast, setHorrorPodcast] = useState<Track[]>([]);
   const [topChartTracks, setTopChartTracks] = useState<Track[]>([]);
-  const [ytTrending, setYtTrending] = useState<Track[]>([]);
-  const [ytLoadingQuery, setYtLoadingQuery] = useState<string | null>(null);
   const [actressPlaylist, setActressPlaylist] = useState<{ name: string; query: string } | null>(null);
   const [actressSearch, setActressSearch] = useState("");
   const [showActressesModal, setShowActressesModal] = useState(false);
   const [showPlaylistsModal, setShowPlaylistsModal] = useState(false);
-  const [showFullSuspense, setShowFullSuspense] = useState(false);
 
   const DISPLAY_COUNT = 8;
   const DISPLAY_COUNT_MOBILE = 5;
@@ -406,61 +402,6 @@ export const MainContent = () => {
       }
     }).catch(() => {});
 
-    // Sunday Suspense / Horror — YouTube
-    const suspenseYtQueries = [
-      "Sunday Suspense Mirchi Bangla",
-      "Sunday Suspense 2024",
-      "Sunday Suspense Saradindu",
-      "Sunday Suspense Feluda",
-      "Sunday Suspense Byomkesh",
-    ];
-    const suspenseQ = suspenseYtQueries[Math.floor(Math.random() * suspenseYtQueries.length)];
-    fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(suspenseQ)}&page=1&limit=10`)
-      .then((r) => r.json())
-      .then((data: { data?: { results: { name: string; primaryArtists: string; album: { name: string } | string; duration: string | number; image: { quality: string; link: string }[]; downloadUrl: { quality: string; link: string }[]; id: string }[] } }) => {
-        const songs = data.data?.results || [];
-        const tracks: Track[] = songs.slice(0, 10).map((s, i) => {
-          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
-          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
-          return {
-            id: 11000 + i,
-            title: s.name?.replace(/"/g, '"') || "Unknown",
-            artist: s.primaryArtists || "Unknown",
-            album: typeof s.album === "string" ? s.album : s.album?.name || "",
-            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "",
-            src: url160 || url96 || "",
-            duration: parseInt(String(s.duration)) || 0,
-            type: "audio" as const,
-            songId: s.id,
-          };
-        });
-        setHorrorPodcast(tracks);
-      }).catch(() => {});
-
-    // YouTube Trending
-    const ytQueries = ["top hindi songs 2026 trending", "viral bengali songs 2026"];
-    const ytQ = ytQueries[Math.floor(Math.random() * ytQueries.length)];
-    fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(ytQ)}&page=1&limit=10`)
-      .then((r) => r.json())
-      .then(async (data: { data?: { results: { name: string; primaryArtists: string; album: { name: string } | string; duration: string | number; image: { quality: string; link: string }[]; downloadUrl: { quality: string; link: string }[]; id: string }[] } }) => {
-        const songs = data.data?.results || [];
-        const tracks: Track[] = songs.slice(0, 10).map((s, i) => {
-          const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
-          const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
-          return {
-            id: 60000 + i,
-            title: s.name?.replace(/"/g, '"') || "Unknown",
-            artist: s.primaryArtists || "Unknown",
-            album: typeof s.album === "string" ? s.album : s.album?.name || "",
-            cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "",
-            src: url160 || url96 || "",
-            duration: parseInt(String(s.duration)) || 0,
-            type: "audio" as const,
-            songId: s.id,
-          };
-        });
-        setYtTrending(tracks);
-      }).catch(() => {});
   }, []);
 
   function getRandomBatch(allTracks: Track[], count: number): Track[] {
@@ -758,43 +699,6 @@ export const MainContent = () => {
     };
   };
 
-  const handleYtQuickPlay = useCallback(async (query: string) => {
-    setYtLoadingQuery(query);
-    try {
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(query)}&page=1&limit=15`);
-      if (!res.ok) return;
-      const data = await res.json();
-      const songs = data.data?.results || [];
-      const tracks: Track[] = songs.slice(0, 15).map((s: {
-        name: string;
-        primaryArtists: string;
-        album: { name: string } | string;
-        duration: string | number;
-        image: { quality: string; link: string }[];
-        downloadUrl: { quality: string; link: string }[];
-        id: string;
-      }, i: number) => {
-        const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
-        const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
-        const url320 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "320kbps")?.link;
-        return {
-          id: 61000 + i,
-          title: s.name,
-          artist: s.primaryArtists || "Unknown",
-          album: typeof s.album === "string" ? s.album : s.album?.name || "",
-          cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "",
-          src: url160 || url96 || url320 || s.downloadUrl?.[0]?.link || "",
-          duration: parseInt(String(s.duration)) || 0,
-          type: "audio" as const,
-          songId: s.id,
-        };
-      });
-      if (tracks.length > 0) {
-        playTrackList(tracks, 0);
-      }
-    } catch { /* ignore */ }
-    setYtLoadingQuery(null);
-  }, [playTrackList]);
 
   const playLabelSongs = async (label: MusicLabel | { name: string; searchQuery: string }, isRefresh = false) => {
     const labelName = "name" in label ? label.name : "";
@@ -1550,55 +1454,6 @@ export const MainContent = () => {
             )}
           </DeferredSection>
 
-          {/* Sunday Suspense / Horror Thriller — YouTube */}
-          <DeferredSection>
-            {horrorPodcast.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionHeaderLeft}>
-                    <Text style={styles.sectionEmoji}>🎙️</Text>
-                    <Text style={styles.sectionTitle}>Sunday Suspense Vibes</Text>
-                    <View style={styles.ytBadge}>
-                      <Text style={styles.ytBadgeText}>YT</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity onPress={() => setShowFullSuspense(true)} style={styles.viewAllButton} activeOpacity={0.7}>
-                    <Text style={styles.viewAllText}>View All</Text>
-                    <ChevronRight size={12} color="#1DB954" />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-                  {horrorPodcast.map((track, i) => (
-                    <View key={track.src + i} style={styles.trackCard}>
-                      <TouchableOpacity onPress={() => playTrackList(horrorPodcast, i)} activeOpacity={0.7}>
-                        <View style={styles.trackCardImageContainer}>
-                          <Image source={{ uri: track.cover }} style={styles.trackCardImage} resizeMode="cover" />
-                          <View style={styles.suspenseOverlay}>
-                            <View style={styles.suspensePlayButton}>
-                              <Play size={14} color="#fff" style={{ marginLeft: 2 }} />
-                            </View>
-                          </View>
-                          <View style={styles.suspenseBadge}>
-                            <Text style={styles.suspenseBadgeText}>▶ YT</Text>
-                          </View>
-                          <TouchableOpacity
-                            onPress={(e) => { e.stopPropagation(); addToQueue(track); }}
-                            style={styles.suspenseQueueButton}
-                            activeOpacity={0.7}
-                          >
-                            <Plus size={12} color="#fff" />
-                          </TouchableOpacity>
-                        </View>
-                      </TouchableOpacity>
-                      <Text style={styles.trackCardTitle} numberOfLines={1}>{track.title}</Text>
-                      <Text style={styles.trackCardArtist} numberOfLines={1}>{track.artist}</Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </DeferredSection>
-
           {/* Time Machine */}
           <DeferredSection>
             <View style={styles.section}>
@@ -1662,116 +1517,6 @@ export const MainContent = () => {
             </View>
           </DeferredSection>
 
-          {/* YouTube Trending */}
-          <DeferredSection>
-            {ytTrending.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionHeaderLeft}>
-                    <Text style={styles.sectionEmoji}>▶️</Text>
-                    <Text style={styles.sectionTitle}>YouTube Trending</Text>
-                    <View style={styles.ytBadge}>
-                      <Text style={styles.ytBadgeText}>YT</Text>
-                    </View>
-                  </View>
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-                  {ytTrending.map((track, i) => (
-                    <View key={track.src + i} style={styles.trackCard}>
-                      <TouchableOpacity onPress={() => playTrackList(ytTrending, i)} activeOpacity={0.7}>
-                        <View style={styles.trackCardImageContainer}>
-                          <Image source={{ uri: track.cover }} style={styles.trackCardImage} resizeMode="cover" />
-                          <View style={styles.ytOverlay}>
-                            <View style={styles.ytPlayButton}>
-                              <Play size={14} color="#fff" style={{ marginLeft: 2 }} />
-                            </View>
-                          </View>
-                          <View style={styles.ytBadgeAbsolute}>
-                            <Text style={styles.ytBadgeText}>▶ YT</Text>
-                          </View>
-                          <TouchableOpacity
-                            onPress={(e) => { e.stopPropagation(); addToQueue(track); }}
-                            style={styles.ytQueueButton}
-                            activeOpacity={0.7}
-                          >
-                            <Plus size={12} color="#fff" />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={(e) => { e.stopPropagation(); downloadTrack(track); }}
-                            disabled={isDownloaded(String(track.id)) || isDownloading(String(track.id))}
-                            style={[
-                              styles.ytDownloadButton,
-                              isDownloaded(String(track.id)) && styles.ytDownloadButtonDownloaded,
-                              isDownloading(String(track.id)) && styles.ytDownloadButtonDownloading,
-                            ]}
-                            activeOpacity={0.7}
-                          >
-                            {isDownloading(String(track.id)) ? (
-                              <Loader2 size={10} color="#fff" />
-                            ) : isDownloaded(String(track.id)) ? (
-                              <CheckCircle size={10} color="#fff" />
-                            ) : (
-                              <Download size={10} color="#fff" />
-                            )}
-                          </TouchableOpacity>
-                        </View>
-                      </TouchableOpacity>
-                      <Text style={styles.trackCardTitle} numberOfLines={1}>{track.title}</Text>
-                      <Text style={styles.trackCardArtist} numberOfLines={1}>{track.artist}</Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </DeferredSection>
-
-          {/* YouTube Quick Picks */}
-          <DeferredSection>
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionEmoji}>🎬</Text>
-                <Text style={styles.sectionTitle}>YouTube Quick Picks</Text>
-              </View>
-              <View style={styles.quickPicksGrid}>
-                <QuickPickButton
-                  title="Arijit Singh Live"
-                  desc="Top YouTube performances"
-                  query="arijit singh live performance 2024"
-                  color="from-rose-600/20 to-pink-600/10"
-                  onPress={() => handleYtQuickPlay("arijit singh live performance 2024")}
-                  isLoading={ytLoadingQuery === "arijit singh live performance 2024"}
-                  iconColor="#ef4444"
-                />
-                <QuickPickButton
-                  title="Bangla Hits on YT"
-                  desc="Viral Bengali music videos"
-                  query="viral bangla song 2024 2025"
-                  color="from-green-600/20 to-teal-600/10"
-                  onPress={() => handleYtQuickPlay("viral bangla song 2024 2025")}
-                  isLoading={ytLoadingQuery === "viral bangla song 2024 2025"}
-                  iconColor="#ef4444"
-                />
-                <QuickPickButton
-                  title="Bollywood Unplugged"
-                  desc="Acoustic & studio sessions"
-                  query="bollywood unplugged acoustic 2024"
-                  color="from-amber-600/20 to-orange-600/10"
-                  onPress={() => handleYtQuickPlay("bollywood unplugged acoustic 2024")}
-                  isLoading={ytLoadingQuery === "bollywood unplugged acoustic 2024"}
-                  iconColor="#ef4444"
-                />
-                <QuickPickButton
-                  title="Lofi Bengali"
-                  desc="Chill Bengali lofi beats"
-                  query="bengali lofi chill music"
-                  color="from-indigo-600/20 to-purple-600/10"
-                  onPress={() => handleYtQuickPlay("bengali lofi chill music")}
-                  isLoading={ytLoadingQuery === "bengali lofi chill music"}
-                  iconColor="#ef4444"
-                />
-              </View>
-            </View>
-          </DeferredSection>
         </View>
 
         {/* Modals */}
@@ -1868,31 +1613,6 @@ export const MainContent = () => {
             icon="history"
             initialSongs={history.map((h) => h.track)}
             onClose={() => setShowFullHistory(false)}
-          />
-        )}
-        {showFullSuspense && (
-          <FullPlaylist
-            title="Sunday Suspense Vibes"
-            icon="trending"
-            initialSongs={horrorPodcast}
-            onRefresh={async () => {
-              const queries = ["Sunday Suspense Mirchi Bangla", "Sunday Suspense 2024", "Sunday Suspense Saradindu", "Sunday Suspense Feluda", "Sunday Suspense Byomkesh"];
-              const q = queries[Math.floor(Math.random() * queries.length)];
-              const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=10`).catch(() => null);
-              if (!res?.ok) return [];
-              const data = await res.json();
-              const songs = data.data?.results || [];
-              return songs.slice(0, 10).map((s: { name: string; primaryArtists: string; album: { name: string } | string; duration: string | number; image: { quality: string; link: string }[]; downloadUrl: { quality: string; link: string }[]; id: string }, i: number) => {
-                const url96 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "96kbps")?.link;
-                const url160 = s.downloadUrl?.find((d: { quality: string }) => d.quality === "160kbps")?.link;
-                return {
-                  id: 11000 + i, title: s.name?.replace(/"/g, '"') || "Unknown", artist: s.primaryArtists || "Unknown", album: typeof s.album === "string" ? s.album : s.album?.name || "",
-                  cover: s.image?.find((img: { quality: string }) => img.quality === "500x500")?.link || "", src: url160 || url96 || "",
-                  duration: parseInt(String(s.duration)) || 0, type: "audio" as const, songId: s.id,
-                };
-              });
-            }}
-            onClose={() => setShowFullSuspense(false)}
           />
         )}
         {showFullFeaturedPlaylists && (

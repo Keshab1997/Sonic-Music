@@ -1,5 +1,5 @@
 import { Track } from '../data/playlist';
-import { API_BASE, YT_API, YT_STREAM_API } from '../data/constants';
+import { API_BASE } from '../data/constants';
 
 // JioSaavn song parser — use actual song ID for uniqueness
 export const parseSong = (s: any, fallbackId: number): Track | null => {
@@ -85,36 +85,3 @@ export const fetchJioSaavnMultiPage = async (
   return allTracks;
 };
 
-// Fetch from YouTube
-export const fetchYouTube = async (query: string, offset: number): Promise<Track[]> => {
-  try {
-    const res = await fetch(`${YT_API}?q=${encodeURIComponent(query)}`);
-    if (!res.ok) return [];
-    const videos: any[] = await res.json();
-    return videos.slice(0, 12).map((v, i) => ({
-      id: `youtube_${v.videoId}`, // Use actual video ID for uniqueness
-      title: v.title,
-      artist: v.author || "YouTube",
-      album: "",
-      cover: v.thumbnail || "",
-      src: `https://www.youtube.com/watch?v=${v.videoId}`,
-      duration: v.duration || 0,
-      type: "youtube" as const,
-      songId: v.videoId,
-    }));
-  } catch {
-    return [];
-  }
-};
-
-// Resolve YouTube audio URL before playing
-export const resolveYtAudio = async (track: Track): Promise<Track> => {
-  if (track.type !== "youtube" || !track.songId) return track;
-  try {
-    const res = await fetch(`${YT_STREAM_API}?id=${track.songId}`);
-    if (!res.ok) return track;
-    const data = await res.json();
-    if (data?.audioUrl) return { ...track, src: data.audioUrl, type: "audio" };
-  } catch {}
-  return track;
-};

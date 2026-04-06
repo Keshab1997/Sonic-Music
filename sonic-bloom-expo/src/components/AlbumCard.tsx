@@ -20,11 +20,6 @@ export const AlbumCard = ({ track, index }: AlbumCardProps) => {
           alt={track.album}
           className="w-full aspect-square object-cover rounded-md shadow-lg"
         />
-        {track.type === "youtube" && (
-          <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-            YT
-          </div>
-        )}
         <button
           onClick={(e) => {
             e.stopPropagation();

@@ -2,7 +2,7 @@
 import { useState, FormEvent, useCallback } from "react";
 import { Search, Play, Clock, Loader2, AlertCircle, Pause, Heart, X, Trash2, History, MoreHorizontal, ListPlus, PlaySquare, Plus, ChevronRight } from "lucide-react-native";
 import { usePlayer } from "@/context/PlayerContext";
-import { useMusicSearch } from "@/hooks/useYouTubeSearch";
+import { useMusicSearch } from "@/hooks/useMusicSearch";
 import { useLocalData } from "@/hooks/useLocalData";
 import { usePlaylists } from "@/hooks/usePlaylists";
 import { Track } from "@/data/playlist";
@@ -186,7 +186,6 @@ const SongRow = (
 const SearchPage = () => {
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"search" | "favorites">("search");
-  const [searchSource, setSearchSource] = useState<"saavn" | "ytmusic">("saavn");
   const { results, loading, error, search, loadMore, hasMore } = useMusicSearch();
   const { playTrackList } = usePlayer();
   const {
@@ -199,46 +198,9 @@ const SearchPage = () => {
     toggleFavorite,
   } = useLocalData();
   const [hasSearched, setHasSearched] = useState(false);
-  const [ytResults, setYtResults] = useState<Track[]>([]);
-  const [ytLoading, setYtLoading] = useState(false);
-  const [ytError, setYtError] = useState<string | null>(null);
   const [showActressesModal, setShowActressesModal] = useState(false);
   const [actressPlaylist, setActressPlaylist] = useState<{ name: string; query: string } | null>(null);
 
-  const doYtSearch = useCallback(async (q: string, page: number = 1, append: boolean = false) => {
-    if (!q.trim()) return;
-    
-    if (!append) {
-      setYtLoading(true);
-    }
-    setYtError(null);
-    
-    try {
-      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}&page=${page}`);
-      if (!res.ok) throw new Error("Search failed");
-      const videos = await res.json();
-      const tracks: Track[] = videos.map((v: { videoId: string; title: string; author: string; duration: number; thumbnail: string }, i: number) => ({
-        id: v.videoId ? `youtube_${v.videoId}` : 60000 + (page - 1) * 20 + i,
-        title: v.title,
-        artist: v.author || "Unknown",
-        album: "",
-        cover: v.thumbnail || "",
-        src: `https://www.youtube.com/watch?v=${v.videoId}`,
-        duration: v.duration || 0,
-        type: "youtube" as const,
-        songId: v.videoId,
-      }));
-      
-      if (append) {
-        setYtResults(prev => [...prev, ...tracks]);
-      } else {
-        setYtResults(tracks);
-      }
-    } catch {
-      setYtError("YouTube search failed. Try again.");
-    }
-    setYtLoading(false);
-  }, []);
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
@@ -246,11 +208,7 @@ const SearchPage = () => {
     setView("search");
     setHasSearched(true);
     addToHistory(query.trim());
-    if (searchSource === "ytmusic") {
-      doYtSearch(query);
-    } else {
-      search(query);
-    }
+    search(query);
   };
 
   const handleHistoryClick = (historyQuery: string) => {
@@ -258,16 +216,12 @@ const SearchPage = () => {
     setView("search");
     setHasSearched(true);
     addToHistory(historyQuery);
-    if (searchSource === "ytmusic") {
-      doYtSearch(historyQuery);
-    } else {
-      search(historyQuery);
-    }
+    search(historyQuery);
   };
 
-  const currentResults = searchSource === "ytmusic" ? ytResults : results;
-  const currentLoading = searchSource === "ytmusic" ? ytLoading : loading;
-  const currentError = searchSource === "ytmusic" ? ytError : error;
+  const currentResults = results;
+  const currentLoading = loading;
+  const currentError = error;
 
   return (
     <main className="flex-1 overflow-y-auto overflow-x-hidden pb-28">
@@ -320,29 +274,6 @@ const SearchPage = () => {
               </button>
             </form>
 
-            {/* Source Filter */}
-            <div className="flex items-center gap-2 mb-6">
-              <button
-                onClick={() => setSearchSource("saavn")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  searchSource === "saavn"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                JioSaavn
-              </button>
-              <button
-                onClick={() => setSearchSource("ytmusic")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  searchSource === "ytmusic"
-                    ? "bg-red-600 text-white"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                YTMusic
-              </button>
-            </div>
 
             {/* Search History */}
             {!hasSearched && searchHistory.length > 0 && (
@@ -453,7 +384,6 @@ const SearchPage = () => {
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-muted-foreground">
                     {currentResults.length} results for "{query}"
-                    {searchSource === "ytmusic" && <span className="text-red-500 ml-1">from YouTube</span>}
                   </p>
                   <button
                     onClick={() => playTrackList(currentResults, 0)}
@@ -471,8 +401,8 @@ const SearchPage = () => {
                     onToggleFavorite={toggleFavorite}
                   />
                 ))}
-                {/* Load More Button for JioSaavn */}
-                {searchSource === "saavn" && hasMore && (
+                {/* Load More Button */}
+                {hasMore && (
                   <div className="py-4">
                     <button
                       onClick={loadMore}

@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Track } from '../../data/playlist';
 import { SongCard } from '../../components/SongCard';
 import { SectionHeader, SectionSkeleton } from '../../components/SectionHeader';
-import { YT_QUICK_PICKS, QUICK_PICKS } from '../../data/constants';
+import { QUICK_PICKS } from '../../data/constants';
 
 const { width } = Dimensions.get('window');
 
@@ -25,62 +25,11 @@ interface HomeContentProps {
 }
 
 export const HomeContent: React.FC<HomeContentProps> = ({
-  suspense, ytTrending, loadingSuspense, loadingYtTrending,
-  loadingQuickPick, loadingYtPick, currentTrack, isPlaying,
-  onPlay, onAddToQueue, onViewAll, onQuickPick, onYtQuickPick
+  loadingQuickPick, currentTrack, isPlaying,
+  onPlay, onAddToQueue, onQuickPick
 }) => {
   return (
     <>
-      {/* Divider: Content */}
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>🎙️ Content</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      {/* Sunday Suspense */}
-      {(suspense.length > 0 || loadingSuspense) && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderWithBadge}>
-            <View style={styles.headerLeft}>
-              <Text style={styles.headerEmoji}>🎙️</Text>
-              <View>
-                <Text style={styles.headerTitle}>Sunday Suspense Vibes</Text>
-                {suspense.length > 0 && (
-                  <Text style={styles.countText}>{suspense.length} episodes</Text>
-                )}
-              </View>
-              <View style={styles.ytBadge}>
-                <Text style={styles.ytBadgeText}>YT</Text>
-              </View>
-            </View>
-            <TouchableOpacity onPress={() => onViewAll("Sunday Suspense", "Sunday Suspense Mirchi Bangla", 11000, true)} activeOpacity={0.7}>
-              <Text style={styles.viewAllText}>View All ›</Text>
-            </TouchableOpacity>
-          </View>
-          {loadingSuspense ? (
-            <SectionSkeleton count={4} />
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-              {suspense.map((track, i) => (
-                <SongCard
-                  key={track.id}
-                  track={track}
-                  index={i}
-                  allTracks={suspense}
-                  currentTrack={currentTrack}
-                  isPlaying={isPlaying}
-                  onPlay={onPlay}
-                  onAddToQueue={onAddToQueue}
-                  badge="▶ YT"
-                  badgeColor="#dc2626"
-                />
-              ))}
-            </ScrollView>
-          )}
-        </View>
-      )}
-
       {/* Divider: Quick Picks */}
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
@@ -111,82 +60,6 @@ export const HomeContent: React.FC<HomeContentProps> = ({
                 <Text style={styles.quickPickTitle} numberOfLines={1}>{pick.title}</Text>
                 <Text style={styles.quickPickDesc} numberOfLines={1}>{pick.desc}</Text>
               </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Divider: YouTube */}
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>▶ YouTube</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      {/* YouTube Trending */}
-      {(ytTrending.length > 0 || loadingYtTrending) && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderWithBadge}>
-            <View style={styles.headerLeft}>
-              <Text style={styles.headerEmoji}>▶️</Text>
-              <View>
-                <Text style={styles.headerTitle}>YouTube Trending</Text>
-                {ytTrending.length > 0 && (
-                  <Text style={styles.countText}>{ytTrending.length} videos</Text>
-                )}
-              </View>
-              <View style={styles.ytBadge}>
-                <Text style={styles.ytBadgeText}>YT</Text>
-              </View>
-            </View>
-          </View>
-          {loadingYtTrending ? (
-            <SectionSkeleton count={4} />
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-              {ytTrending.map((track, i) => (
-                <SongCard
-                  key={track.id}
-                  track={track}
-                  index={i}
-                  allTracks={ytTrending}
-                  currentTrack={currentTrack}
-                  isPlaying={isPlaying}
-                  onPlay={onPlay}
-                  onAddToQueue={onAddToQueue}
-                  badge="▶ YT"
-                  badgeColor="#dc2626"
-                />
-              ))}
-            </ScrollView>
-          )}
-        </View>
-      )}
-
-      {/* YouTube Quick Picks */}
-      <View style={styles.section}>
-        <SectionHeader title="YouTube Quick Picks" emoji="🎬" />
-        <View style={styles.quickPickGrid}>
-          {YT_QUICK_PICKS.map((pick) => (
-            <TouchableOpacity
-              key={pick.title}
-              style={[styles.ytQuickPickBtn, { opacity: loadingYtPick === pick.query ? 0.6 : 1 }]}
-              onPress={() => onYtQuickPick(pick.query, 65000 + YT_QUICK_PICKS.indexOf(pick) * 100)}
-              disabled={loadingYtPick === pick.query}
-              activeOpacity={0.8}
-            >
-              <View style={styles.ytQuickPickIcon}>
-                {loadingYtPick === pick.query ? (
-                  <ActivityIndicator size="small" color="#dc2626" />
-                ) : (
-                  <Ionicons name="logo-youtube" size={18} color="#dc2626" />
-                )}
-              </View>
-              <View style={styles.quickPickInfo}>
-                <Text style={styles.quickPickTitle} numberOfLines={1}>{pick.title}</Text>
-                <Text style={styles.quickPickDesc} numberOfLines={1}>{pick.desc}</Text>
-              </View>
-              <Text style={styles.ytBadgeText}>YT</Text>
             </TouchableOpacity>
           ))}
         </View>

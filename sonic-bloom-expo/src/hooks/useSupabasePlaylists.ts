@@ -82,7 +82,7 @@ export function usePlaylists(): UsePlaylistsReturn {
         const { data: existingTrack } = await supabase
           .from('tracks')
           .select('*')
-          .eq('youtube_id', track.youtube_id)
+          .eq('id', track.id)
           .single()
 
         if (existingTrack) {
@@ -95,7 +95,6 @@ export function usePlaylists(): UsePlaylistsReturn {
               artist: track.artist,
               album: track.album,
               duration: track.duration,
-              youtube_id: track.youtube_id,
               cover_url: track.cover_url,
               audio_url: track.audio_url
             })

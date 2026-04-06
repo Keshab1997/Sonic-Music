@@ -45,36 +45,11 @@ export const PLAYBACK_SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 export const MIN_PLAYBACK_SPEED = 0.5;
 export const MAX_PLAYBACK_SPEED = 2.0;
 
-// YouTube Player
-export const YOUTUBE_PLAYER_STATE = {
-  UNSTARTED: -1,
-  ENDED: 0,
-  PLAYING: 1,
-  PAUSED: 2,
-  BUFFERING: 3,
-  CUED: 5,
-} as const;
-
-// YouTube Player Vars
-export const YOUTUBE_PLAYER_VARS = {
-  playsinline: 1,
-  controls: 0,
-  modestbranding: 1,
-  rel: 0,
-  fs: 0,
-  iv_load_policy: 3,
-  disablekb: 1,
-} as const;
-
 // Preload
 export const PRELOAD_NEXT_TRACK_DELAY_MS = 200;
 export const PLAYBACK_START_DELAY_MS = 300;
 export const PLAYBACK_SHORT_DELAY_MS = 100;
 export const PLAYBACK_MEDIUM_DELAY_MS = 150;
-export const YOUTUBE_PLAY_CHECK_INTERVAL_MS = 2000;
-export const YOUTUBE_RESUME_DELAY_MS = 100;
-export const YOUTUBE_UNSTARTED_DELAY_MS = 500;
-export const YOUTUBE_REPEAT_RESUME_DELAY_MS = 200;
 
 // LocalStorage Keys
 export const STORAGE_KEY_QUALITY = "sonic_quality";

@@ -332,7 +332,7 @@ export const ProfileScreen: React.FC = () => {
           
           <Pressable style={styles.settingItem} onPress={() => Alert.alert(
             '🎵 Sonic Bloom',
-            `Version 1.0.0\n\nA premium music streaming experience with YouTube integration, offline downloads, and advanced audio features.\n\n✨ Features:\n• YouTube Music Search\n• Offline Downloads\n• Audio Equalizer\n• Crossfade & Sleep Timer\n• Queue Management\n• Playback Speed Control\n\n👨‍💻 Created by Keshab Sarkar\n\n© ${new Date().getFullYear()} Sonic Bloom. All rights reserved.`,
+            `Version 1.0.0\n\nA premium music streaming experience with offline downloads and advanced audio features.\n\n✨ Features:\n• Music Search\n• Offline Downloads\n• Audio Equalizer\n• Crossfade & Sleep Timer\n• Queue Management\n• Playback Speed Control\n\n👨‍💻 Created by Keshab Sarkar\n\n© ${new Date().getFullYear()} Sonic Bloom. All rights reserved.`,
             [{ text: 'Close', style: 'cancel' }]
           )}>
             <View style={styles.settingLeft}>
@@ -346,7 +346,7 @@ export const ProfileScreen: React.FC = () => {
 
           <Pressable style={styles.settingItem} onPress={() => Alert.alert(
             'Terms & Privacy',
-            '📜 Terms of Service\n\nBy using Sonic Bloom, you agree to:\n• Use the app for personal, non-commercial purposes\n• Respect copyright and intellectual property rights\n• Not attempt to reverse engineer or modify the app\n• Comply with YouTube\'s Terms of Service\n\n🔒 Privacy Policy\n\nWe value your privacy:\n• Your data is stored securely with Supabase\n• We don\'t sell or share your personal information\n• Profile pictures are stored in secure cloud storage\n• Downloads are stored locally on your device\n• You can delete your account and data anytime\n\nFor questions: contact@sonicbloom.app',
+            '📜 Terms of Service\n\nBy using Sonic Bloom, you agree to:\n• Use the app for personal, non-commercial purposes\n• Respect copyright and intellectual property rights\n• Not attempt to reverse engineer or modify the app\n\n🔒 Privacy Policy\n\nWe value your privacy:\n• Your data is stored securely with Supabase\n• We don\'t sell or share your personal information\n• Profile pictures are stored in secure cloud storage\n• Downloads are stored locally on your device\n• You can delete your account and data anytime\n\nFor questions: contact@sonicbloom.app',
             [{ text: 'Close', style: 'cancel' }]
           )}>
             <View style={styles.settingLeft}>

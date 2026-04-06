@@ -13,7 +13,7 @@ export interface Track {
   cover: string;
   src: string;
   duration: number;
-  type: "audio" | "youtube";
+  type: "audio";
   songId?: string;
   audioUrls?: AudioUrls;
 }
@@ -25,6 +25,6 @@ export interface Playlist {
   createdAt: number;
 }
 
-// Empty playlist - user adds songs via YouTube Music search or downloads
+// Empty playlist - user adds songs via search or downloads
 export const playlist: Track[] = [];
 

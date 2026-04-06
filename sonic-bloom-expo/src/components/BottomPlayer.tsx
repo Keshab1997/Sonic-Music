@@ -598,28 +598,26 @@ export const BottomPlayer = ({ onShowMiniPlayer, onShowEqualizer: _onShowEqualiz
             </div>
           </div>
           {/* Download button in bottom player */}
-          {currentTrack.type !== "youtube" && (
-            <button
-              onClick={(e) => { e.stopPropagation(); downloadTrack(currentTrack); }}
-              disabled={isDownloaded(currentTrack.songId || currentTrack.src) || isDownloading(currentTrack.songId || currentTrack.src)}
-              className={`hidden md:flex p-2 rounded-full transition-all flex-shrink-0 ${
-                isDownloaded(currentTrack.songId || currentTrack.src)
-                  ? "text-green-500 bg-green-500/10"
-                  : isDownloading(currentTrack.songId || currentTrack.src)
-                  ? "text-yellow-500 bg-yellow-500/10"
-                  : "text-muted-foreground hover:text-green-500 hover:bg-green-500/10"
-              }`}
-              title={isDownloaded(currentTrack.songId || currentTrack.src) ? "Downloaded" : isDownloading(currentTrack.songId || currentTrack.src) ? "Downloading..." : "Download for offline"}
-            >
-              {isDownloading(currentTrack.songId || currentTrack.src) ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : isDownloaded(currentTrack.songId || currentTrack.src) ? (
-                <CheckCircle size={16} />
-              ) : (
-                <Download size={16} />
-              )}
-            </button>
-          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); downloadTrack(currentTrack); }}
+            disabled={isDownloaded(currentTrack.songId || currentTrack.src) || isDownloading(currentTrack.songId || currentTrack.src)}
+            className={`hidden md:flex p-2 rounded-full transition-all flex-shrink-0 ${
+              isDownloaded(currentTrack.songId || currentTrack.src)
+                ? "text-green-500 bg-green-500/10"
+                : isDownloading(currentTrack.songId || currentTrack.src)
+                ? "text-yellow-500 bg-yellow-500/10"
+                : "text-muted-foreground hover:text-green-500 hover:bg-green-500/10"
+            }`}
+            title={isDownloaded(currentTrack.songId || currentTrack.src) ? "Downloaded" : isDownloading(currentTrack.songId || currentTrack.src) ? "Downloading..." : "Download for offline"}
+          >
+            {isDownloading(currentTrack.songId || currentTrack.src) ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : isDownloaded(currentTrack.songId || currentTrack.src) ? (
+              <CheckCircle size={16} />
+            ) : (
+              <Download size={16} />
+            )}
+          </button>
 
           {/* Controls center */}
           <div className="flex flex-col items-center gap-0.5 max-w-xl mx-auto">

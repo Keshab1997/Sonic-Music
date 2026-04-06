@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Home, Search, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X, User, Youtube, Download, LogOut } from "lucide-react-native";
+import { Home, Search, Plus, Heart, Sun, Moon, Pencil, Trash2, Check, X, User, Download, LogOut } from "lucide-react-native";
 import { usePlayer } from "@/context/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { usePlaylists } from "@/hooks/usePlaylists";
@@ -14,9 +14,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
-  { icon: Youtube, label: "YouTube Music", path: "/youtube" },
   { icon: Download, label: "Downloads", path: "/downloads" },
-  { icon: Youtube, label: "YT Music (Web)", path: "https://music.youtube.com/", external: true },
 ];
 
 export const AppSidebar = () => {

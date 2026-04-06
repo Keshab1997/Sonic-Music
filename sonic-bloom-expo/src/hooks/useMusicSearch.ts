@@ -133,6 +133,4 @@ export const useMusicSearch = () => {
   return { results, loading, error, search, searchImmediate, query, setQuery, loadMore, hasMore };
 };
 
-// Backward compatibility
-export const useYouTubeSearch = useMusicSearch;
 

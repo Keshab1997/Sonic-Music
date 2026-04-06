@@ -85,35 +85,6 @@ export const ArtistDetailScreen: React.FC = () => {
         if (results.length < 50) break;
       }
       
-      // 2. Fetch from YouTube for more songs
-      try {
-        const ytRes = await fetch(`https://sonic-bloom-player.vercel.app/api/youtube-search?q=${encodeURIComponent(artistName + ' songs')}`);
-        if (ytRes.ok) {
-          const ytData = await ytRes.json();
-          const ytTracks: Track[] = (ytData || [])
-            .slice(0, 50)
-            .map((v: any, i: number) => {
-              const trackId = `yt_${v.videoId}`;
-              if (seenIds.has(trackId)) return null;
-              seenIds.add(trackId);
-              return {
-                id: trackId,
-                title: v.title || "Unknown",
-                artist: v.author || artistName,
-                album: "",
-                cover: v.thumbnail || "",
-                src: `https://www.youtube.com/watch?v=${v.videoId}`,
-                duration: 0,
-                type: "youtube" as const,
-                songId: v.videoId,
-              };
-            })
-            .filter((t: Track | null): t is Track => t !== null);
-          allTracks.push(...ytTracks);
-        }
-      } catch (e) {
-        console.log('YouTube fetch failed:', e);
-      }
       
       setSongs(allTracks);
     } catch (e) {

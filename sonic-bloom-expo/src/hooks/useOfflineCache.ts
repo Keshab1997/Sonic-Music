@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track } from '../data/playlist';
-import { fetchJioSaavn, fetchYouTube } from '../lib/api';
+import { fetchJioSaavn } from '../lib/api';
 
 const OFFLINE_CACHE_KEY = 'sonic_offline_cache';
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -12,7 +12,6 @@ interface CachedData {
   bengaliHits: Track[];
   forYou: Track[];
   suspense: Track[];
-  ytTrending: Track[];
   cachedAt: number;
 }
 
@@ -50,7 +49,6 @@ export const useOfflineCache = () => {
     bengaliHits: Track[];
     forYou: Track[];
     suspense: Track[];
-    ytTrending: Track[];
   }) => {
     try {
       const cacheData: CachedData = {
