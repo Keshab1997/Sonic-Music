@@ -235,7 +235,7 @@ export const useDownloads = () => {
 
       setDownloading(prev => ({ ...prev, [trackId]: 25 }));
       
-      // Download file using fetch (new API)
+      // Download file using fetch
       const response = await fetch(track.src);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -243,13 +243,13 @@ export const useDownloads = () => {
       
       setDownloading(prev => ({ ...prev, [trackId]: 50 }));
       
-      const blob = await response.blob();
+      // Get response as ArrayBuffer (works in React Native)
+      const arrayBuffer = await response.arrayBuffer();
       setDownloading(prev => ({ ...prev, [trackId]: 75 }));
       
-      // Write blob to file
-      await file.create({ overwrite: true });
-      const arrayBuffer = await blob.arrayBuffer();
+      // Convert to Uint8Array and write to file
       const uint8Array = new Uint8Array(arrayBuffer);
+      await file.create({ overwrite: true });
       file.write(uint8Array);
       
       console.log(`[useDownloads] Download complete: ${track.title}`);
