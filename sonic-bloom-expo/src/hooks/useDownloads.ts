@@ -216,10 +216,10 @@ export const useDownloads = () => {
       // Get download directory based on user preference
       const downloadDir = getDownloadDirectory();
       
-      // Create downloads directory if it doesn't exist
-      const dirInfo = await FileSystem.getInfoAsync(downloadDir);
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true });
+      // Create downloads directory if it doesn't exist using new API
+      const dir = new FileSystem.Directory(downloadDir);
+      if (!dir.exists) {
+        await dir.create();
       }
       
       const safeTitle = (track.title || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
@@ -261,10 +261,10 @@ export const useDownloads = () => {
     if (!downloaded) return;
 
     try {
-      // Check if file exists before deleting
-      const fileInfo = await FileSystem.getInfoAsync(downloaded.localUri);
-      if (fileInfo.exists) {
-        await FileSystem.deleteAsync(downloaded.localUri);
+      // Check if file exists before deleting using new API
+      const file = new FileSystem.File(downloaded.localUri);
+      if (file.exists) {
+        await file.delete();
       }
     } catch (e) {
       console.error('Failed to delete file:', e);
@@ -281,9 +281,9 @@ export const useDownloads = () => {
   const deleteAll = async () => {
     try {
       for (const d of downloads) {
-        const fileInfo = await FileSystem.getInfoAsync(d.localUri);
-        if (fileInfo.exists) {
-          await FileSystem.deleteAsync(d.localUri);
+        const file = new FileSystem.File(d.localUri);
+        if (file.exists) {
+          await file.delete();
         }
       }
     } catch (e) {
@@ -306,9 +306,10 @@ export const useDownloads = () => {
     let totalSize = 0;
     try {
       for (const d of downloads) {
-        const fileInfo = await FileSystem.getInfoAsync(d.localUri);
-        if (fileInfo.exists && 'size' in fileInfo) {
-          totalSize += fileInfo.size || 0;
+        const file = new FileSystem.File(d.localUri);
+        if (file.exists) {
+          const info = await file.stat();
+          totalSize += info.size || 0;
         }
       }
     } catch (e) {

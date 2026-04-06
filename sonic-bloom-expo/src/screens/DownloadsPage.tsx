@@ -129,7 +129,7 @@ export const DownloadsPage: React.FC = () => {
               onPress={() => setShowStorageMenu(!showStorageMenu)}
               activeOpacity={0.7}
             >
-              <Ionicons name={storageLocation === 'external' ? "sd-card" : "phone-portrait"} size={12} color="#f59e0b" />
+              <Ionicons name={storageLocation === 'external' ? "card" : "phone-portrait"} size={12} color="#f59e0b" />
               <Text style={styles.storageText}>{storageLocation === 'external' ? 'SD Card' : 'Internal'}</Text>
             </TouchableOpacity>
           </View>
@@ -167,7 +167,7 @@ export const DownloadsPage: React.FC = () => {
             }}
             activeOpacity={0.7}
           >
-            <Ionicons name="sd-card" size={18} color={storageLocation === 'external' ? '#1DB954' : '#888'} />
+            <Ionicons name="card" size={18} color={storageLocation === 'external' ? '#1DB954' : '#888'} />
             <View style={styles.storageOptionText}>
               <Text style={[styles.storageOptionTitle, storageLocation === 'external' && styles.storageOptionTitleActive]}>SD Card</Text>
               <Text style={styles.storageOptionDesc}>Save to memory card</Text>
