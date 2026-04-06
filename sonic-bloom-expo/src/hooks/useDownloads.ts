@@ -162,14 +162,33 @@ export const useDownloads = () => {
     setDownloading(prev => ({ ...prev, [trackId]: 0 }));
 
     try {
-      const downloadDir = FileSystem.Paths.cache;
+      // Use documentDirectory for permanent storage instead of cache
+      const downloadDir = `${FileSystem.documentDirectory}downloads/`;
+      
+      // Create downloads directory if it doesn't exist
+      const dirInfo = await FileSystem.getInfoAsync(downloadDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true });
+      }
+      
       const safeTitle = (track.title || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
       const fileName = `${trackId}_${safeTitle}.mp3`;
-      const file = new FileSystem.File(downloadDir, fileName);
-      const localUri = file.uri;
+      const localUri = `${downloadDir}${fileName}`;
 
       setDownloading(prev => ({ ...prev, [trackId]: 50 }));
-      await FileSystem.File.downloadFileAsync(track.src, file, { idempotent: true });
+      
+      // Download file
+      const downloadResumable = FileSystem.createDownloadResumable(
+        track.src,
+        localUri,
+        {},
+        (downloadProgress) => {
+          const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+          setDownloading(prev => ({ ...prev, [trackId]: Math.round(progress * 100) }));
+        }
+      );
+      
+      await downloadResumable.downloadAsync();
       setDownloading(prev => ({ ...prev, [trackId]: 100 }));
 
       const newDownload = { track, localUri, downloadedAt: Date.now() };
@@ -191,7 +210,11 @@ export const useDownloads = () => {
     if (!downloaded) return;
 
     try {
-      await FileSystem.deleteAsync(downloaded.localUri);
+      // Check if file exists before deleting
+      const fileInfo = await FileSystem.getInfoAsync(downloaded.localUri);
+      if (fileInfo.exists) {
+        await FileSystem.deleteAsync(downloaded.localUri);
+      }
     } catch (e) {
       console.error('Failed to delete file:', e);
     }
@@ -203,7 +226,10 @@ export const useDownloads = () => {
   const deleteAll = async () => {
     try {
       for (const d of downloads) {
-        await FileSystem.deleteAsync(d.localUri);
+        const fileInfo = await FileSystem.getInfoAsync(d.localUri);
+        if (fileInfo.exists) {
+          await FileSystem.deleteAsync(d.localUri);
+        }
       }
     } catch (e) {
       console.error('Failed to delete files:', e);
@@ -220,6 +246,31 @@ export const useDownloads = () => {
     return String(trackId) in downloading;
   }, [downloading]);
 
+  // Get total download size
+  const getTotalDownloadSize = useCallback(async () => {
+    let totalSize = 0;
+    try {
+      for (const d of downloads) {
+        const fileInfo = await FileSystem.getInfoAsync(d.localUri);
+        if (fileInfo.exists && 'size' in fileInfo) {
+          totalSize += fileInfo.size || 0;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to calculate total size:', e);
+    }
+    return totalSize;
+  }, [downloads]);
+
+  // Format bytes to human readable
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
   return {
     downloads,
     downloading,
@@ -230,5 +281,7 @@ export const useDownloads = () => {
     deleteAll,
     getDownloadProgress,
     isDownloading,
+    getTotalDownloadSize,
+    formatBytes,
   };
 };

@@ -1,15 +1,32 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlayer } from '../context/PlayerContext';
 import { useDownloadsContext } from '../context/DownloadsContext';
+import { useDownloads } from '../hooks/useDownloads';
 import { CachedImage } from '../components/CachedImage';
 import { lightHaptic, mediumHaptic } from '../lib/haptics';
 
 export const DownloadsPage: React.FC = () => {
   const { downloads, deleteTrack, deleteAll } = useDownloadsContext();
+  const { getTotalDownloadSize, formatBytes } = useDownloads();
   const { playTrackList, currentTrack, isPlaying, addToQueue } = usePlayer();
   const [searchQuery, setSearchQuery] = useState('');
+  const [totalSize, setTotalSize] = useState('0 Bytes');
+
+  // Calculate total download size
+  useEffect(() => {
+    const calculateSize = async () => {
+      const size = await getTotalDownloadSize();
+      setTotalSize(formatBytes(size));
+    };
+    if (downloads.length > 0) {
+      calculateSize();
+    } else {
+      setTotalSize('0 Bytes');
+    }
+  }, [downloads.length, getTotalDownloadSize, formatBytes]);
+  const [totalSize, setTotalSize] = useState('0 Bytes');
 
   const handleDelete = (trackId: string) => {
     Alert.alert(
@@ -96,8 +113,19 @@ export const DownloadsPage: React.FC = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Downloads</Text>
-        <Text style={styles.headerCount}>{downloads.length} songs</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>Downloads</Text>
+          <View style={styles.headerInfo}>
+            <View style={styles.infoBadge}>
+              <Ionicons name="musical-notes" size={12} color="#1DB954" />
+              <Text style={styles.headerCount}>{downloads.length} songs</Text>
+            </View>
+            <View style={styles.infoBadge}>
+              <Ionicons name="folder" size={12} color="#60a5fa" />
+              <Text style={styles.headerSize}>{totalSize}</Text>
+            </View>
+          </View>
+        </View>
         <TouchableOpacity onPress={() => { handleDeleteAll(); lightHaptic(); }} activeOpacity={0.7}>
           <Text style={styles.deleteAllText}>Delete All</Text>
         </TouchableOpacity>
@@ -155,9 +183,13 @@ const styles = StyleSheet.create({
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: 20, color: '#fff', fontWeight: 'bold', marginTop: 16 },
   emptyText: { fontSize: 14, color: '#888', marginTop: 8 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 16 },
-  headerTitle: { fontSize: 24, color: '#fff', fontWeight: 'bold' },
-  headerCount: { fontSize: 14, color: '#888' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
+  headerLeft: { flex: 1 },
+  headerTitle: { fontSize: 24, color: '#fff', fontWeight: 'bold', marginBottom: 8 },
+  headerInfo: { flexDirection: 'row', gap: 12 },
+  infoBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1a1a1a', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  headerCount: { fontSize: 12, color: '#1DB954', fontWeight: '600' },
+  headerSize: { fontSize: 12, color: '#60a5fa', fontWeight: '600' },
   deleteAllText: { fontSize: 14, color: '#ef4444', fontWeight: '600' },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginHorizontal: 16, marginBottom: 8, gap: 10 },
   searchInput: { flex: 1, color: '#fff', fontSize: 15 },
