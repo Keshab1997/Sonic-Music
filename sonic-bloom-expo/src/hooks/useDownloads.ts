@@ -230,27 +230,32 @@ export const useDownloads = () => {
       
       const safeTitle = (track.title || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
       const fileName = `${trackId}_${safeTitle}.mp3`;
-      const localUri = `${downloadDir}${fileName}`;
-      console.log(`[useDownloads] Downloading to: ${localUri}`);
+      const file = new FileSystem.File(downloadDir, fileName);
+      console.log(`[useDownloads] Downloading to: ${file.uri}`);
 
+      setDownloading(prev => ({ ...prev, [trackId]: 25 }));
+      
+      // Download file using fetch (new API)
+      const response = await fetch(track.src);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       setDownloading(prev => ({ ...prev, [trackId]: 50 }));
       
-      // Download file
-      const downloadResumable = FileSystem.createDownloadResumable(
-        track.src,
-        localUri,
-        {},
-        (downloadProgress) => {
-          const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-          setDownloading(prev => ({ ...prev, [trackId]: Math.round(progress * 100) }));
-        }
-      );
+      const blob = await response.blob();
+      setDownloading(prev => ({ ...prev, [trackId]: 75 }));
       
-      const result = await downloadResumable.downloadAsync();
-      console.log(`[useDownloads] Download complete: ${track.title}`, result?.uri);
+      // Write blob to file
+      await file.create({ overwrite: true });
+      const arrayBuffer = await blob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      file.write(uint8Array);
+      
+      console.log(`[useDownloads] Download complete: ${track.title}`);
       setDownloading(prev => ({ ...prev, [trackId]: 100 }));
 
-      const newDownload = { track, localUri, downloadedAt: Date.now() };
+      const newDownload = { track, localUri: file.uri, downloadedAt: Date.now() };
       
       setDownloads(prev => {
         const newDownloads = [...prev, newDownload];
