@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track } from '../data/playlist';
 import { usePlayer } from '../context/PlayerContext';
 import { RECENTLY_PLAYED_KEY } from '../data/constants';
-import { fetchJioSaavn, fetchYouTube } from '../lib/api';
+import { fetchJioSaavn } from '../lib/api';
 import { useOfflineCache } from '../hooks/useOfflineCache';
 import { HomeCarousel } from './home/HomeCarousel';
 import { HomeQuickPicks } from './home/HomeQuickPicks';
@@ -89,7 +89,7 @@ export const HomeScreen: React.FC = () => {
     };
   }, [trending.length]);
 
-  // Fetch all data with offline caching - OPTIMIZED with parallel fetching
+  // Fetch all data with offline caching - OPTIMIZED with parallel fetching (YouTube removed)
   const fetchAllData = useCallback(async () => {
     try {
       // Fetch all data in parallel for better performance
@@ -98,15 +98,11 @@ export const HomeScreen: React.FC = () => {
         newReleasesData,
         bengaliHitsData,
         forYouData,
-        suspenseData,
-        ytTrendingData,
       ] = await Promise.all([
         fetchJioSaavn("latest bollywood hits", 0).finally(() => setLoadingTrending(false)),
         fetchJioSaavn("new hindi songs 2025", 0).finally(() => setLoadingNewReleases(false)),
         fetchJioSaavn("bengali top hits", 0, 15, "bengali").finally(() => setLoadingBengali(false)),
         fetchJioSaavn("bollywood romantic hits", 0).finally(() => setLoadingForYou(false)),
-        fetchYouTube("Sunday Suspense Mirchi Bangla", 0).finally(() => setLoadingSuspense(false)),
-        fetchYouTube("top hindi songs 2026 trending", 0).finally(() => setLoadingYtTrending(false)),
       ]);
 
       // Update all states at once
@@ -114,8 +110,10 @@ export const HomeScreen: React.FC = () => {
       setNewReleases(newReleasesData);
       setBengaliHits(bengaliHitsData);
       setForYou(forYouData);
-      setSuspense(suspenseData);
-      setYtTrending(ytTrendingData);
+      setSuspense([]);
+      setYtTrending([]);
+      setLoadingSuspense(false);
+      setLoadingYtTrending(false);
 
       // Save to offline cache
       await saveToCache({
@@ -123,8 +121,8 @@ export const HomeScreen: React.FC = () => {
         newReleases: newReleasesData,
         bengaliHits: bengaliHitsData,
         forYou: forYouData,
-        suspense: suspenseData,
-        ytTrending: ytTrendingData,
+        suspense: [],
+        ytTrending: [],
       });
     } catch (error) {
       console.error('Error fetching home data:', error);
