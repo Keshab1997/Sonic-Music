@@ -8,9 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePlayer } from '../context/PlayerContext';
 import { useAuth } from '../context/AuthContext';
-import { useDownloads } from '../hooks/useDownloads';
 import { useDownloadsContext } from '../context/DownloadsContext';
-  import { usePlaylists } from '../hooks/usePlaylists';
+import { usePlaylists } from '../hooks/usePlaylists';
 import { supabase } from '../lib/supabase';
 import { QueueManager } from './QueueManager';
 import { SleepTimerSheet } from './SleepTimerSheet';
@@ -175,14 +174,12 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
     setPlaylistNameInput('');
     
     // Collect all tracks from queue + current track
-    const allTracks = queue.length > 0 ? [...queue, currentTrack] : [currentTrack];
-    console.log('[FullScreenPlayer] Adding to playlist, track count:', allTracks.length);
-    console.log('[FullScreenPlayer] Queue:', queue.map(t => ({ id: t.id, title: t.title })));
-    console.log('[FullScreenPlayer] CurrentTrack:', currentTrack ? { id: currentTrack.id, title: currentTrack.title } : null);
+    const allTracks = currentTrack 
+      ? (queue.length > 0 ? [...queue, currentTrack] : [currentTrack])
+      : queue;
     
     // Create the playlist
     const newPlaylist = await createPlaylist(playlistName);
-    console.log('[FullScreenPlayer] Playlist created:', newPlaylist);
     
     if (newPlaylist && currentTrack) {
       // Add all tracks to the new playlist - use upsert to handle duplicates
@@ -195,7 +192,6 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
           uniqueTracks.push(track);
         }
       }
-      console.log('[FullScreenPlayer] Unique tracks:', uniqueTracks.map(t => ({ id: t.id, title: t.title })));
       
       const tracksToInsert = uniqueTracks.map((track, index) => ({
         playlist_id: newPlaylist.id,
@@ -203,11 +199,9 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
         track_data: track,
         position: index,
       }));
-      console.log('[FullScreenPlayer] Tracks to insert:', tracksToInsert.length, tracksToInsert.map(t => t.track_id));
       
       if (tracksToInsert.length > 0) {
-        const { data, error } = await supabase.from('playlist_tracks').upsert(tracksToInsert, { onConflict: 'playlist_id,track_id' });
-        console.log('[FullScreenPlayer] Direct insert result:', { data, error, count: tracksToInsert.length });
+        const { error } = await supabase.from('playlist_tracks').upsert(tracksToInsert, { onConflict: 'playlist_id,track_id' });
         
         Alert.alert("Success", `Added ${tracksToInsert.length} songs to '${playlistName}'`);
       } else {
@@ -326,7 +320,7 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
   const handleVolumeSeek = useCallback((pageX: number) => {
     volumeBarRef.current?.measure((_, __, barWidth, ____, barX) => {
       const relX = Math.max(0, Math.min(pageX - barX, barWidth));
-      const newVolume = relX / barWidth;
+      const newVolume = Math.max(0, Math.min(1, relX / barWidth));
       if (volumeSeeking) {
         setVolumeSeekValue(newVolume);
       } else {
@@ -344,7 +338,7 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
       setVolumeSeeking(true);
       volumeBarRef.current?.measure((_, __, barWidth, ____, barX) => {
         const relX = Math.max(0, Math.min(e.nativeEvent.pageX - barX, barWidth));
-        const newVolume = relX / barWidth;
+        const newVolume = Math.max(0, Math.min(1, relX / barWidth));
         setVolumeSeekValue(newVolume);
         setVolume(newVolume);
       });
@@ -352,7 +346,8 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
     onPanResponderMove: (_, g) => {
       volumeBarRef.current?.measure((_, __, barWidth, ____, barX) => {
         const relX = Math.max(0, Math.min(g.moveX - barX, barWidth));
-        setVolumeSeekValue(relX / barWidth);
+        const newVolume = Math.max(0, Math.min(1, relX / barWidth));
+        setVolumeSeekValue(newVolume);
       });
     },
     onPanResponderRelease: () => {
@@ -551,7 +546,7 @@ const styles = StyleSheet.create({
   dragHandle: { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginTop: 16 },
   
   // Playlist Save Modal
-  playlistModalOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  playlistModalOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   playlistModalContent: { backgroundColor: '#1a1a1a', borderRadius: 20, padding: 24, width: '100%', maxWidth: 320 },
   playlistModalTitle: { fontSize: 20, color: '#fff', fontWeight: '700', marginBottom: 16, textAlign: 'center' },
   playlistModalInput: { backgroundColor: '#2a2a2a', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: '#fff', fontSize: 16, marginBottom: 20 },
