@@ -207,6 +207,7 @@ export const useDownloads = () => {
     const trackId = String(track.songId || track.id);
     
     if (!track?.src || !trackId || isDownloaded(trackId)) {
+      console.log(`[useDownloads] Skip download: ${track.title} - Already downloaded or invalid`);
       return;
     }
 
@@ -215,16 +216,22 @@ export const useDownloads = () => {
     try {
       // Get download directory based on user preference
       const downloadDir = getDownloadDirectory();
+      console.log(`[useDownloads] Download directory: ${downloadDir}`);
       
       // Create downloads directory if it doesn't exist using new API
       const dir = new FileSystem.Directory(downloadDir);
+      console.log(`[useDownloads] Directory exists: ${dir.exists}`);
+      
       if (!dir.exists) {
-        await dir.create();
+        console.log(`[useDownloads] Creating directory...`);
+        dir.create({ intermediates: true, idempotent: true });
+        console.log(`[useDownloads] Directory created successfully`);
       }
       
       const safeTitle = (track.title || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
       const fileName = `${trackId}_${safeTitle}.mp3`;
       const localUri = `${downloadDir}${fileName}`;
+      console.log(`[useDownloads] Downloading to: ${localUri}`);
 
       setDownloading(prev => ({ ...prev, [trackId]: 50 }));
       
@@ -239,7 +246,8 @@ export const useDownloads = () => {
         }
       );
       
-      await downloadResumable.downloadAsync();
+      const result = await downloadResumable.downloadAsync();
+      console.log(`[useDownloads] Download complete: ${track.title}`, result?.uri);
       setDownloading(prev => ({ ...prev, [trackId]: 100 }));
 
       const newDownload = { track, localUri, downloadedAt: Date.now() };
@@ -247,10 +255,11 @@ export const useDownloads = () => {
       setDownloads(prev => {
         const newDownloads = [...prev, newDownload];
         saveDownloads(newDownloads);
+        console.log(`[useDownloads] Saved download: ${track.title}, Total: ${newDownloads.length}`);
         return newDownloads;
       });
     } catch (e) {
-      console.error('Failed to download track:', e);
+      console.error(`[useDownloads] Failed to download ${track.title}:`, e);
     } finally {
       setDownloading(prev => { const n = { ...prev }; delete n[trackId]; return n; });
     }
@@ -306,10 +315,15 @@ export const useDownloads = () => {
     let totalSize = 0;
     try {
       for (const d of downloads) {
-        const file = new FileSystem.File(d.localUri);
-        if (file.exists) {
-          const info = await file.stat();
-          totalSize += info.size || 0;
+        try {
+          const file = new FileSystem.File(d.localUri);
+          if (file.exists) {
+            const info = file.info();
+            totalSize += info.size || 0;
+          }
+        } catch (fileError) {
+          // Skip files that can't be accessed
+          console.log(`[useDownloads] Could not get size for: ${d.track.title}`);
         }
       }
     } catch (e) {
