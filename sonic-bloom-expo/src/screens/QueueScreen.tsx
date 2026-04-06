@@ -25,7 +25,14 @@ export const QueueScreen: React.FC = () => {
         >
           <Ionicons name="chevron-down" size={28} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Queue</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Queue</Text>
+          {queue.length > 0 && (
+            <View style={styles.queueCountBadge}>
+              <Text style={styles.queueCountText}>{queue.length}</Text>
+            </View>
+          )}
+        </View>
         <TouchableOpacity
           onPress={() => {
             clearQueue();
@@ -33,8 +40,9 @@ export const QueueScreen: React.FC = () => {
           }}
           style={styles.clearBtn}
           activeOpacity={0.7}
+          disabled={queue.length === 0}
         >
-          <Text style={styles.clearBtnText}>Clear</Text>
+          <Text style={[styles.clearBtnText, queue.length === 0 && styles.clearBtnDisabled]}>Clear</Text>
         </TouchableOpacity>
       </View>
 
@@ -162,9 +170,13 @@ const styles = StyleSheet.create({
     borderBottomColor: '#1a1a1a',
   },
   backBtn: { padding: 4 },
+  headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
+  queueCountBadge: { backgroundColor: '#1DB954', borderRadius: 12, minWidth: 24, height: 24, paddingHorizontal: 8, justifyContent: 'center', alignItems: 'center' },
+  queueCountText: { fontSize: 12, fontWeight: 'bold', color: '#000' },
   clearBtn: { padding: 4 },
   clearBtnText: { fontSize: 14, color: '#1DB954', fontWeight: '600' },
+  clearBtnDisabled: { color: '#444' },
   scrollContent: { paddingBottom: 100 },
   section: { paddingHorizontal: 16, marginTop: 20 },
   sectionTitle: { fontSize: 14, fontWeight: '600', color: '#888', marginBottom: 12 },
