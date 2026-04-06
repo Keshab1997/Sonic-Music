@@ -37,6 +37,8 @@ export const SearchScreen: React.FC = () => {
   const [rawAlbums, setRawAlbums] = useState<any[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error'; visible: boolean }>({ message: '', type: 'success', visible: false });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const searchCacheRef = useRef<Map<string, { tracks: Track[], timestamp: number }>>(new Map());
   const { currentTrack, isPlaying, addToQueue, playTrackList } = usePlayer();
   const { isDownloaded, isDownloading, downloadTrack, getDownloadProgress } = useDownloadsContext();
   const { saveSearchResults, getCachedResults } = useSearchCache();
@@ -59,10 +61,49 @@ export const SearchScreen: React.FC = () => {
   };
 
   const fetchSongs = useCallback(async (searchQuery: string, page: number, append = false) => {
-    try {
-      const res = await fetch(`${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=${SONGS_PER_PAGE}`);
-      if (!res.ok) return { tracks: [], hasMore: false, total: 0 };
-      const data = await res.json();
+    // Check cache first (5 minutes validity)
+    const cacheKey = `${searchQuery}-${page}`;
+    const cached = searchCacheRef.current.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 300000) {
+      console.log('[Search] Using cached results');
+      return { tracks: cached.tracks, hasMore: cached.tracks.length >= SONGS_PER_PAGE, total: cached.tracks.length };
+    }
+    
+    const maxRetries = 2;
+    let retryCount = 0;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        // Cancel previous request
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
+        
+        // Set timeout for request
+        const timeoutId = setTimeout(() => abortControllerRef.current?.abort(), 10000);
+        
+        const res = await fetch(
+          `${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=${SONGS_PER_PAGE}`,
+          { 
+            signal: abortControllerRef.current.signal,
+            headers: { 'Cache-Control': 'max-age=300' }
+          }
+        );
+        
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+          if (retryCount < maxRetries) {
+            retryCount++;
+            console.log(`[Search] Retry ${retryCount}/${maxRetries}`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+            continue;
+          }
+          return { tracks: [], hasMore: false, total: 0 };
+        }
+        
+        const data = await res.json();
       const songs = data.data?.results || [];
       const total = data.data?.total || songs.length;
       const offset = append ? results.length : 0;
@@ -92,10 +133,30 @@ export const SearchScreen: React.FC = () => {
           };
         })
         .filter((t: Track | null): t is Track => t !== null);
-      return { tracks, hasMore: songs.length >= SONGS_PER_PAGE, total };
-    } catch {
-      return { tracks: [], hasMore: false, total: 0 };
+        
+        // Cache the results
+        searchCacheRef.current.set(cacheKey, { tracks, timestamp: Date.now() });
+        
+        return { tracks, hasMore: songs.length >= SONGS_PER_PAGE, total };
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          console.log('[Search] Request cancelled or timeout');
+          return { tracks: [], hasMore: false, total: 0 };
+        }
+        
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`[Search] Error, retry ${retryCount}/${maxRetries}`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          continue;
+        }
+        
+        console.error('[Search] Error:', error);
+        return { tracks: [], hasMore: false, total: 0 };
+      }
     }
+    
+    return { tracks: [], hasMore: false, total: 0 };
   }, []);
 
   useEffect(() => {
@@ -111,6 +172,13 @@ export const SearchScreen: React.FC = () => {
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       setCurrentPage(1);
+      
+      // Cancel previous request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+      
       if (activeFilter === "songs") {
         const { tracks, hasMore, total } = await fetchSongs(query, 1);
         setResults(tracks);
@@ -119,17 +187,33 @@ export const SearchScreen: React.FC = () => {
         setArtistResults([]);
       } else if (activeFilter === "artists") {
         try {
-          const res = await fetch(`${API_BASE}/search/artists?query=${encodeURIComponent(query)}&page=1&limit=30`);
+          const res = await fetch(
+            `${API_BASE}/search/artists?query=${encodeURIComponent(query)}&page=1&limit=30`,
+            { 
+              signal: abortControllerRef.current.signal,
+              headers: { 'Cache-Control': 'max-age=300' }
+            }
+          );
           if (res.ok) {
             const data = await res.json();
             setArtistResults(data.data?.results || []);
           }
-        } catch {}
+        } catch (error: any) {
+          if (error.name !== 'AbortError') {
+            console.error('[Search Artists] Error:', error);
+          }
+        }
         setResults([]);
         setTotalResults(0);
       } else if (activeFilter === "albums") {
         try {
-          const res = await fetch(`${API_BASE}/search/albums?query=${encodeURIComponent(query)}&page=1&limit=30`);
+          const res = await fetch(
+            `${API_BASE}/search/albums?query=${encodeURIComponent(query)}&page=1&limit=30`,
+            { 
+              signal: abortControllerRef.current.signal,
+              headers: { 'Cache-Control': 'max-age=300' }
+            }
+          );
           if (res.ok) {
             const data = await res.json();
             const albums = data.data?.results || [];
@@ -157,12 +241,16 @@ export const SearchScreen: React.FC = () => {
             setResults(albumTracks);
             setTotalResults(albums.length);
           }
-        } catch {}
+        } catch (error: any) {
+          if (error.name !== 'AbortError') {
+            console.error('[Search Albums] Error:', error);
+          }
+        }
         setArtistResults([]);
         setHasMore(false);
       }
       setLoading(false);
-    }, 400);
+    }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, activeFilter, fetchSongs]);
 
@@ -436,7 +524,8 @@ export const SearchScreen: React.FC = () => {
         ) : loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#1DB954" />
-            <Text style={styles.loadingText}>Searching...</Text>
+            <Text style={styles.loadingText}>Searching for "{query}"...</Text>
+            <Text style={styles.loadingSubText}>This may take a few seconds</Text>
           </View>
         ) : results.length === 0 && artistResults.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -781,7 +870,8 @@ const styles = StyleSheet.create({
   historyItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1a1a1a', gap: 12 },
   historyText: { flex: 1, fontSize: 14, color: '#ccc' },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  loadingText: { color: '#555', fontSize: 14, marginTop: 12 },
+  loadingText: { color: '#fff', fontSize: 14, marginTop: 12, fontWeight: '600' },
+  loadingSubText: { color: '#888', fontSize: 12, marginTop: 4 },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
   emptyText: { color: '#555', fontSize: 14, marginTop: 12 },
   resultsContainer: { paddingHorizontal: 16 },
