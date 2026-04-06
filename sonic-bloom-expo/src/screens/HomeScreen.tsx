@@ -89,61 +89,46 @@ export const HomeScreen: React.FC = () => {
     };
   }, [trending.length]);
 
-  // Fetch all data with offline caching
+  // Fetch all data with offline caching - OPTIMIZED with parallel fetching
   const fetchAllData = useCallback(async () => {
-    const results = {
-      trending: [] as Track[],
-      newReleases: [] as Track[],
-      bengaliHits: [] as Track[],
-      forYou: [] as Track[],
-      suspense: [] as Track[],
-      ytTrending: [] as Track[],
-    };
-
     try {
-      results.trending = await fetchJioSaavn("latest bollywood hits", 1000);
-      setTrending(results.trending);
-    } finally {
-      setLoadingTrending(false);
-    }
+      // Fetch all data in parallel for better performance
+      const [
+        trendingData,
+        newReleasesData,
+        bengaliHitsData,
+        forYouData,
+        suspenseData,
+        ytTrendingData,
+      ] = await Promise.all([
+        fetchJioSaavn("latest bollywood hits", 0).finally(() => setLoadingTrending(false)),
+        fetchJioSaavn("new hindi songs 2025", 0).finally(() => setLoadingNewReleases(false)),
+        fetchJioSaavn("bengali top hits", 0, 15, "bengali").finally(() => setLoadingBengali(false)),
+        fetchJioSaavn("bollywood romantic hits", 0).finally(() => setLoadingForYou(false)),
+        fetchYouTube("Sunday Suspense Mirchi Bangla", 0).finally(() => setLoadingSuspense(false)),
+        fetchYouTube("top hindi songs 2026 trending", 0).finally(() => setLoadingYtTrending(false)),
+      ]);
 
-    try {
-      results.newReleases = await fetchJioSaavn("new hindi songs 2025", 2000);
-      setNewReleases(results.newReleases);
-    } finally {
-      setLoadingNewReleases(false);
-    }
+      // Update all states at once
+      setTrending(trendingData);
+      setNewReleases(newReleasesData);
+      setBengaliHits(bengaliHitsData);
+      setForYou(forYouData);
+      setSuspense(suspenseData);
+      setYtTrending(ytTrendingData);
 
-    try {
-      results.bengaliHits = await fetchJioSaavn("bengali top hits", 7000, 15, "bengali");
-      setBengaliHits(results.bengaliHits);
-    } finally {
-      setLoadingBengali(false);
+      // Save to offline cache
+      await saveToCache({
+        trending: trendingData,
+        newReleases: newReleasesData,
+        bengaliHits: bengaliHitsData,
+        forYou: forYouData,
+        suspense: suspenseData,
+        ytTrending: ytTrendingData,
+      });
+    } catch (error) {
+      console.error('Error fetching home data:', error);
     }
-
-    try {
-      results.forYou = await fetchJioSaavn("bollywood romantic hits", 9000);
-      setForYou(results.forYou);
-    } finally {
-      setLoadingForYou(false);
-    }
-
-    try {
-      results.suspense = await fetchYouTube("Sunday Suspense Mirchi Bangla", 11000);
-      setSuspense(results.suspense);
-    } finally {
-      setLoadingSuspense(false);
-    }
-
-    try {
-      results.ytTrending = await fetchYouTube("top hindi songs 2026 trending", 60000);
-      setYtTrending(results.ytTrending);
-    } finally {
-      setLoadingYtTrending(false);
-    }
-
-    // Save to offline cache
-    await saveToCache(results);
   }, [saveToCache]);
 
   // Initial Data Fetching
