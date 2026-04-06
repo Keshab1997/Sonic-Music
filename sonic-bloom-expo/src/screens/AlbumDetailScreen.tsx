@@ -267,7 +267,7 @@ export const AlbumDetailScreen: React.FC = () => {
           {/* Songs List */}
           <FlatList
             data={songs}
-            keyExtractor={(item) => String(item.id)}
+            keyExtractor={(item) => `album_${item.songId || item.id}`}
             renderItem={renderItem}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}

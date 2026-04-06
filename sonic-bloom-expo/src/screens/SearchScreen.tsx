@@ -712,7 +712,7 @@ export const SearchScreen: React.FC = () => {
                   const progress = getDownloadProgress(String(item.songId || item.id));
                   return (
                     <TouchableOpacity
-                      key={`${item.id}-${index}`}
+                      key={`search_song_${item.songId || item.id}_${index}`}
                       style={[
                         styles.songRow,
                         isCurrentTrack && styles.songRowActive
@@ -860,7 +860,7 @@ export const SearchScreen: React.FC = () => {
                         const isCurrentTrack = currentTrack?.id === track.id;
                         return (
                           <TouchableOpacity
-                            key={`${track.id}-${index}`}
+                            key={`album_song_${track.songId || track.id}_${index}`}
                             style={[styles.songRow, isCurrentTrack && styles.songRowActive]}
                             onPress={() => playTrackList(albumSongs, index)}
                             activeOpacity={0.7}
