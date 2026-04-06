@@ -36,10 +36,10 @@ export const useDownloads = () => {
     if (Platform.OS === 'android' && storageLocation === 'external') {
       // For Android external storage (SD card)
       // Using Music directory which is accessible on most devices
-      return `${FileSystem.Paths.document}../Music/SonicBloom/`;
+      return `${FileSystem.Paths.document.uri}../Music/SonicBloom/`;
     }
     // Default: Internal storage (document directory)
-    return `${FileSystem.Paths.document}downloads/`;
+    return `${FileSystem.Paths.document.uri}downloads/`;
   }, [storageLocation]);
 
   // Change storage location
