@@ -130,7 +130,7 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
     shuffle, repeat, togglePlay, next, prev, seek,
     toggleShuffle, toggleRepeat, volume, setVolume,
     isCurrentTrackLiked, likeCurrentTrack, unlikeCurrentTrack,
-    queue, sleepMinutes, playbackSpeed, quality,
+    queue, sleepMinutes, playbackSpeed, quality, tracks,
   } = usePlayer();
 
   const { user } = useAuth();
@@ -246,8 +246,8 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
 
   // Memoized sub-components to avoid re-renders
   const HeaderSection = useMemo(() => {
-    // Format queue count properly
-    const queueCount = queue.length > 99 ? '99+' : String(queue.length);
+    // Format track count properly
+    const trackCount = tracks.length > 99 ? '99+' : String(tracks.length);
     
     return (
       <View style={styles.header}>
@@ -258,16 +258,16 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
         <TouchableOpacity onPress={() => setQueueVisible(true)} style={styles.headerBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} delayPressIn={0}>
           <View>
             <Ionicons name="list" size={22} color="rgba(255,255,255,0.7)" />
-            {queue.length > 0 && (
+            {tracks.length > 0 && (
               <View style={styles.queueBadge}>
-                <Text style={styles.queueBadgeText}>{queueCount}</Text>
+                <Text style={styles.queueBadgeText}>{trackCount}</Text>
               </View>
             )}
           </View>
         </TouchableOpacity>
       </View>
     );
-  }, [onClose, queue.length]);
+  }, [onClose, tracks.length]);
 
   const ArtSection = useMemo(() => (
     <View style={styles.artContainer}>
@@ -444,8 +444,8 @@ export const FullScreenPlayer: React.FC<Props> = memo(({ visible, onClose }) => 
         {/* Drag indicator */}
         <View style={styles.dragHandle} />
 
-        {/* Queue Manager */}
-        <QueueManager visible={queueVisible} onClose={() => setQueueVisible(false)} />
+        {/* Queue Manager - Show Playlist */}
+        <QueueManager visible={queueVisible} onClose={() => setQueueVisible(false)} showPlaylist={true} />
 
         {/* Sleep Timer */}
         <SleepTimerSheet visible={sleepVisible} onClose={() => setSleepVisible(false)} />

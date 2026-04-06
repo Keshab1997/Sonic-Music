@@ -99,7 +99,7 @@ export const LibraryScreen: React.FC = () => {
             colors={['#ec4899', '#f472b6']}
             style={styles.cardIcon}
           >
-            <Ionicons name="person" size={32} color="#fff" />
+            <Ionicons name="mic" size={32} color="#fff" />
           </LinearGradient>
           <View style={styles.cardInfo}>
             <Text style={styles.cardTitle}>Artists</Text>
@@ -123,6 +123,25 @@ export const LibraryScreen: React.FC = () => {
           <View style={styles.cardInfo}>
             <Text style={styles.cardTitle}>Albums</Text>
             <Text style={styles.cardSubtitle}>Browse your albums</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color="#555" />
+        </TouchableOpacity>
+
+        {/* Profile Card */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigateToScreen(navigation, 'Profile')}
+          activeOpacity={0.7}
+        >
+          <LinearGradient
+            colors={['#6366f1', '#818cf8']}
+            style={styles.cardIcon}
+          >
+            <Ionicons name="person" size={32} color="#fff" />
+          </LinearGradient>
+          <View style={styles.cardInfo}>
+            <Text style={styles.cardTitle}>Profile</Text>
+            <Text style={styles.cardSubtitle}>Account & settings</Text>
           </View>
           <Ionicons name="chevron-forward" size={24} color="#555" />
         </TouchableOpacity>

@@ -36,6 +36,7 @@ export const SearchScreen: React.FC = () => {
   const [loadingAlbum, setLoadingAlbum] = useState(false);
   const [rawAlbums, setRawAlbums] = useState<any[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error'; visible: boolean }>({ message: '', type: 'success', visible: false });
+  const [searchInBackground, setSearchInBackground] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const searchCacheRef = useRef<Map<string, { tracks: Track[], timestamp: number }>>(new Map());
@@ -44,6 +45,23 @@ export const SearchScreen: React.FC = () => {
   const { saveSearchResults, getCachedResults } = useSearchCache();
   const { searchHistory, addToHistory, clearHistory: clearSearchHistory, removeFromHistory } = useSearchHistory();
   const navigation = useNavigation();
+
+  // Load cache from AsyncStorage on mount
+  useEffect(() => {
+    const loadCache = async () => {
+      try {
+        const cacheData = await AsyncStorage.getItem('sonic_search_cache');
+        if (cacheData) {
+          const parsed = JSON.parse(cacheData);
+          searchCacheRef.current = new Map(Object.entries(parsed));
+          console.log(`[Search] Loaded ${searchCacheRef.current.size} cached searches from storage`);
+        }
+      } catch (e) {
+        console.error('[Search] Failed to load cache:', e);
+      }
+    };
+    loadCache();
+  }, []);
 
   const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type, visible: true });
@@ -61,50 +79,64 @@ export const SearchScreen: React.FC = () => {
   };
 
   const fetchSongs = useCallback(async (searchQuery: string, page: number, append = false) => {
-    // Check cache first (5 minutes validity)
+    // Check cache first (lifetime validity)
     const cacheKey = `${searchQuery}-${page}`;
     const cached = searchCacheRef.current.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 300000) {
-      console.log('[Search] Using cached results');
+    if (cached) {
+      console.log('[Search] Using cached results (lifetime cache)');
       return { tracks: cached.tracks, hasMore: cached.tracks.length >= SONGS_PER_PAGE, total: cached.tracks.length };
     }
     
-    const maxRetries = 2;
+    const maxRetries = 3;
     let retryCount = 0;
     
     while (retryCount <= maxRetries) {
       try {
-        // Cancel previous request
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-        }
-        abortControllerRef.current = new AbortController();
+        // Create new abort controller for this request
+        const controller = new AbortController();
         
-        // Set timeout for request
-        const timeoutId = setTimeout(() => abortControllerRef.current?.abort(), 10000);
+        // Set timeout for request (30 seconds)
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        
+        console.log(`[Search] Fetching: "${searchQuery}" page ${page}, attempt ${retryCount + 1}`);
         
         const res = await fetch(
           `${API_BASE}/search/songs?query=${encodeURIComponent(searchQuery)}&page=${page}&limit=${SONGS_PER_PAGE}`,
           { 
-            signal: abortControllerRef.current.signal,
-            headers: { 'Cache-Control': 'max-age=300' }
+            signal: controller.signal,
+            headers: { 'Cache-Control': 'no-cache' }
           }
         );
         
         clearTimeout(timeoutId);
         
+        console.log(`[Search] Response status: ${res.status}`);
+        
         if (!res.ok) {
           if (retryCount < maxRetries) {
             retryCount++;
-            console.log(`[Search] Retry ${retryCount}/${maxRetries}`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+            console.log(`[Search] Retry ${retryCount}/${maxRetries} after ${2000 * retryCount}ms`);
+            await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
             continue;
           }
+          console.error('[Search] All retries failed');
           return { tracks: [], hasMore: false, total: 0 };
         }
         
         const data = await res.json();
+        console.log(`[Search] Got ${data.data?.results?.length || 0} results`);
       const songs = data.data?.results || [];
+      
+      if (songs.length === 0) {
+        console.log('[Search] No results in response');
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`[Search] Empty response, retry ${retryCount}/${maxRetries}`);
+          await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+          continue;
+        }
+      }
+      
       const total = data.data?.total || songs.length;
       const offset = append ? results.length : 0;
       const tracks: Track[] = songs
@@ -134,8 +166,20 @@ export const SearchScreen: React.FC = () => {
         })
         .filter((t: Track | null): t is Track => t !== null);
         
-        // Cache the results
-        searchCacheRef.current.set(cacheKey, { tracks, timestamp: Date.now() });
+        // Cache the results permanently (lifetime cache)
+        if (tracks.length > 0) {
+          searchCacheRef.current.set(cacheKey, { tracks, timestamp: Date.now() });
+          console.log(`[Search] Cached ${tracks.length} tracks permanently`);
+          
+          // Save to AsyncStorage for persistence
+          try {
+            const cacheObj = Object.fromEntries(searchCacheRef.current);
+            await AsyncStorage.setItem('sonic_search_cache', JSON.stringify(cacheObj));
+            console.log('[Search] Saved cache to storage');
+          } catch (e) {
+            console.error('[Search] Failed to save cache:', e);
+          }
+        }
         
         return { tracks, hasMore: songs.length >= SONGS_PER_PAGE, total };
       } catch (error: any) {
@@ -147,15 +191,15 @@ export const SearchScreen: React.FC = () => {
         if (retryCount < maxRetries) {
           retryCount++;
           console.log(`[Search] Error, retry ${retryCount}/${maxRetries}`);
-          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
           continue;
         }
         
-        console.error('[Search] Error:', error);
         return { tracks: [], hasMore: false, total: 0 };
       }
     }
     
+    console.log('[Search] All attempts exhausted');
     return { tracks: [], hasMore: false, total: 0 };
   }, []);
 
@@ -171,29 +215,39 @@ export const SearchScreen: React.FC = () => {
     }
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
+      setSearchInBackground(true);
       setCurrentPage(1);
       
-      // Cancel previous request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      abortControllerRef.current = new AbortController();
+      // Don't cancel previous request here - let it complete
+      const currentAbortController = new AbortController();
+      abortControllerRef.current = currentAbortController;
       
       if (activeFilter === "songs") {
         const { tracks, hasMore, total } = await fetchSongs(query, 1);
+        console.log(`[Search] Final results: ${tracks.length} tracks`);
         setResults(tracks);
         setHasMore(hasMore);
         setTotalResults(total);
         setArtistResults([]);
+        
+        if (tracks.length === 0) {
+          showToast('No results found. Try different keywords.', 'info');
+        }
       } else if (activeFilter === "artists") {
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000);
+          
           const res = await fetch(
             `${API_BASE}/search/artists?query=${encodeURIComponent(query)}&page=1&limit=30`,
             { 
-              signal: abortControllerRef.current.signal,
-              headers: { 'Cache-Control': 'max-age=300' }
+              signal: controller.signal,
+              headers: { 'Cache-Control': 'no-cache' }
             }
           );
+          
+          clearTimeout(timeoutId);
+          
           if (res.ok) {
             const data = await res.json();
             setArtistResults(data.data?.results || []);
@@ -207,13 +261,18 @@ export const SearchScreen: React.FC = () => {
         setTotalResults(0);
       } else if (activeFilter === "albums") {
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000);
+          
           const res = await fetch(
             `${API_BASE}/search/albums?query=${encodeURIComponent(query)}&page=1&limit=30`,
             { 
-              signal: abortControllerRef.current.signal,
-              headers: { 'Cache-Control': 'max-age=300' }
+              signal: controller.signal,
+              headers: { 'Cache-Control': 'no-cache' }
             }
           );
+          
+          clearTimeout(timeoutId);
           if (res.ok) {
             const data = await res.json();
             const albums = data.data?.results || [];
@@ -250,8 +309,12 @@ export const SearchScreen: React.FC = () => {
         setHasMore(false);
       }
       setLoading(false);
-    }, 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+      setSearchInBackground(false);
+    }, 500);
+    return () => { 
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      // Don't clear cache on unmount - keep it for lifetime
+    };
   }, [query, activeFilter, fetchSongs]);
 
   const loadMore = useCallback(async () => {
@@ -417,7 +480,10 @@ export const SearchScreen: React.FC = () => {
           onChangeText={setQuery}
           returnKeyType="search"
         />
-        {query.length > 0 && (
+        {searchInBackground && (
+          <ActivityIndicator size="small" color="#1DB954" style={{ marginRight: 8 }} />
+        )}
+        {query.length > 0 && !searchInBackground && (
           <TouchableOpacity onPress={() => setQuery("")} activeOpacity={0.7}>
             <Ionicons name="close" size={18} color="#555" />
           </TouchableOpacity>
@@ -525,12 +591,24 @@ export const SearchScreen: React.FC = () => {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#1DB954" />
             <Text style={styles.loadingText}>Searching for "{query}"...</Text>
-            <Text style={styles.loadingSubText}>This may take a few seconds</Text>
+            <Text style={styles.loadingSubText}>Please wait, this may take up to 30 seconds</Text>
           </View>
         ) : results.length === 0 && artistResults.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="musical-notes-outline" size={64} color="#333" />
             <Text style={styles.emptyText}>No results found for "{query}"</Text>
+            <Text style={styles.emptySubText}>Try different keywords or check your connection</Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => {
+                setQuery('');
+                setTimeout(() => setQuery(query), 100);
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh" size={18} color="#1DB954" />
+              <Text style={styles.retryBtnText}>Retry Search</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <>
@@ -873,7 +951,10 @@ const styles = StyleSheet.create({
   loadingText: { color: '#fff', fontSize: 14, marginTop: 12, fontWeight: '600' },
   loadingSubText: { color: '#888', fontSize: 12, marginTop: 4 },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  emptyText: { color: '#555', fontSize: 14, marginTop: 12 },
+  emptyText: { color: '#fff', fontSize: 16, marginTop: 12, fontWeight: '600' },
+  emptySubText: { color: '#888', fontSize: 13, marginTop: 6, textAlign: 'center', paddingHorizontal: 32 },
+  retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#1a1a1a', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24, marginTop: 20, borderWidth: 1, borderColor: '#1DB954' },
+  retryBtnText: { color: '#1DB954', fontSize: 14, fontWeight: '600' },
   resultsContainer: { paddingHorizontal: 16 },
   resultsActions: { marginBottom: 12 },
   resultsCount: { fontSize: 14, color: '#888', marginBottom: 8 },

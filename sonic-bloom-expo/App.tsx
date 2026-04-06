@@ -23,6 +23,7 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { SignupScreen } from './src/screens/SignupScreen';
 import { ArtistDetailScreen } from './src/screens/ArtistDetailScreen';
 import { AlbumDetailScreen } from './src/screens/AlbumDetailScreen';
+import { QueueScreen } from './src/screens/QueueScreen';
 import { MiniPlayer } from './src/components/MiniPlayer';
 import { SplashScreen } from './src/components/SplashScreen';
 
@@ -49,9 +50,9 @@ const TabNavigator = () => (
         let iconName: keyof typeof Ionicons.glyphMap = 'home-outline';
         if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
         else if (route.name === 'Search') iconName = focused ? 'search' : 'search-outline';
+        else if (route.name === 'Queue') iconName = focused ? 'list' : 'list-outline';
         else if (route.name === 'Downloads') iconName = focused ? 'download' : 'download-outline';
         else if (route.name === 'Library') iconName = focused ? 'library' : 'library-outline';
-        else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
         return <Ionicons name={iconName} size={size} color={color} />;
       },
       tabBarLabelStyle: {
@@ -62,9 +63,9 @@ const TabNavigator = () => (
   >
     <Tab.Screen name="Home" component={HomeScreen} />
     <Tab.Screen name="Search" component={SearchScreen} />
+    <Tab.Screen name="Queue" component={QueueScreen} />
     <Tab.Screen name="Downloads" component={DownloadsPage} />
     <Tab.Screen name="Library" component={LibraryScreen} />
-    <Tab.Screen name="Profile" component={ProfileScreen} />
   </Tab.Navigator>
 );
 
@@ -80,6 +81,7 @@ const MainNavigator = () => (
       <RootStack.Screen name="Playlists" component={PlaylistsPage} />
       <RootStack.Screen name="Artists" component={ArtistsPage} />
       <RootStack.Screen name="Albums" component={AlbumsPage} />
+      <RootStack.Screen name="Profile" component={ProfileScreen} />
     </RootStack.Navigator>
     <MiniPlayer />
   </View>

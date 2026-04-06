@@ -1,6 +1,7 @@
 // Static data constants for Sonic Bloom Expo
 
 export const API_BASE = "https://jiosaavn-api-privatecvc2.vercel.app";
+export const API_FALLBACK = "https://saavn.dev";
 export const YT_API = "https://sonic-bloom-player.vercel.app/api/youtube-search";
 export const YT_STREAM_API = "https://sonic-bloom-player.vercel.app/api/yt-stream";
 

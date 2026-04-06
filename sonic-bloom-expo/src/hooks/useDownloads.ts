@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
 const DOWNLOADS_KEY_PREFIX = 'sonic_downloads_';
+const DOWNLOADS_TABLE_EXISTS_KEY = 'downloads_table_checked';
 
 export interface DownloadedTrack {
   track: Track;
@@ -49,36 +50,37 @@ export const useDownloads = () => {
       if (localData) {
         try {
           const parsed = JSON.parse(localData);
-          console.log('[useDownloads] Loaded from local AsyncStorage:', parsed.length, 'songs, key:', localKey);
-          // Check if local files still exist
-          const validDownloads: DownloadedTrack[] = [];
-          for (const d of parsed) {
-            if (d.localUri) {
-              try {
-                const exists = await FileSystem.getInfoAsync(d.localUri);
-                if ((exists as any).exists) {
-                  validDownloads.push(d);
-                }
-              } catch {}
-            }
-          }
-          if (validDownloads.length > 0) {
-            setDownloads(validDownloads);
-            validDownloadsRef.current = validDownloads;
-            console.log('[useDownloads] Valid local downloads:', validDownloads.length);
-          }
-        } catch {}
+          
+          // Don't validate files - just load them
+          // File validation is expensive and causes issues
+          setDownloads(parsed);
+          validDownloadsRef.current = parsed;
+        } catch (e) {
+          console.error('[useDownloads] Failed to parse local data:', e);
+        }
       } else {
-        console.log('[useDownloads] No local data found, key:', localKey);
+        console.log('[useDownloads] No local data found');
       }
       
       // Then load from Supabase and merge with local (for logged-in users)
       if (user) {
+        // Check if table exists first
+        const tableChecked = await AsyncStorage.getItem(DOWNLOADS_TABLE_EXISTS_KEY);
+        
+        if (!tableChecked) {
+          // Try to create table if it doesn't exist
+          try {
+            // This will fail if table doesn't exist, which is fine
+            await supabase.from('downloads').select('id').limit(1);
+            await AsyncStorage.setItem(DOWNLOADS_TABLE_EXISTS_KEY, 'true');
+          } catch (e) {
+            return; // Skip Supabase operations
+          }
+        }
+        
         const { data, error } = await supabase
           .from('downloads')
           .select('*');
-        
-        console.log('[useDownloads] Load from Supabase:', { count: data?.length, error });
         
         if (!error && data && data.length > 0) {
           const supabaseDownloads = data.map((d: any) => ({
@@ -94,7 +96,6 @@ export const useDownloads = () => {
           const newFromSupabase = supabaseDownloads.filter((d: any) => !existingIds.has(String(d.track.id)));
           
           if (newFromSupabase.length > 0) {
-            console.log('[useDownloads] Adding from Supabase:', newFromSupabase.length);
             setDownloads(prev => [...prev, ...newFromSupabase]);
             // Update local cache with merged data
             const merged = [...currentDownloads, ...newFromSupabase];
@@ -118,6 +119,8 @@ export const useDownloads = () => {
       const key = getStorageKey();
       if (key) {
         await AsyncStorage.setItem(key, JSON.stringify(newDownloads));
+      } else {
+        await AsyncStorage.setItem(`${DOWNLOADS_KEY_PREFIX}guest`, JSON.stringify(newDownloads));
       }
       
       // Sync to Supabase if user is logged in (RLS ensures user-specific)
@@ -142,7 +145,6 @@ export const useDownloads = () => {
   };
 
   const isDownloaded = useCallback((trackId: string) => {
-    console.log('[useDownloads] isDownloaded check:', trackId, 'downloads length:', downloads.length);
     return downloads.some(d => d.track && d.track.id && String(d.track.id) === String(trackId));
   }, [downloads]);
 
@@ -152,17 +154,14 @@ export const useDownloads = () => {
 
   const downloadTrack = async (track: Track) => {
     const trackId = String(track.id);
-    console.log('[useDownloads] downloadTrack called:', trackId, 'already downloaded:', isDownloaded(trackId));
     
     if (!track?.src || !track?.id || isDownloaded(trackId)) {
-      console.log('[useDownloads] Skipping download - already downloaded or invalid track');
       return;
     }
 
     setDownloading(prev => ({ ...prev, [trackId]: 0 }));
 
     try {
-      console.log('[useDownloads] Starting download for:', track.title);
       const downloadDir = FileSystem.Paths.cache;
       const safeTitle = (track.title || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
       const fileName = `${trackId}_${safeTitle}.mp3`;
@@ -174,14 +173,12 @@ export const useDownloads = () => {
       setDownloading(prev => ({ ...prev, [trackId]: 100 }));
 
       const newDownload = { track, localUri, downloadedAt: Date.now() };
-      console.log('[useDownloads] Download complete, adding to downloads list');
       
       setDownloads(prev => {
         const newDownloads = [...prev, newDownload];
         saveDownloads(newDownloads);
         return newDownloads;
       });
-      console.log('[useDownloads] Download saved, total downloads now:', downloads.length + 1);
     } catch (e) {
       console.error('Failed to download track:', e);
     } finally {

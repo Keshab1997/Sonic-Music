@@ -20,6 +20,7 @@ const formatTime = (s: number) => {
 interface Props {
   visible: boolean;
   onClose: () => void;
+  showPlaylist?: boolean;
 }
 
 // Single swipeable queue row
@@ -89,10 +90,10 @@ const QueueRow: React.FC<{
   );
 };
 
-export const QueueManager: React.FC<Props> = ({ visible, onClose }) => {
+export const QueueManager: React.FC<Props> = ({ visible, onClose, showPlaylist = false }) => {
   const {
     queue, currentTrack, removeFromQueue, clearQueue,
-    playTrack, shuffleQueue, tracks, currentIndex,
+    playTrack, shuffleQueue, tracks, currentIndex, playTrackList,
   } = usePlayer();
 
   // Bottom sheet slide animation
@@ -132,9 +133,9 @@ export const QueueManager: React.FC<Props> = ({ visible, onClose }) => {
     })
   ).current;
 
-  // Up next = only queue items (user added)
-  const upNext: Track[] = [...queue];
-  const totalCount = upNext.length;
+  // Show playlist or queue based on prop
+  const displayList = showPlaylist ? tracks : queue;
+  const totalCount = displayList.length;
 
   return (
     <Modal
@@ -157,13 +158,13 @@ export const QueueManager: React.FC<Props> = ({ visible, onClose }) => {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerTitle}>Up Next</Text>
+            <Text style={styles.headerTitle}>{showPlaylist ? 'Current Playlist' : 'Up Next'}</Text>
             <Text style={styles.headerSub}>
-              {totalCount === 0 ? 'Queue is empty' : `${totalCount} track${totalCount !== 1 ? 's' : ''}`}
+              {totalCount === 0 ? (showPlaylist ? 'No tracks' : 'Queue is empty') : `${totalCount} track${totalCount !== 1 ? 's' : ''}`}
             </Text>
           </View>
           <View style={styles.headerActions}>
-            {queue.length > 0 && (
+            {!showPlaylist && queue.length > 0 && (
               <TouchableOpacity
                 style={styles.actionBtn}
                 onPress={shuffleQueue}
@@ -172,7 +173,7 @@ export const QueueManager: React.FC<Props> = ({ visible, onClose }) => {
                 <Ionicons name="shuffle" size={18} color="#1DB954" />
               </TouchableOpacity>
             )}
-            {queue.length > 0 && (
+            {!showPlaylist && queue.length > 0 && (
               <TouchableOpacity
                 style={[styles.actionBtn, styles.clearBtn]}
                 onPress={clearQueue}
@@ -204,19 +205,54 @@ export const QueueManager: React.FC<Props> = ({ visible, onClose }) => {
             </View>
           )}
 
-          {/* Queue Section - User Added */}
-          {upNext.length > 0 && (
+          {/* Queue/Playlist Section */}
+          {displayList.length > 0 && (
             <View style={styles.queueSection}>
-              <Text style={styles.sectionLabel}>YOUR QUEUE</Text>
-              {upNext.map((t, i) => (
-                <QueueRow
-                  key={`queue-${t.id}-${i}`}
-                  track={t}
-                  index={i}
-                  onRemove={removeFromQueue}
-                  onPlay={playTrack}
-                />
-              ))}
+              <Text style={styles.sectionLabel}>{showPlaylist ? 'TRACKS' : 'YOUR QUEUE'}</Text>
+              {displayList.map((t, i) => {
+                const isCurrentTrack = showPlaylist && currentTrack?.id === t.id;
+                return (
+                  <TouchableOpacity
+                    key={`${showPlaylist ? 'playlist' : 'queue'}-${t.id}-${i}`}
+                    style={[styles.playlistRow, isCurrentTrack && styles.currentTrackRow]}
+                    onPress={() => {
+                      if (showPlaylist) {
+                        playTrackList(tracks, i);
+                      } else {
+                        playTrack(t);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.trackNumber, isCurrentTrack && styles.currentTrackNumber]}>
+                      {isCurrentTrack ? '♪' : i + 1}
+                    </Text>
+                    <Image source={{ uri: t.cover }} style={styles.cover} />
+                    <View style={styles.info}>
+                      <Text style={[styles.title, isCurrentTrack && styles.currentTrackTitle]} numberOfLines={1}>
+                        {t.title}
+                      </Text>
+                      <Text style={styles.artist} numberOfLines={1}>{t.artist}</Text>
+                    </View>
+                    {t.duration > 0 && (
+                      <Text style={styles.duration}>{formatTime(t.duration)}</Text>
+                    )}
+                    {!showPlaylist && (
+                      <TouchableOpacity
+                        style={styles.removeBtn}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          removeFromQueue(i);
+                        }}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="close" size={18} color="rgba(255,255,255,0.35)" />
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
@@ -224,8 +260,8 @@ export const QueueManager: React.FC<Props> = ({ visible, onClose }) => {
           {totalCount === 0 && (
             <View style={styles.empty}>
               <Ionicons name="list-outline" size={48} color="#333" />
-              <Text style={styles.emptyTitle}>Queue is empty</Text>
-              <Text style={styles.emptySub}>Add songs using the + button</Text>
+              <Text style={styles.emptyTitle}>{showPlaylist ? 'No tracks playing' : 'Queue is empty'}</Text>
+              <Text style={styles.emptySub}>{showPlaylist ? 'Play some music to see tracks here' : 'Add songs using the + button'}</Text>
             </View>
           )}
         </ScrollView>
@@ -405,6 +441,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 12,
+  },
+  currentTrackRow: {
+    backgroundColor: 'rgba(29,185,84,0.1)',
+  },
+  trackNumber: {
+    fontSize: 14,
+    color: '#666',
+    width: 24,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  currentTrackNumber: {
+    color: '#1DB954',
+    fontSize: 16,
+  },
+  currentTrackTitle: {
+    color: '#1DB954',
   },
   cover: {
     width: 46,
