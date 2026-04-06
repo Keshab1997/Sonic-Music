@@ -9,10 +9,11 @@ import { lightHaptic, mediumHaptic } from '../lib/haptics';
 
 export const DownloadsPage: React.FC = () => {
   const { downloads, deleteTrack, deleteAll } = useDownloadsContext();
-  const { getTotalDownloadSize, formatBytes } = useDownloads();
+  const { getTotalDownloadSize, formatBytes, storageLocation, changeStorageLocation, getDownloadDirectory } = useDownloads();
   const { playTrackList, currentTrack, isPlaying, addToQueue } = usePlayer();
   const [searchQuery, setSearchQuery] = useState('');
   const [totalSize, setTotalSize] = useState('0 Bytes');
+  const [showStorageMenu, setShowStorageMenu] = useState(false);
 
   // Calculate total download size
   useEffect(() => {
@@ -123,12 +124,62 @@ export const DownloadsPage: React.FC = () => {
               <Ionicons name="folder" size={12} color="#60a5fa" />
               <Text style={styles.headerSize}>{totalSize}</Text>
             </View>
+            <TouchableOpacity 
+              style={styles.infoBadge}
+              onPress={() => setShowStorageMenu(!showStorageMenu)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name={storageLocation === 'external' ? "sd-card" : "phone-portrait"} size={12} color="#f59e0b" />
+              <Text style={styles.storageText}>{storageLocation === 'external' ? 'SD Card' : 'Internal'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
         <TouchableOpacity onPress={() => { handleDeleteAll(); lightHaptic(); }} activeOpacity={0.7}>
           <Text style={styles.deleteAllText}>Delete All</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Storage Location Menu */}
+      {showStorageMenu && (
+        <View style={styles.storageMenu}>
+          <TouchableOpacity
+            style={[styles.storageOption, storageLocation === 'internal' && styles.storageOptionActive]}
+            onPress={() => {
+              changeStorageLocation('internal');
+              setShowStorageMenu(false);
+              lightHaptic();
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="phone-portrait" size={18} color={storageLocation === 'internal' ? '#1DB954' : '#888'} />
+            <View style={styles.storageOptionText}>
+              <Text style={[styles.storageOptionTitle, storageLocation === 'internal' && styles.storageOptionTitleActive]}>Internal Storage</Text>
+              <Text style={styles.storageOptionDesc}>Save to phone memory</Text>
+            </View>
+            {storageLocation === 'internal' && <Ionicons name="checkmark-circle" size={20} color="#1DB954" />}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.storageOption, storageLocation === 'external' && styles.storageOptionActive]}
+            onPress={() => {
+              changeStorageLocation('external');
+              setShowStorageMenu(false);
+              lightHaptic();
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="sd-card" size={18} color={storageLocation === 'external' ? '#1DB954' : '#888'} />
+            <View style={styles.storageOptionText}>
+              <Text style={[styles.storageOptionTitle, storageLocation === 'external' && styles.storageOptionTitleActive]}>SD Card</Text>
+              <Text style={styles.storageOptionDesc}>Save to memory card</Text>
+            </View>
+            {storageLocation === 'external' && <Ionicons name="checkmark-circle" size={20} color="#1DB954" />}
+          </TouchableOpacity>
+          <View style={styles.storageInfo}>
+            <Ionicons name="information-circle" size={14} color="#888" />
+            <Text style={styles.storageInfoText}>New downloads will be saved to selected location</Text>
+          </View>
+        </View>
+      )}
 
       {/* Search Bar */}
       <View style={styles.searchBar}>
@@ -189,7 +240,17 @@ const styles = StyleSheet.create({
   infoBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1a1a1a', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   headerCount: { fontSize: 12, color: '#1DB954', fontWeight: '600' },
   headerSize: { fontSize: 12, color: '#60a5fa', fontWeight: '600' },
+  storageText: { fontSize: 12, color: '#f59e0b', fontWeight: '600' },
   deleteAllText: { fontSize: 14, color: '#ef4444', fontWeight: '600' },
+  storageMenu: { backgroundColor: '#1a1a1a', marginHorizontal: 16, marginBottom: 8, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: '#333' },
+  storageOption: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 8 },
+  storageOptionActive: { backgroundColor: '#0d1f0d' },
+  storageOptionText: { flex: 1 },
+  storageOptionTitle: { fontSize: 14, color: '#fff', fontWeight: '600' },
+  storageOptionTitleActive: { color: '#1DB954' },
+  storageOptionDesc: { fontSize: 11, color: '#888', marginTop: 2 },
+  storageInfo: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, marginTop: 4 },
+  storageInfoText: { fontSize: 10, color: '#888', flex: 1 },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginHorizontal: 16, marginBottom: 8, gap: 10 },
   searchInput: { flex: 1, color: '#fff', fontSize: 15 },
   playAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#1DB954', marginHorizontal: 16, paddingVertical: 12, borderRadius: 24, marginBottom: 8 },

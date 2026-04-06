@@ -1,12 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
 import { Track } from '../data/playlist';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
 const DOWNLOADS_KEY_PREFIX = 'sonic_downloads_';
 const DOWNLOADS_TABLE_EXISTS_KEY = 'downloads_table_checked';
+const STORAGE_LOCATION_KEY = 'sonic_storage_location';
+
+export type StorageLocation = 'internal' | 'external';
 
 export interface DownloadedTrack {
   track: Track;
@@ -18,6 +22,7 @@ export const useDownloads = () => {
   const { user } = useAuth();
   const [downloads, setDownloads] = useState<DownloadedTrack[]>([]);
   const [downloading, setDownloading] = useState<Record<string, number>>({});
+  const [storageLocation, setStorageLocation] = useState<StorageLocation>('internal');
   const prevUserIdRef = useRef<string | null>(null);
   const validDownloadsRef = useRef<DownloadedTrack[]>([]);
 
@@ -26,7 +31,42 @@ export const useDownloads = () => {
     return user ? `${DOWNLOADS_KEY_PREFIX}${user.id}` : null;
   }, [user]);
 
+  // Get download directory based on storage location
+  const getDownloadDirectory = useCallback(() => {
+    if (Platform.OS === 'android' && storageLocation === 'external') {
+      // For Android external storage (SD card)
+      // Using Music directory which is accessible on most devices
+      return `${FileSystem.Paths.document}../Music/SonicBloom/`;
+    }
+    // Default: Internal storage (document directory)
+    return `${FileSystem.Paths.document}downloads/`;
+  }, [storageLocation]);
+
+  // Change storage location
+  const changeStorageLocation = useCallback(async (location: StorageLocation) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_LOCATION_KEY, location);
+      setStorageLocation(location);
+      console.log(`[useDownloads] Storage location changed to: ${location}`);
+    } catch (e) {
+      console.error('Failed to change storage location:', e);
+    }
+  }, []);
+
   useEffect(() => {
+    // Load storage location preference
+    const loadStorageLocation = async () => {
+      try {
+        const location = await AsyncStorage.getItem(STORAGE_LOCATION_KEY);
+        if (location === 'external' || location === 'internal') {
+          setStorageLocation(location);
+        }
+      } catch (e) {
+        console.error('Failed to load storage location:', e);
+      }
+    };
+    loadStorageLocation();
+
     // Clear data when user changes
     if (prevUserIdRef.current && prevUserIdRef.current !== user?.id) {
       setDownloads([]);
@@ -173,8 +213,8 @@ export const useDownloads = () => {
     setDownloading(prev => ({ ...prev, [trackId]: 0 }));
 
     try {
-      // Use document directory for permanent storage instead of cache
-      const downloadDir = `${FileSystem.Paths.document}downloads/`;
+      // Get download directory based on user preference
+      const downloadDir = getDownloadDirectory();
       
       // Create downloads directory if it doesn't exist
       const dirInfo = await FileSystem.getInfoAsync(downloadDir);
@@ -298,5 +338,8 @@ export const useDownloads = () => {
     isDownloading,
     getTotalDownloadSize,
     formatBytes,
+    storageLocation,
+    changeStorageLocation,
+    getDownloadDirectory,
   };
 };
